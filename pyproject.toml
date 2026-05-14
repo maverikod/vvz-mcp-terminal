@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-terminal"
+version = "0.1.0"
+description = "OpenAPI service: terminal in a container with MCP proxy integration."
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Vasiliy Zdanovskiy", email = "vasilyvz@gmail.com" },
+]
+dependencies = [
+  "mcp-proxy-adapter>=8.10.12,<9",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "black>=24.0",
+  "flake8>=7.0",
+  "mypy>=1.8.0",
+]
+
+[project.scripts]
+termgr = "mcp_terminal.termgr:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_terminal*"]
+
+[tool.setuptools.package-data]
+mcp_terminal = ["term_server.defaults.json"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = "/(\\.venv|build|dist)/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["mcp_terminal"]
+warn_unused_configs = true
+strict = false
+disallow_untyped_defs = true

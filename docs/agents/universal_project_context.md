@@ -14,6 +14,8 @@ All universal rules are in **[`docs/PROJECT_RULES.md`](../PROJECT_RULES.md)**:
 | **§2** | `CR-*` core rules (e.g. **CR-005** venv, **CR-015** pip overrides, **CR-016** parallelize independent work). |
 | **§3** | `LAYOUT-*` repository layout. |
 | **§4–§5** | `NAME-*` naming and anti-patterns. |
+| **§8** | Planning lifecycle (`PLAN-*`): machine plan standard, HRS/MRS/GS verification, tactical and atomic YAML procedures. |
+| **§9** | Adapter MCP commands (`ADP-*`): `docs/metadatastd.md` for command schema/metadata. |
 
 Cross-project layout or naming changes belong **only** in `PROJECT_RULES.md`, not in [`project_overlay.md`](project_overlay.md).
 

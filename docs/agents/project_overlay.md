@@ -3,37 +3,41 @@ Author: Vasiliy Zdanovskiy
 email: vasilyvz@gmail.com
 -->
 
-# Project overlay — `svo_client` (this repository)
+# Project overlay — `mcp_terminal` (this repository)
 
 Repository-specific paths, behavior, and restrictions. Universal layout: [`PROJECT_RULES.md`](../PROJECT_RULES.md) §3 (`LAYOUT-*`).
 
 ## Functional context
 
-- **Role:** Python **client / CLI** for chunking and related services (MCP proxy, HTTP/mTLS examples, local integration scripts).
-- **Installable package:** [`svo_client/`](../svo_client/) — public API, CLI, config helpers, errors.
-- **Tests:** primary suite under [`tests/`](../tests/) (pytest). Root-level `test_*.py` / `integration_*.py` are legacy runners; **new pytest** tests belong under `tests/`. **Non-pytest** harnesses and ops-style checks → [`scripts/`](../scripts/) per **LAYOUT-07**.
-- **API contract reference:** [`docs/openapi.json`](../openapi.json) when aligning client behavior with server shapes.
-- **Planning stack (when used):** under `docs/tech_spec/` per hierarchy agents (`tech_spec.md`, `steps/`, `branches/...`).
+- **Product:** An **OpenAPI**-described service whose job is to expose, to models, a **shell terminal running inside a container**, with the **end-user project directory bind-mounted** into that container so commands see the same tree the user cares about.
+- **MCP path:** Clients (e.g. Cursor) talk to an **MCP proxy**; the proxy forwards tool calls to this service so **LLMs receive terminal access** through the MCP tool surface, not by shelling out on the host IDE machine.
+- **Separation:** The **user’s application repo** is data/runtime context (mount target); **this repository** holds the server implementation, ops assets, and agent/rules docs. Keep contract docs (OpenAPI) aligned with what the proxy exposes.
+- **What lives here today:** production package [`mcp_terminal/`](../../mcp_terminal/), [`pyproject.toml`](../../pyproject.toml), [`requirements.txt`](../../requirements.txt) / [`requirements-dev.txt`](../../requirements-dev.txt), [`.flake8`](../../.flake8); plus [`.cursor/`](../../.cursor/), [`docs/agents/`](../agents/), [`docs/planning/`](../planning/), optional [`rules_template_agents_protocols_updated.zip`](../../rules_template_agents_protocols_updated.zip). Profile: [`PROJECT_RULES.md`](../PROJECT_RULES.md) §7.
+- **Tests:** automated tests under [`tests/`](../../tests/) per **LAYOUT-02**; **non-pytest** harnesses, container smoke scripts, and integration runners under [`scripts/`](../../scripts/) per **LAYOUT-07**.
+- **Planning stack (when used):** `docs/plans/` (per [`plan_standard_machine.yaml`](../planning/plan_standard_machine.yaml)) and/or `docs/tech_spec/` for formal work. **Mandatory process:** [`PROJECT_RULES.md`](../PROJECT_RULES.md) **§8** (`PLAN-*`) and `.cursor/rules/planning_workflow.mdc` when those paths are in play.
 
 ## Directories and files beyond the universal skeleton
 
 | Path | Note |
 |------|------|
-| `certs/` | Sample / dev TLS material; do not commit real production private keys. |
-| `code_analysis/` | Generated indices when `code_mapper` is run (`USE_CODE_MAP` = yes in [`PROJECT_RULES.md`](../PROJECT_RULES.md) §7). |
-| `code_analysis_reports/` | Alternate/older mapper output location — treat as generated; prefer one canonical index path per task. |
-| `docs/specs/` | Feature specs and plans (may be large). |
-| `docs/bugs/` | Stable / structured bug write-ups (legacy layout allowed). |
-| `docs/ai_reports/` | Working AI reports per universal `LAYOUT-06`. |
-| `scripts/` | Ops, maintenance, and **non-pytest** runners per universal **LAYOUT-07** (not the pytest tree under `tests/`). |
-| Root `*.py` (non-package) | Examples, one-off clients, demos — not part of the `svo_client` package API unless re-exported. |
+| `mcp_terminal/` | Installable Python package (flat layout, no `src/`); depends on **`mcp-proxy-adapter`** (see `pyproject.toml`). |
+| `pyproject.toml` | Project metadata, runtime + dev dependencies, `black` / `pytest` / `mypy` tool defaults. |
+| `requirements.txt` | Editable install of this repo (`-e .`) for production-like envs. |
+| `requirements-dev.txt` | Editable install with `[dev]` extras (pytest, black, flake8, mypy). |
+| `mcp_terminal/commands/` | MCP command modules for **mcp-proxy-adapter**; follow **`docs/metadatastd.md`** and **`PROJECT_RULES.md` §9** (`ADP-01`). |
+| `docs/metadatastd.md` | Canonical template for command schema + metadata; keep in sync with real command classes. |
+| `docs/planning/` | YAML/Markdown standards for tactical and atomic steps (shared with formal agent protocol). |
+| `docs/ai_reports/` | Working AI outputs per **LAYOUT-06** (promote finished write-ups into stable `docs/` subtrees). |
+| `configs/` | Sample OpenAPI fragments, non-secret defaults, or example mount policies — not production secrets (**LAYOUT-04**). |
+| `rules_template_agents_protocols_updated.zip` | Portable rules bundle; README inside describes merge and adaptation checklist. |
+| `projectid` (repo root) | **CR-003** identity for this workspace; sample shape in [`projectid.example.json`](../projectid.example.json). |
 
 ## Project-specific restrictions
 
-- **Secrets:** Never add real credentials, API keys, or production cert private keys to the repo.
-- **Scope:** Changes should stay within **this** repository unless the user explicitly allows touching other paths.
-- **Compatibility:** Client behavior may be constrained by **server version**; document breaking assumptions in the relevant spec or PR, not only in code comments.
-- **Generated artifacts:** Do not hand-edit `code_analysis/*.yaml` — regenerate via `code_mapper` when required by project rules.
+- **Scope:** User project trees arrive as **mounted volumes** inside the service’s containers; do not assume the server repo contains those sources except for local dev fixtures.
+- **Safety:** Terminal-in-container features must respect **resource limits**, **working-directory** policy, and **path confinement** relative to the mount (document and enforce in OpenAPI + implementation; avoid “escape the mount” footguns).
+- **Secrets:** Do not commit credentials, tokens, or private keys; use **`configs/`** for non-secret samples only (**LAYOUT-04**).
+- **Generated indices:** With `USE_CODE_MAP` = `no`, do not introduce `code_analysis/` until §7 enables it and a mapper is wired.
 
 ## Filled profile pointer
 

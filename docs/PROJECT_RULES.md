@@ -6,9 +6,11 @@ Author line above: set to project owner after copy, or remove if unused.
 
 # Project rules (canonical template)
 
-Use rule IDs: `CR-*`, `LAYOUT-*`, `NAME-*` (e.g. `CR-007`, `LAYOUT-02`).
+Use rule IDs: `CR-*`, `LAYOUT-*`, `NAME-*`, `PLAN-*`, `ADP-*` (e.g. `CR-007`, `PLAN-01`).
 
 Optional: [`docs/assistant_rules_inventory.md`](assistant_rules_inventory.md) for MCP, transcripts, §24–§25.
+
+**Planning stack:** §8 (`PLAN-*`). **Adapter commands:** §9 (`ADP-*`). Cursor applies matching rules from `.cursor/rules/planning_workflow.mdc` and `.cursor/rules/adapter_command_standard.mdc` when globs hit those paths.
 
 Active subagent file in `.cursor/agents/*.md` overrides conflicting rows in this document for that role.
 
@@ -41,9 +43,10 @@ Replace placeholders when **creating** or **adopting** a project. Models should 
 | 1 | **Current user message** — explicit instruction wins. |
 | 2 | **Safety / repo boundary** — `CR-002`. |
 | 3 | **Active subagent role** — `.cursor/agents/<name>.md` if present. |
-| 4 | **This file** — `CR-*`, `LAYOUT-*`, `NAME-*`, and §0 profile. |
-| 5 | **`docs/assistant_rules_inventory.md`** — if present. |
-| 6 | Tool / IDE defaults. |
+| 4 | **This file** — `CR-*`, `LAYOUT-*`, `NAME-*`, §0 profile, **§8–§9** (`PLAN-*`, `ADP-*`). |
+| 5 | **Scoped IDE rules** — `.cursor/rules/planning_workflow.mdc` / `adapter_command_standard.mdc` when the active file matches their globs (same normative content as §8–§9 + linked docs). |
+| 6 | **`docs/assistant_rules_inventory.md`** — if present. |
+| 7 | Tool / IDE defaults. |
 
 ---
 
@@ -101,7 +104,7 @@ Default for new projects; adjust in §0 if monorepo or polyglot requires extra r
 
 Optional generated indices (if `USE_CODE_MAP` = yes): e.g. `code_analysis/` — name in profile.
 
-**Also read for this repo:** [`docs/agents/project_overlay.md`](agents/project_overlay.md). **Section map:** [`docs/agents/universal_project_context.md`](agents/universal_project_context.md).
+**Also read for this repo:** [`docs/agents/project_overlay.md`](agents/project_overlay.md). **Section map:** [`docs/agents/universal_project_context.md`](agents/universal_project_context.md). **Planning / adapter commands:** §8–§9.
 
 ---
 
@@ -143,15 +146,13 @@ Optional generated indices (if `USE_CODE_MAP` = yes): e.g. `code_analysis/` — 
 
 ---
 
-## 7. Filled profile — this repository (example)
-
-**When copying this file to a new project, delete §7** and fill only §0.
+## 7. Filled profile — this repository
 
 | Key | Value |
 |-----|-------|
-| `PROJECT_SLUG` | `svo_client` |
-| `PRIMARY_LANGUAGE` | `Python` |
-| `PACKAGE_ROOT` | `svo_client/` |
+| `PROJECT_SLUG` | `mcp_terminal` |
+| `PRIMARY_LANGUAGE` | `Python` (OpenAPI + MCP proxy; `requires-python` ≥ 3.12 in `pyproject.toml`) |
+| `PACKAGE_ROOT` | `mcp_terminal/` |
 | `TEST_FRAMEWORK` | `pytest` |
 | `VENV_DIR` | `.venv` |
 | `CHAT_LOCALE` | `ru` (user preference) |
@@ -159,4 +160,32 @@ Optional generated indices (if `USE_CODE_MAP` = yes): e.g. `code_analysis/` — 
 | `HEADER_AUTHOR` | `Vasiliy Zdanovskiy` |
 | `HEADER_EMAIL` | `vasilyvz@gmail.com` |
 | `DOC_FILENAME_STYLE` | `snake_case` (existing `docs/` may mix legacy names) |
-| `USE_CODE_MAP` | `yes` (`code_mapper` → `code_analysis/`) |
+| `USE_CODE_MAP` | `no` (no `code_analysis/` index for this repo until application code exists) |
+
+---
+
+## 8. Development planning (`PLAN-*`)
+
+Applies when **authoring**, **verifying**, **decomposing**, or **implementing** work that uses this repository’s plan hierarchy (`docs/plans/...` per [`plan_standard_machine.yaml`](planning/plan_standard_machine.yaml), or an equivalent `docs/tech_spec/...` tree if the task explicitly uses that layout).
+
+| ID | Phase | Normative sources (read before writing or changing artifacts) |
+|----|--------|------------------------------------------------------------------|
+| **PLAN-01** | Artifact structure, levels L1–L5, cascade, invariants I1–I3, statuses | [`docs/planning/plan_standard_machine.yaml`](planning/plan_standard_machine.yaml); narrative: [`docs/planning/plan_standard.md`](planning/plan_standard.md) |
+| **PLAN-02** | After a draft plan exists, **before** tactical (L4) or atomic (L5) work | [`docs/planning/hrs_mrs_gs_consistency_verification_standard.yaml`](planning/hrs_mrs_gs_consistency_verification_standard.yaml) — cycles for HRS↔MRS and G-step autonomy must be **green** when that standard applies |
+| **PLAN-03** | Tactical steps (L4) | [`docs/planning/tactical_step_creation_standard.yaml`](planning/tactical_step_creation_standard.yaml) — only after PLAN-02 cycles are green; respect autonomy and non-overlap rules |
+| **PLAN-04** | Atomic steps (L5, inline under tactical `README.yaml`) | [`docs/planning/atomic_step_creation_standard.yaml`](planning/atomic_step_creation_standard.yaml) — one AS → one code file, self-contained quadruple, priority ordering |
+| **PLAN-05** | **Code edits** that realize a frozen / in-progress atomic step | Enforce invariants from **PLAN-04** and **plan_standard_machine.yaml** (single target file per AS unless the plan explicitly revises steps; do not split one AS across files). If the task is **not** plan-driven, PLAN-* does not invent extra process—only when the user or artifacts tie work to a plan path |
+
+Orchestrators and tactical agents should load **PLAN-01** first, then **PLAN-02** before lower layers; coders executing atomic work load **PLAN-04** + the parent TS/GS/MRS slice referenced by that step.
+
+---
+
+## 9. MCP adapter commands (`ADP-*`)
+
+Applies to **new or edited** MCP command modules under **`mcp_terminal/commands/`** (and split `*_schema.py` / `*_metadata.py` siblings), and when changing the standard itself.
+
+| ID | Rule |
+|----|------|
+| **ADP-01** | Follow [`docs/metadatastd.md`](metadatastd.md): required command class shape; **`get_schema()`** vs **`metadata()`** stay separate; schema subset and `validate_params()` semantics; naming of `*_command` / `*_schema` / `*_metadata` modules; registration hooks; review checklist before merge |
+
+External transport is owned by **`mcp-proxy-adapter`**; this repo only registers commands and keeps schema/metadata aligned with that contract.

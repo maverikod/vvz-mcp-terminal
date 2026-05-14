@@ -1,0 +1,30 @@
+---
+description: PLAN-* — plan authoring, verification, tactical/atomic layers, and plan-driven code
+globs:
+  - docs/plans/**/*
+  - docs/tech_spec/**/*
+  - docs/planning/**/*
+  - mcp_terminal/**/*.py
+---
+
+# Planning workflow (normative)
+
+Canonical IDs and tables: **`docs/PROJECT_RULES.md` §8** (`PLAN-*`). This rule activates when matched files are in context.
+
+## Load order (do not skip for plan-driven work)
+
+1. **PLAN-01** — [`docs/planning/plan_standard_machine.yaml`](../../docs/planning/plan_standard_machine.yaml) + [`docs/planning/plan_standard.md`](../../docs/planning/plan_standard.md): artifact levels L1–L5, cascade, invariants, paths under `docs/plans/<plan_name>/…`.
+2. **PLAN-02** — [`docs/planning/hrs_mrs_gs_consistency_verification_standard.yaml`](../../docs/planning/hrs_mrs_gs_consistency_verification_standard.yaml): run **before** tactical/atomic authoring; cycles must be **green** when this standard applies.
+3. **PLAN-03** — [`docs/planning/tactical_step_creation_standard.yaml`](../../docs/planning/tactical_step_creation_standard.yaml): tactical steps (L4) after upper cycles are green.
+4. **PLAN-04** — [`docs/planning/atomic_step_creation_standard.yaml`](../../docs/planning/atomic_step_creation_standard.yaml): atomic steps (L5); one AS → one code file; prompts self-contained per that standard.
+
+## Implementation (`mcp_terminal/`)
+
+When the **task** is tied to a plan path (`docs/plans/**` or `docs/tech_spec/**`) or to a named atomic/tactical step:
+
+- Obey **PLAN-05** in `PROJECT_RULES.md` §8: respect atomic invariants (single file per AS, priority order, no cross-AS prompt leakage as forbidden by the YAML).
+- If the task is **not** plan-driven, ignore planning-only constraints; still follow `CR-*` / `NAME-*`.
+
+## Editing files under `docs/planning/`
+
+Treat edits to `*.yaml` / `plan_standard.md` as **standards maintenance**: keep them internally consistent with **PLAN-01** hierarchy and cross-references between the four YAML files.

@@ -1,0 +1,28 @@
+---
+description: ADP-* — MCP command schema/metadata and adapter registration (mcp-proxy-adapter)
+globs:
+  - mcp_terminal/commands/**/*.py
+  - docs/metadatastd.md
+---
+
+# Adapter command standard (normative)
+
+Canonical ID: **`docs/PROJECT_RULES.md` §9** (**ADP-01**). This rule activates when command modules or the standard file itself are in context.
+
+## Mandatory reference
+
+Read and apply **[`docs/metadatastd.md`](../../docs/metadatastd.md)** end-to-end for:
+
+- Required **command class** shape (`name`, `version`, `descr`, `get_schema`, `validate_params`, `execute`, `metadata`).
+- **Separation**: `get_schema()` machine validation vs `metadata()` AI/docs — do not merge into one blob.
+- JSON-schema subset rules, `additionalProperties`, semantic checks in `validate_params()`.
+- File naming: `*_command.py`, `*_schema.py`, `*_metadata.py` for non-trivial commands.
+- Registration expectations (`hooks`, `commands/registration.py`, etc., as listed in that doc).
+- **Review checklist** before considering a command complete (help surface, destructive flags, examples).
+
+## Scope
+
+- **In scope:** anything under `mcp_terminal/commands/**/*.py` (including new commands, schema/metadata splits, registration wiring).
+- **Out of scope:** implementing HTTP routes in the adapter itself — external surface stays in **`mcp-proxy-adapter`**.
+
+When editing **`docs/metadatastd.md`**, preserve backward compatibility for existing commands unless the task explicitly migrates them.

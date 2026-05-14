@@ -1,0 +1,99 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3011,
+    "protocol": "https",
+    "servername": "127.0.0.1",
+    "ssl": {
+      "cert": "../mtls_certificates/server/mcp-proxy.pem",
+      "key": "../mtls_certificates/server/mcp-proxy.pem",
+      "ca": "../mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": null
+    },
+    "rules": null,
+    "log_dir": "./logs",
+    "debug": false,
+    "log_level": "INFO",
+    "advertised_host": null
+  },
+  "client": {
+    "enabled": false,
+    "protocol": "https",
+    "ssl": {
+      "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
+      "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
+      "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    }
+  },
+  "registration": {
+    "enabled": true,
+    "protocol": "https",
+    "register_url": "https://127.0.0.1:3004/register",
+    "unregister_url": "https://127.0.0.1:3004/unregister",
+    "heartbeat_interval": 30,
+    "server_id": "mcp-terminal",
+    "server_name": "MCP Terminal",
+    "instance_uuid": "00000000-0000-4000-8000-000000000001",
+    "auto_on_startup": true,
+    "auto_on_shutdown": true,
+    "ssl": {
+      "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
+      "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
+      "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    },
+    "heartbeat": {
+      "url": "https://127.0.0.1:3004/proxy/heartbeat",
+      "interval": 30
+    }
+  },
+  "server_validation": {
+    "enabled": false,
+    "protocol": "http",
+    "ssl": null,
+    "timeout": 10,
+    "use_token": false,
+    "use_roles": false,
+    "tokens": {},
+    "roles": {},
+    "auth_header": "X-API-Key",
+    "roles_header": "X-Roles",
+    "health_path": "/health",
+    "check_hostname": false
+  },
+  "auth": {
+    "use_token": false,
+    "use_roles": false,
+    "tokens": {},
+    "roles": {}
+  },
+  "queue_manager": {
+    "enabled": true,
+    "in_memory": true,
+    "registry_path": null,
+    "shutdown_timeout": 30.0,
+    "max_concurrent_jobs": 10,
+    "max_queue_size": null,
+    "per_job_type_limits": null,
+    "completed_job_retention_seconds": 21600,
+    "default_poll_interval": 0.0,
+    "default_max_wait_time": null,
+    "command_timeout": null,
+    "stop_job_wait_timeout": null
+  },
+  "orchestration": {
+    "discovery_enabled": false,
+    "polling_interval": 30.0,
+    "initial_poll_timeout": 60.0,
+    "stale_snapshot_behavior": "keep",
+    "mutex_lock_timeout": 5.0,
+    "static_servers": []
+  }
+}

@@ -1,0 +1,20 @@
+# Normalize text line endings in the repository (Linux/macOS CI + containers).
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Declared binaries (avoid CRLF / merge corruption)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.zip binary
+*.gz binary
+*.pdf binary

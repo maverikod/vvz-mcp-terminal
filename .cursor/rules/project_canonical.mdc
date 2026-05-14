@@ -5,10 +5,11 @@ alwaysApply: true
 
 # Project rules pointer
 
-1. **Canonical template:** `docs/PROJECT_RULES.md` — fill **§0 Project profile** per repo; obey `CR-*`, `LAYOUT-*`, `NAME-*`.
+1. **Canonical template:** `docs/PROJECT_RULES.md` — fill **§0 Project profile** per repo; obey `CR-*`, `LAYOUT-*`, `NAME-*`, **`PLAN-*`**, **`ADP-*`** (§8–§9).
 2. **Context files:** `docs/agents/universal_project_context.md`, `docs/agents/project_overlay.md`, `docs/agents/common_agent_rules.md` (index: `docs/agents/README.md`).
-3. **Optional:** `docs/assistant_rules_inventory.md` (if present).
-4. **Subagents:** `.cursor/agents/*.md` — top block lists context files; body is role rules.
+3. **When globs match:** `planning_workflow.mdc` (plans / `docs/tech_spec` / planning standards / plan-driven code), `adapter_command_standard.mdc` (`mcp_terminal/commands/**`, `docs/metadatastd.md`).
+4. **Optional:** `docs/assistant_rules_inventory.md` (if present).
+5. **Subagents:** `.cursor/agents/*.md` — top block lists context files; body is role rules.
 
 **After code edits:** `CR-005` (venv), `CR-007` (linters/typecheck), `CR-006` (indexing if `USE_CODE_MAP` = yes). **Missing `projectid` (when used):** `CR-003` — report and stop.
 
