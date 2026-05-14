@@ -386,7 +386,6 @@ Recommended baseline command and package set:
 | Archives | `tar`, `gzip`, `gunzip`, `zip`, `unzip`, `7z` / `p7zip` | Inspect and unpack common local artifacts, including `.7z` archives. |
 | Local databases | `sqlite3` | Inspect project-local SQLite databases without installing extra packages. |
 | Version control | `git` | Inspect repository state, diffs, branches, and local history. Network operations remain controlled by network policy. |
-| Version control | `git` | Inspect repository state, diffs, branches, and local history. Network operations remain controlled by network policy. |
 | Process diagnostics | `ps`, `pgrep`, `pkill` | Inspect and stop processes inside the sandbox only. |
 | Test runner | `pytest`, `pytest-cov`, `coverage` | Run tests and coverage. |
 | Formatting | `black`, `isort` | Format Python code and imports. |
