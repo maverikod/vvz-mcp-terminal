@@ -368,7 +368,103 @@ The image allowlist must define:
 - default user;
 - available tools;
 - network policy compatibility;
-- whether write mode is allowed;
+- maximum timeout.
+
+### 13.1 Baseline tools for `python_dev_3_12`
+
+The default Python image profile must be useful for real Python project work without exposing host-control capabilities.
+
+`venv` support is mandatory. The image must include the OS packages needed for `python -m venv` to work. A Python profile without working `venv` is not acceptable.
+
+Recommended baseline command and package set:
+
+| Group | Tools | Purpose |
+|-------|-------|---------|
+| Python runtime | `python`, `python3`, `pip`, `python -m venv`, `ensurepip` | Run Python code and create project-local virtual environments. |
+| Shell basics | `bash`, `sh`, `env`, `pwd`, `ls`, `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `xargs`, `tee`, `printf`, `test`, `true`, `false` | Basic diagnostics and command composition. |
+| File inspection | `find`, `grep`, `rg`, `sed`, `awk`, `file`, `stat`, `du`, `tree` | Inspect source trees inside `/workspace`. |
+| Structured data | `jq`, `python -m json.tool` | Inspect JSON output and config files. |
+| Archives | `tar`, `gzip`, `gunzip`, `zip`, `unzip` | Inspect and unpack common local artifacts. |
+| Version control | `git` | Inspect repository state, diffs, branches, and local history. Network operations remain controlled by network policy. |
+| Process diagnostics | `ps`, `pgrep`, `pkill` | Inspect and stop processes inside the sandbox only. |
+| Test runner | `pytest`, `pytest-cov`, `coverage` | Run tests and coverage. |
+| Formatting | `black`, `isort` | Format Python code and imports. |
+| Linting | `flake8`, `ruff` | Static quality checks. `flake8` is the correct spelling; `flask8` is invalid. |
+| Typing | `mypy` | Static type checking. |
+| Packaging | `build`, `wheel`, `setuptools`, `pip-tools` | Build packages and manage pinned dependency files. |
+| Security audit | `bandit`, `pip-audit` | Local code and dependency security checks. Dependency audit may require `network: package_registry`. |
+| Dependency inspection | `pipdeptree` | Inspect installed dependency graphs. |
+| Optional workflow | `tox`, `nox`, `pre-commit` | Common project automation tools. Include if image size is acceptable. |
+
+The baseline image should also contain CA certificates and TLS support required by `pip` when `network: package_registry` is enabled.
+
+### 13.2 Dependency installation policy
+
+The intended dependency workflow is:
+
+1. Create or reuse a project-local virtual environment under `/workspace/.venv` when write mode is allowed, or under `/scratch/.venv` when the project is read-only.
+2. Install dependencies with `pip` only when the request uses `network: package_registry`, unless dependencies are available from an offline wheelhouse/cache.
+3. Keep package indexes policy-controlled. The model may not inject arbitrary index URLs unless server policy explicitly allows them.
+4. Do not pass host secrets, registry tokens, SSH keys, or cloud credentials into the sandbox by default.
+
+Recommended commands that must work in `python_dev_3_12`:
+
+```text
+python -m venv .venv
+python -m pip install -U pip setuptools wheel
+python -m pip install -r requirements.txt
+python -m pytest
+python -m black --check .
+python -m flake8 .
+python -m mypy .
+python -m ruff check .
+```
+
+### 13.3 Tools intentionally excluded from MVP images
+
+The MVP image must not include host-control or container-control tools that make escape attempts easier.
+
+Exclude by default:
+
+```text
+docker
+podman
+kubectl
+helm
+ssh
+scp
+sftp
+rsync
+systemctl
+sudo
+su
+mount
+umount
+iptables
+nft
+ip
+ifconfig
+tcpdump
+nmap
+socat
+nc
+netcat
+```
+
+Compilers and native build tools such as `gcc`, `g++`, `make`, and `cmake` should be excluded from the default `python_dev_3_12` profile to reduce attack surface. If native extension builds are required, create a separate `python_build_3_12` image profile with stricter resource limits and the same filesystem/network isolation.
+
+### 13.4 Command policy layer
+
+The runtime should support command policy in addition to image contents.
+
+For MVP, the recommended default is:
+
+- allow execution of installed baseline tools;
+- deny direct execution of excluded tools even if accidentally present in the image;
+- deny absolute executable paths outside the safe `PATH`;
+- deny commands containing empty argv or NUL bytes;
+- record the resolved executable path in the audit record;
+- treat package installation as a sensitive operation requiring `network: package_registry`.
 - maximum timeout.
 
 ## 14. API Commands
