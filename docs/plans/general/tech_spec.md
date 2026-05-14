@@ -75,7 +75,7 @@ The model receives a controlled project sandbox, not a host terminal.
 
 The model must only be able to affect the resolved project directory according to the selected access mode and must not be able to escape to the host or other projects.
 
-## 6. Project Resolution
+## 6. Project Discovery and Resolution
 
 The API must accept `project_id`, not a host path.
 
@@ -95,33 +95,76 @@ Forbidden input pattern:
 }
 ```
 
-The server resolves `project_id` to a project root through a trusted registry.
+### 6.1 Configured projects root
+
+The server configuration must contain a section that defines the host directory containing project subdirectories.
+
+Example configuration:
+
+```yaml
+projects:
+  root_dir: /home/vasilyvz/projects/tools
+  marker_file: projectid
+  marker_format: json
+  require_uuid4_id: true
+  allow_nested_projects: false
+```
+
+Only direct subdirectories of `projects.root_dir` are candidates by default.
+
+A candidate directory is considered a project only when it contains the application marker file configured by `projects.marker_file`. The default marker file name is `projectid`.
+
+The marker file must be JSON. The minimum required shape is:
+
+```json
+{
+  "id": "<uuid4>",
+  "description": "<human-readable project description>"
+}
+```
+
+The value of `id` is the project identifier accepted by the API as `project_id`. The directory name is not the project identity; it is only the host-side location under `projects.root_dir`.
+
+### 6.2 Discovery rules
+
+On startup and on explicit refresh, the server scans `projects.root_dir` and builds a project registry from valid marker files.
+
+Discovery must reject:
+
+- files directly inside `projects.root_dir`;
+- directories without the marker file;
+- marker files that are not valid JSON;
+- marker files without `id`;
+- marker files whose `id` is not a UUID4 when `require_uuid4_id` is enabled;
+- duplicate project ids;
+- project directories that resolve outside `projects.root_dir`;
+- nested project markers when `allow_nested_projects` is false.
+
+If duplicates are found, all conflicting projects must be disabled until the operator fixes the conflict.
+
+### 6.3 Runtime resolution
+
+At command execution time, the server resolves `project_id` through the registry created from marker files.
 
 Before mounting, the server must perform canonical path checks:
 
 ```text
+real_projects_root = realpath(config.projects.root_dir)
 real_project_path = realpath(project.root)
-real_allowed_root = realpath(project.watch_root)
 
-real_project_path must be equal to real_allowed_root/project_name
-or must be strictly inside real_allowed_root according to configured policy.
+real_project_path must be a direct child of real_projects_root
+unless allow_nested_projects is explicitly enabled.
 ```
 
 The check must reject:
 
 - missing projects;
-- deleted projects;
+- deleted or disabled projects;
 - paused projects if policy forbids execution;
-- paths outside allowlisted watch roots;
+- paths outside `projects.root_dir`;
 - symlink escapes;
 - relative path traversal;
 - project roots that are files instead of directories.
-
-## 7. Container Mount Model
-
-The project root is mounted at a fixed path:
-
-```text
 /workspace
 ```
 
