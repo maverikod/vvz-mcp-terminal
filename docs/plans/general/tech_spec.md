@@ -383,7 +383,7 @@ Recommended baseline command and package set:
 | Python runtime | `python`, `python3`, `pip`, `python -m venv`, `ensurepip` | Run Python code and create project-local virtual environments. |
 | Shell basics | `bash`, `sh`, `env`, `pwd`, `ls`, `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `xargs`, `tee`, `printf`, `test`, `true`, `false` | Basic diagnostics and command composition. |
 | File inspection | `find`, `grep`, `rg`, `sed`, `awk`, `file`, `stat`, `du`, `tree` | Inspect source trees inside `/workspace`. |
-| Structured data | `jq`, `python -m json.tool` | Inspect JSON output and config files. |
+| Archives | `tar`, `gzip`, `gunzip`, `zip`, `unzip`, `7z` / `p7zip` | Inspect and unpack common local artifacts, including `.7z` archives. |
 | Archives | `tar`, `gzip`, `gunzip`, `zip`, `unzip` | Inspect and unpack common local artifacts. |
 | Version control | `git` | Inspect repository state, diffs, branches, and local history. Network operations remain controlled by network policy. |
 | Process diagnostics | `ps`, `pgrep`, `pkill` | Inspect and stop processes inside the sandbox only. |
