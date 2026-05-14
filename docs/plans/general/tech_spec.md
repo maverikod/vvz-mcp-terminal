@@ -173,6 +173,7 @@ The project root is mounted at a fixed path:
 ```text
 /workspace
 ```
+
 The caller must not be able to choose the container mount path.
 
 Supported mount modes:
