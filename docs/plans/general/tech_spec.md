@@ -165,9 +165,14 @@ The check must reject:
 - symlink escapes;
 - relative path traversal;
 - project roots that are files instead of directories.
+
+## 7. Container Mount Model
+
+The project root is mounted at a fixed path:
+
+```text
 /workspace
 ```
-
 The caller must not be able to choose the container mount path.
 
 Supported mount modes:
