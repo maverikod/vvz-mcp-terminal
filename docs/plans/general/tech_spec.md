@@ -234,25 +234,40 @@ Forbidden runtime options:
 
 ## 9. Network Policy
 
-Default network mode must be:
+Default network mode for ordinary command execution must be:
 
 ```text
 network: none
 ```
 
-Optional modes may be introduced later:
+However, practical Python work requires dependency installation. The server therefore must support a controlled network mode for package registries:
 
-| Mode | Meaning |
-|------|---------|
-| `none` | No network access. Default. |
-| `restricted` | Access only to explicitly allowlisted endpoints. |
-| `open` | Full outbound network. Disabled by default and only available if server policy permits it. |
+| Mode | Meaning | MVP status |
+|------|---------|------------|
+| `none` | No network access. Default for tests, linters, formatters, static checks, and local commands. | Required |
+| `package_registry` | Egress allowed only to configured package indexes and related TLS/DNS endpoints needed for package installation. | Required |
+| `restricted` | General allowlisted egress to configured domains. | Optional after MVP |
+| `open` | Full outbound network. | Forbidden in MVP |
+
+`pip install`, `pip download`, `pip-audit`, and similar dependency commands must run with `network: package_registry` unless all dependencies are already available from a local cache or wheelhouse.
+
+`package_registry` must be policy-controlled. The server configuration should define allowlisted registries, for example:
+
+```yaml
+network:
+  modes:
+    package_registry:
+      allow_dns: true
+      allow_tls: true
+      allowed_hosts:
+        - pypi.org
+        - files.pythonhosted.org
+      allowed_ports: [443]
+```
 
 Network mode must be part of the request and audit record.
 
 `open` network must not be available in the initial MVP.
-
-## 10. Command Execution Model
 
 The MVP should support atomic, non-interactive command execution.
 
