@@ -470,7 +470,6 @@ For MVP, the recommended default is:
 ## 14. API Commands
 
 ### 14.1 `terminal_run`
-
 Runs one command in a disposable sandbox container.
 
 Request schema draft:
