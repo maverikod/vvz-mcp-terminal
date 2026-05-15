@@ -1,0 +1,36 @@
+step_id: T-002
+parent_global_step: G-006
+name: Queue Result Semantics and MVP Acceptance Criteria
+status: draft
+description: 'Defines QueueResultSemantics (C-011) as a binding invariant and codifies
+  the MVP acceptance criteria. QueueResultSemantics invariant: queue job status=completed
+  (progress=100) means the worker completed the full execution lifecycle and wrote
+  metadata. It does not mean the terminal command succeeded. Terminal command success
+  requires all three conditions: queue status is completed, exit_code equals 0, and
+  timed_out is false. terminal_get_status must expose both states: the queue job status
+  and the derived terminal_status (success, failure, timed_out). Callers must never
+  treat queue completed as command success without inspecting exit_code and timed_out.
+  Safety invariants that must be verifiable by tests: model cannot supply a host path
+  as project_id, cannot select mount points, cannot escape /workspace via cwd or symlinks,
+  cannot enable host networking, cannot add capabilities, cannot run privileged containers,
+  cannot access Docker socket, cannot access unrelated projects, read-only mode prevents
+  writes, timeout terminates and cleans up, output limits truncate safely, audit record
+  is created for every run. MVP is complete only when all acceptance criteria in the
+  source_spec section 21 are verified by automated tests and manual review.'
+concepts:
+- C-011
+inputs:
+- name: queue_job_state
+  type: queue job status object
+  description: Current state of the queue job for a terminal command; includes status,
+    progress, and any worker-written metadata.
+- name: command_metadata
+  type: CommandRecord terminal fields
+  description: exit_code and timed_out from the completed CommandRecord (NNNNNN.meta.json).
+outputs:
+- name: terminal_status_response
+  type: combined status object
+  description: job_id, queue_status, terminal_status (success/failure/timed_out/pending),
+    exit_code, timed_out, stdout_file, stderr_file, stdout_bytes, stderr_bytes. Returned
+    by terminal_get_status.
+atomic_steps: []
