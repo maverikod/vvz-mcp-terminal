@@ -1,0 +1,34 @@
+step_id: T-002
+parent_global_step: G-005
+name: TTL Cleanup Service
+status: draft
+description: 'Defines the TTL cleanup behaviour of ConfigOverlay (C-013) over SessionStore
+  (C-005). The cleanup service runs on a configurable interval (terminal.sessions.cleanup_interval_seconds).
+  On each cycle it enumerates all session directories across all known projects, reads
+  each session''s last_activity_at, and compares against the current time minus terminal.sessions.ttl_seconds.
+  Sessions whose last_activity_at is older than the TTL threshold and whose status
+  is completed, failed, or stopped are eligible for deletion when terminal.cleanup.delete_expired_sessions
+  is true. Sessions with status running (have an active queue job) are never deleted
+  by the cleanup service unless terminal.cleanup.delete_running_sessions is explicitly
+  true (default: false). Deletion removes the full session directory and all output
+  files. The cleanup service logs every deletion using logical project/session identifiers,
+  not raw host paths.'
+concepts:
+- C-013
+- C-005
+inputs:
+- name: validated_config
+  type: ConfigOverlay object
+  description: TTL, cleanup interval, and delete_running_sessions flag sourced from
+    validated ConfigOverlay.
+- name: session_directories
+  type: filesystem enumeration
+  description: All .terminals/<session_id>/ directories across all known projects,
+    with last_activity_at and status.
+outputs:
+- name: cleanup_report
+  type: list of deletion outcomes
+  description: 'Per-session deletion result: session_id, project_id, outcome (deleted,
+    skipped_running, skipped_not_expired). Logged by the cleanup service; not returned
+    to callers.'
+atomic_steps: []
