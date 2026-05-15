@@ -1,0 +1,68 @@
+step_id: A-001
+parent_tactical_step: T-002
+name: Unit tests for key domain invariants
+target_file: tests/test_domain_invariants.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-016
+- C-013
+prompt: "Create the file `tests/test_domain_invariants.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nUnit tests for key domain invariants described in the testing strategy\n\
+  (C-016 AdapterSkeleton test requirements, C-013 ConfigOverlay validation).\nCovers\
+  \ the hostile-input cases and unit invariants from source_spec sections\n24 and\
+  \ 26.\n\n## Module docstring\n\"\"\"\nUnit tests for domain invariants of mcp_terminal\
+  \ (C-016, C-013).\n\nCovers config validation, marker validation, session seq allocation,\n\
+  output reader stream rejection, and sandbox policy zero-trust checks.\n\"\"\"\n\n\
+  ## Imports\nfrom __future__ import annotations\nimport pytest\nfrom pathlib import\
+  \ Path\nimport tempfile\nimport uuid\n\n## Test cases\n\n### test_config_validator_rejects_missing_ttl\n\
+  Docstring:\n  \"\"\"Config validator must reject missing ttl_seconds (C-013).\"\"\
+  \"\nBody:\n  from mcp_terminal.config.config_validator import validate_terminal_config\n\
+  \  errors = validate_terminal_config({})\n  fields = [e.field for e in errors]\n\
+  \  assert \"terminal.sessions.ttl_seconds\" in fields\n\n### test_config_validator_rejects_zero_ttl\n\
+  Body:\n  from mcp_terminal.config.config_validator import validate_terminal_config\n\
+  \  errors = validate_terminal_config({\"terminal\": {\"sessions\": {\"ttl_seconds\"\
+  : 0}}})\n  fields = [e.field for e in errors]\n  assert \"terminal.sessions.ttl_seconds\"\
+  \ in fields\n\n### test_config_validator_rejects_default_limit_exceeds_max\nBody:\n\
+  \  from mcp_terminal.config.config_validator import validate_terminal_config\n \
+  \ config = {\"terminal\": {\n      \"sessions\": {\"ttl_seconds\": 3600},\n    \
+  \  \"commands\": {\"default_history_limit\": 300, \"max_history_limit\": 200},\n\
+  \  }}\n  errors = validate_terminal_config(config)\n  fields = [e.field for e in\
+  \ errors]\n  assert \"terminal.commands.default_history_limit\" in fields\n\n###\
+  \ test_marker_validation_rejects_non_json\nBody:\n  from mcp_terminal.services.project_registry\
+  \ import validate_marker_file\n  with tempfile.TemporaryDirectory() as tmp:\n  \
+  \    marker = Path(tmp) / \"projectid\"\n      marker.write_text(\"not json\", encoding=\"\
+  utf-8\")\n      result, err = validate_marker_file(marker)\n      assert result\
+  \ is None\n      assert err is not None\n      assert err.code == \"invalid_json\"\
+  \n\n### test_marker_validation_rejects_missing_id\nBody:\n  from mcp_terminal.services.project_registry\
+  \ import validate_marker_file\n  import json\n  with tempfile.TemporaryDirectory()\
+  \ as tmp:\n      marker = Path(tmp) / \"projectid\"\n      marker.write_text(json.dumps({\"\
+  description\": \"test\"}), encoding=\"utf-8\")\n      result, err = validate_marker_file(marker)\n\
+  \      assert result is None\n      assert err.code == \"missing_id\"\n\n### test_seq_to_prefix_zero_pads_to_6_digits\n\
+  Body:\n  from mcp_terminal.services.command_history import CommandHistory\n  assert\
+  \ CommandHistory.seq_to_prefix(1) == \"000001\"\n  assert CommandHistory.seq_to_prefix(999999)\
+  \ == \"999999\"\n  assert CommandHistory.seq_to_prefix(25) == \"000025\"\n\n###\
+  \ test_output_reader_rejects_invalid_stream\nBody:\n  from mcp_terminal.services.output_reader\
+  \ import OutputReader\n  with tempfile.TemporaryDirectory() as tmp:\n      reader\
+  \ = OutputReader(Path(tmp))\n      data, err = reader.read(1, \"combined\")\n  \
+  \    assert data is None\n      assert err == \"INVALID_STREAM\"\n\n### test_sandbox_policy_rejects_missing_execution_kind\n\
+  Body:\n  from mcp_terminal.services.sandbox_policy import SandboxPolicy\n  result\
+  \ = SandboxPolicy().validate(\n      project_id=\"abc\",\n      execution_kind=None,\n\
+  \      cwd=None,\n      mode=\"read_only\",\n      network=\"none\",\n      image_profile=\"\
+  python_dev_3_12\",\n      command=None,\n      argv=None,\n  )\n  assert not result.permitted\n\
+  \  assert result.error_code == \"INVALID_COMMAND\"\n\n### test_sandbox_policy_rejects_host_path_project_id\n\
+  Body:\n  from mcp_terminal.services.sandbox_policy import SandboxPolicy\n  result\
+  \ = SandboxPolicy().validate(\n      project_id=\"/home/user/projects\",\n     \
+  \ execution_kind=\"argv\",\n      cwd=None,\n      mode=\"read_only\",\n      network=\"\
+  none\",\n      image_profile=\"python_dev_3_12\",\n      command=None,\n      argv=[\"\
+  pytest\"],\n  )\n  assert not result.permitted\n  assert result.error_code == \"\
+  PROJECT_PATH_OUT_OF_SCOPE\"\n\n## Constraints\n- File must not exceed 130 lines.\
+  \ Line length limit 99.\n"
+verification:
+  type: pytest
+  target: tests/test_domain_invariants.py
+  expected: 'All 9 test functions pass. pytest reports 0 failures and 0 errors. Key
+    safety invariants verified: config validation, marker validation, seq allocation,
+    stream name rejection, sandbox zero-trust policy.'
+status: draft
