@@ -1,0 +1,95 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: SessionStore create and delete
+target_file: mcp_terminal/services/session_store.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-004
+- C-005
+prompt: "Create the file `mcp_terminal/services/session_store.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nImplements SessionStore (C-005) which creates and manages terminal\
+  \ session\ndirectories for TerminalSession (C-004) under .terminals/<session_id>/.\n\
+  \n## MRS concept excerpts\n\nC-004 TerminalSession:\n  - session_id is UUID4 generated\
+  \ at creation time\n  - Owns a session directory under .terminals/<session_id>/\n\
+  \  - TTL computed from last_activity_at\n  - Running sessions may be deleted only\
+  \ with an explicit force flag\n\nC-005 SessionStore:\n  - Creates .terminals/<session_id>/\
+  \ on terminal_session_create\n  - Deletes session directory and all contents on\
+  \ terminal_delete\n  - .terminals/ must be added to project .gitignore\n  - terminal_delete\
+  \ without project_id deletes across all known projects\n    via ProjectRegistry\n\
+  \n## Module docstring\n\"\"\"\nSession store for mcp_terminal terminal sessions\
+  \ (C-004, C-005).\n\nManages .terminals/<session_id>/ directories inside project\
+  \ roots.\nEnforces TTL tracking and protects running sessions from deletion.\n\n\
+  Author: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports (exact)\n\
+  from __future__ import annotations\n\nimport json\nimport logging\nimport uuid\n\
+  from dataclasses import dataclass, field\nfrom datetime import datetime, timezone\n\
+  from pathlib import Path\nfrom typing import Dict, List, Optional\n\n## Classes\n\
+  \n### @dataclass class SessionRecord  (NOT frozen)\nDocstring: \"\"\"Mutable runtime\
+  \ record for one TerminalSession (C-004).\"\"\"\nFields:\n  session_id: str\n  \
+  \  doc: \"UUID4 string.\"\n  project_id: str\n    doc: \"Parent project identifier.\"\
+  \n  project_dir: Path\n    doc: \"Verified canonical host project root.\"\n  session_dir:\
+  \ Path\n    doc: \"Absolute path to .terminals/<session_id>/ inside project_dir.\"\
+  \n  created_at: datetime\n    doc: \"UTC creation timestamp.\"\n  last_activity_at:\
+  \ datetime\n    doc: \"UTC timestamp of last activity; updated on any session operation.\"\
+  \n  status: str = \"idle\"\n    doc: \"One of: idle, running, expired, deleted.\"\
+  \n\n### class SessionStore\nDocstring:\n  \"\"\"Manages terminal session directories\
+  \ (C-005).\n\n  Thread-safety: callers must ensure no concurrent create/delete on\
+  \ the\n  same session_id. The internal dict is not protected by a lock in MVP.\n\
+  \  \"\"\"\n\nClass attribute:\n  TERMINALS_DIR: str = \".terminals\"  # relative\
+  \ name inside project dir\n\n__init__:\n  def __init__(self) -> None:\n      self._sessions:\
+  \ Dict[str, SessionRecord] = {}\n      self._logger = logging.getLogger(__name__)\n\
+  \n### create_session() method\nSignature:\n  def create_session(\n      self,\n\
+  \      *,\n      project_id: str,\n      project_dir: Path,\n  ) -> SessionRecord:\n\
+  Docstring:\n  \"\"\"Create a new terminal session directory and register the session.\n\
+  \n  Creates .terminals/<session_id>/ inside project_dir. Adds .terminals/\n  to\
+  \ .gitignore if not already present.\n\n  Args:\n      project_id: Verified project\
+  \ identifier.\n      project_dir: Verified canonical host project root path.\n\n\
+  \  Returns:\n      New SessionRecord with status='idle'.\n  \"\"\"\nImplementation:\n\
+  \  sid = str(uuid.uuid4())\n  terminals_root = project_dir / self.TERMINALS_DIR\n\
+  \  terminals_root.mkdir(exist_ok=True)\n  session_dir = terminals_root / sid\n \
+  \ session_dir.mkdir()\n  # Ensure .gitignore\n  gitignore = project_dir / \".gitignore\"\
+  \n  gi_line = f\"/{self.TERMINALS_DIR}/\\n\"\n  if not gitignore.exists() or gi_line.strip()\
+  \ not in gitignore.read_text(encoding=\"utf-8\"):\n      with gitignore.open(\"\
+  a\", encoding=\"utf-8\") as fh:\n          fh.write(gi_line)\n  now = datetime.now(timezone.utc)\n\
+  \  record = SessionRecord(\n      session_id=sid,\n      project_id=project_id,\n\
+  \      project_dir=project_dir,\n      session_dir=session_dir,\n      created_at=now,\n\
+  \      last_activity_at=now,\n  )\n  self._sessions[sid] = record\n  # Write session\
+  \ metadata\n  meta = {\n      \"session_id\": sid,\n      \"project_id\": project_id,\n\
+  \      \"created_at\": now.isoformat(),\n      \"last_activity_at\": now.isoformat(),\n\
+  \      \"status\": \"idle\",\n  }\n  (session_dir / \"session.json\").write_text(\n\
+  \      json.dumps(meta, indent=2), encoding=\"utf-8\"\n  )\n  self._logger.info(\"\
+  Created session %s for project %s\", sid, project_id)\n  return record\n\n### get_session()\
+  \ method\nSignature:\n  def get_session(self, session_id: str) -> Optional[SessionRecord]:\n\
+  Docstring: \"\"\"Return the SessionRecord for session_id, or None if not found.\"\
+  \"\"\nBody: return self._sessions.get(session_id)\n\n### touch_activity() method\n\
+  Signature:\n  def touch_activity(self, session_id: str) -> None:\nDocstring:\n \
+  \ \"\"\"Update last_activity_at for the given session to now (UTC).\n\n  Call after\
+  \ every session operation to keep TTL accurate.\n  \"\"\"\nImplementation:\n  record\
+  \ = self._sessions.get(session_id)\n  if record:\n      record.last_activity_at\
+  \ = datetime.now(timezone.utc)\n\n### delete_session() method\nSignature:\n  def\
+  \ delete_session(\n      self,\n      session_id: str,\n      *,\n      force: bool\
+  \ = False,\n  ) -> bool:\nDocstring:\n  \"\"\"Delete a session directory and remove\
+  \ the session from the registry.\n\n  Running sessions (status='running') are rejected\
+  \ unless force=True.\n\n  Args:\n      session_id: Session to delete.\n      force:\
+  \ When True, delete even if status is 'running'.\n\n  Returns:\n      True on success,\
+  \ False when the session is running and force=False.\n  \"\"\"\nImplementation:\n\
+  \  record = self._sessions.get(session_id)\n  if record is None:\n      return True\
+  \  # already gone\n  if record.status == \"running\" and not force:\n      self._logger.warning(\n\
+  \          \"Refused to delete running session %s (force=False)\", session_id\n\
+  \      )\n      return False\n  if record.session_dir.exists():\n      import shutil\n\
+  \      shutil.rmtree(record.session_dir, ignore_errors=True)\n  del self._sessions[session_id]\n\
+  \  self._logger.info(\"Deleted session %s\", session_id)\n  return True\n\n### list_sessions()\
+  \ method\nSignature:\n  def list_sessions(self, project_id: str) -> List[SessionRecord]:\n\
+  Docstring: \"\"\"Return all SessionRecords for the given project_id.\"\"\"\nBody:\n\
+  \  return [\n      r for r in self._sessions.values() if r.project_id == project_id\n\
+  \  ]\n\n## Constraints\n- File must be valid Python, importable with no runtime\
+  \ errors.\n- All type annotations required.\n- File must not exceed 250 lines.\n\
+  - Line length limit 99. Must pass flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/session_store.py
+  expected: '`from mcp_terminal.services.session_store import SessionStore, SessionRecord`
+    succeeds. Instantiating SessionStore() and calling list_sessions("any") returns
+    an empty list.'
+status: draft
