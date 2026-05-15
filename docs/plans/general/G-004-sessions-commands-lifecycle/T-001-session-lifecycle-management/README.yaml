@@ -1,0 +1,36 @@
+step_id: T-001
+parent_global_step: G-004
+name: Session Lifecycle Management
+status: draft
+description: 'Defines the lifecycle of TerminalSession (C-004) managed by SessionStore
+  (C-005). terminal_session_create allocates a new UUID4 session_id, creates the .terminals/<session_id>/
+  directory inside the project root, initialises an empty history.jsonl, and records
+  session creation time as last_activity_at. SessionStore tracks session status: active
+  (has running jobs), idle, expired, deleted. TTL is computed from last_activity_at;
+  activity events that reset it include session creation, command start, command finish,
+  output read, output search, and explicit metadata access. Expired sessions with
+  status completed/failed/stopped are eligible for deletion by the TTL cleanup process.
+  Running sessions require an explicit force flag for deletion. terminal_delete removes
+  the session directory and all its contents for the given session_id; when project_id
+  is supplied deletion is scoped to that project; when omitted SessionStore queries
+  ProjectRegistry (C-001) to enumerate all known projects and deletes the matching
+  session across all. .terminals/ must be registered in the project .gitignore on
+  first session creation if not already present.'
+concepts:
+- C-004
+- C-005
+inputs:
+- name: project_id
+  type: UUID4 string
+  description: Verified project identifier from C-001 resolution.
+- name: session_create_request
+  type: request object
+  description: terminal_session_create request containing project_id, image_profile,
+    mode, and network.
+outputs:
+- name: session_record
+  type: TerminalSession metadata
+  description: 'Newly created session: session_id (UUID4), project_id, created_at,
+    last_activity_at, status (idle), session_dir path. Stored in SessionStore and
+    returned to the caller.'
+atomic_steps: []
