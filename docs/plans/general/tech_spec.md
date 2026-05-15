@@ -1070,7 +1070,7 @@ Tests must include both normal and hostile cases.
 - `terminal_search_commands` finds regex matches in command history metadata.
 - `terminal_search_output` finds regex matches in stdout/stderr files.
 - `terminal_tail` returns last lines from stdout/stderr without loading the whole file.
-- `terminal_delete` removes the requested session directory and verifies it is gone by a separate read/list command.
+- `terminal_delete` removes the requested session directory and verifies it is gone by a separate `terminal_sessions` / `terminal_list` read command.
 
 ### Security regression tests
 
@@ -1124,12 +1124,12 @@ runtime:
 ## 24. Open Questions
 
 1. Which exact marker filename is final: `projectid` only, or configurable `projects.marker_file`?
-2. Should `list` require `project_id` despite `delete` allowing omitted `project_id`? Current recommendation: yes.
+2. Should `terminal_list` require `project_id` and `session_id`? Current recommendation: yes.
 3. Should `terminal_session_create` be explicit, or should `terminal_run` create sessions when `session_id` is omitted? Current recommendation: explicit session creation.
 4. Should shell-style commands be the only public command format because pipelines are required?
 5. Should session TTL be based on session creation time, last command start time, or last command finish time? Current recommendation: last command timestamp, fallback to creation timestamp.
 6. Should expired sessions with failed or stopped jobs be deleted immediately after TTL?
-7. Should `delete` be allowed to remove sessions with running jobs? Current recommendation: no by default.
+7. Should `terminal_delete` be allowed to remove sessions with running jobs? Current recommendation: no by default.
 8. Should output files live inside project `.terminals` even in read-only mode? Current recommendation: yes, terminal metadata is service-managed project state.
 9. How should file ownership be mapped between container user and host user?
 10. Is rootless Docker/Podman required for deployment?
@@ -1144,8 +1144,11 @@ Implement the current adapter skeleton as a queue-only, session-scoped terminal 
 - use `project_id + session_id` for every session-scoped operation;
 - store per-session state in `.terminals/<session_id>/`;
 - store stdout and stderr in separate per-command files with sequence-based names;
-- expose history through `list`;
-- expose output through read/search commands, not queue result payloads;
+- expose history through `terminal_list`;
+- expose output through `terminal_read` / `terminal_search_output`, not queue result payloads;
+- enforce TTL cleanup from config;
+- keep actual container execution inside queue jobs only;
+- validate completion through MCP calls, queue status, and read-back of generated files.
 - enforce TTL cleanup from config;
 - keep actual container execution inside queue jobs only;
 - validate completion through MCP calls, queue status, and read-back of generated files.
