@@ -922,7 +922,7 @@ The MVP is complete only when all items are true:
 - Timeout works and cleans up the container.
 - stdout/stderr are written to sequence-based files, not returned as large inline payloads.
 - Every run has an audit record.
-- Result can be verified through queue status plus `terminal_read_output` / `terminal_search_output`.
+- Result can be verified through queue status plus `terminal_read` / `terminal_search_output`.
 
 ## 20. Current Code State and Required Structural Refactor
 
@@ -945,13 +945,17 @@ Missing terminal-specific structure that must be added:
 ```text
 mcp_terminal/commands/
   __init__.py
-  list_command.py
-  delete_command.py
+  terminal_sessions_command.py
   terminal_session_create_command.py
   terminal_run_command.py
   terminal_get_status_command.py
-  terminal_read_output_command.py
+  terminal_list_command.py
+  terminal_get_command.py
+  terminal_read_command.py
+  terminal_search_commands_command.py
   terminal_search_output_command.py
+  terminal_tail_command.py
+  terminal_delete_command.py
 
 mcp_terminal/jobs/
   __init__.py
@@ -1010,13 +1014,18 @@ The actual container execution must be implemented as a queue job, not as a publ
 - The worker must run the container and redirect stdout/stderr to `NNNNNN.stdout.log` and `NNNNNN.stderr.log`.
 - The worker must update command metadata and queue state on success, failure, stop, and timeout.
 
-### Phase 5: Reader commands
+### Phase 5: Reader and navigation commands
 
-- Implement `list` for session command history.
-- Implement `terminal_read_output` with offset and byte limits.
-- Implement `terminal_search_output` with regex and match limits.
+- Implement `terminal_sessions` for project session listing.
+- Implement `terminal_list` for session command history.
+- Implement `terminal_get` for exact command metadata by `seq`.
+- Implement `terminal_read` with offset and byte limits.
+- Implement `terminal_search_commands` with regex over command history metadata.
+- Implement `terminal_search_output` with regex over stdout/stderr files.
+- Implement `terminal_tail` for last lines of stdout/stderr.
 - Implement `terminal_get_status` as a terminal-aware wrapper over queue state plus command metadata.
-- Implement `delete` for session deletion by `session_id`, optionally scoped by `project_id`.
+- Implement `terminal_delete` for session deletion by `session_id`, optionally scoped by `project_id`.
+- Do not expose short public MCP aliases such as `list`, `delete`, `grep`, `tail`, `head`, or `stat` in MVP because they can be confused with commands executed inside the sandbox container.
 
 ### Phase 6: Container isolation
 
@@ -1037,24 +1046,31 @@ Tests must include both normal and hostile cases.
 - Project discovery accepts only valid `projectid` marker files.
 - Session ids are UUID4.
 - Command sequence allocation is monotonic per session.
-- `list` requires `project_id` and `session_id`.
-- `delete` requires `session_id` and treats `project_id` as optional.
+- `terminal_list` requires `project_id` and `session_id`.
+- `terminal_delete` requires `session_id` and treats `project_id` as optional.
+- `terminal_get` requires exact `project_id + session_id + seq`.
+- `terminal_search_commands` searches command metadata only.
+- `terminal_search_output` searches stdout/stderr files only.
 - Output reader rejects invalid stream names and path traversal.
 - Regex search enforces match limits.
 
 ### Integration tests
 
 - `mcp-terminal` appears in proxy server list.
-- MCP `help` shows `list`, `delete`, `terminal_run`, `terminal_read_output`, `terminal_search_output`, and `terminal_get_status`.
+- MCP `help` shows `terminal_sessions`, `terminal_session_create`, `terminal_run`, `terminal_list`, `terminal_get`, `terminal_read`, `terminal_search_commands`, `terminal_search_output`, `terminal_tail`, `terminal_delete`, and `terminal_get_status`.
+- MCP `help` does not expose short aliases such as `list`, `delete`, `grep`, `tail`, `head`, or `stat`.
 - `terminal_session_create` creates `.terminals/<session_id>/`.
 - `terminal_run` returns `job_id`, `seq`, `stdout_file`, `stderr_file`, and `meta_file`.
 - Queue status reaches completed/failed/stopped without masking nested command failure.
 - stdout is written only to `NNNNNN.stdout.log`.
 - stderr is written only to `NNNNNN.stderr.log`.
-- `list` returns the last 25 commands in descending timestamp order by default.
-- `terminal_read_output` reads by `project_id + session_id + seq + stream`.
+- `terminal_list` returns the last 25 commands in descending timestamp order by default.
+- `terminal_get` returns metadata for exact `project_id + session_id + seq`.
+- `terminal_read` reads by `project_id + session_id + seq + stream`.
+- `terminal_search_commands` finds regex matches in command history metadata.
 - `terminal_search_output` finds regex matches in stdout/stderr files.
-- `delete` removes the requested session directory and verifies it is gone by a separate read/list command.
+- `terminal_tail` returns last lines from stdout/stderr without loading the whole file.
+- `terminal_delete` removes the requested session directory and verifies it is gone by a separate read/list command.
 
 ### Security regression tests
 
