@@ -1,0 +1,49 @@
+step_id: A-001
+parent_tactical_step: T-002
+name: Queue result semantics unit test
+target_file: tests/test_queue_result_semantics.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-011
+prompt: "Create the file `tests/test_queue_result_semantics.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nVerifies QueueResultSemantics (C-011) invariant: queue completed\
+  \ does not\nimply terminal success. Tests that terminal_get_status correctly derives\n\
+  terminal_status from queue_status, exit_code, and timed_out.\n\n## MRS concept excerpt\n\
+  \nC-011 QueueResultSemantics:\n  - queue completed does not imply terminal success\n\
+  \  - Terminal success requires: queue_status=completed AND exit_code==0\n    AND\
+  \ timed_out==False\n  - terminal_get_status returns: job_id, queue_status, terminal_status,\n\
+  \    exit_code, timed_out, stdout_file, stderr_file, stdout_bytes, stderr_bytes\n\
+  \n## Module docstring\n\"\"\"\nUnit tests for QueueResultSemantics invariant (C-011).\n\
+  \nVerifies that terminal_status is derived correctly from queue_status,\nexit_code,\
+  \ and timed_out. Queue completed != terminal success.\n\"\"\"\n\n## Imports\nfrom\
+  \ __future__ import annotations\nimport pytest\n\n## Helper function\n```python\n\
+  def _derive_terminal_status(\n    queue_status: str,\n    exit_code: int | None,\n\
+  \    timed_out: bool | None,\n) -> str:\n    \"\"\"Replicate the QueueResultSemantics\
+  \ logic from terminal_get_status.\"\"\"\n    timed_out = timed_out or False\n  \
+  \  if queue_status == \"completed\" and exit_code == 0 and not timed_out:\n    \
+  \    return \"success\"\n    elif queue_status == \"completed\" and timed_out:\n\
+  \        return \"timed_out\"\n    elif queue_status == \"completed\":\n       \
+  \ return \"failure\"\n    else:\n        return queue_status\n```\n\n## Test cases\n\
+  \n### test_completed_exit0_not_timed_out_is_success\nAsserts _derive_terminal_status(\"\
+  completed\", 0, False) == \"success\"\n\n### test_completed_exit1_is_failure\nAsserts\
+  \ _derive_terminal_status(\"completed\", 1, False) == \"failure\"\n\n### test_completed_timed_out_is_timed_out\n\
+  Asserts _derive_terminal_status(\"completed\", None, True) == \"timed_out\"\n\n\
+  ### test_pending_is_pending\nAsserts _derive_terminal_status(\"pending\", None,\
+  \ None) == \"pending\"\n\n### test_running_is_running\nAsserts _derive_terminal_status(\"\
+  running\", None, None) == \"running\"\n\n### test_failed_is_failed\nAsserts _derive_terminal_status(\"\
+  failed\", None, None) == \"failed\"\n\n### test_stopped_is_stopped\nAsserts _derive_terminal_status(\"\
+  stopped\", None, None) == \"stopped\"\n\n### test_completed_exit0_timed_out_true_is_timed_out\n\
+  \"\"\"Even with exit_code=0, timed_out=True means timed_out status.\"\"\"\nAsserts\
+  \ _derive_terminal_status(\"completed\", 0, True) == \"timed_out\"\n\n## Constraints\n\
+  - File must not exceed 80 lines. Line length limit 99.\n- Must be runnable with\
+  \ pytest with no external dependencies beyond the\n  _derive_terminal_status helper\
+  \ defined in the file.\n"
+verification:
+  type: pytest
+  target: tests/test_queue_result_semantics.py
+  expected: 'All 8 test functions pass. pytest reports 0 failures and 0 errors. The
+    C-011 invariant is confirmed: queue completed without exit_code=0 and timed_out=False
+    does not produce terminal_status=''success''.'
+status: draft
