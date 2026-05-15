@@ -1,0 +1,57 @@
+step_id: A-006
+parent_tactical_step: T-005
+name: mcp_terminal/commands/__init__.py package init
+target_file: mcp_terminal/commands/__init__.py
+operation: create_file
+priority: 6
+depends_on: []
+concepts:
+- C-014
+prompt: 'Create the file `mcp_terminal/commands/__init__.py`.
+
+
+  Operation: create_file
+
+
+  ## Purpose
+
+
+  Required package init file for the mcp_terminal.commands package (C-014).
+
+  Without this file the commands package cannot be imported.
+
+
+  ## Required content (complete file)
+
+
+  ```python
+
+  """
+
+  Public MCP command implementations for mcp_terminal (C-014).
+
+
+  Author: Vasiliy Zdanovskiy
+
+  Email: vasilyvz@gmail.com
+
+  """
+
+  ```
+
+
+  That is the complete file. No imports, no classes, no functions.
+
+
+  ## Constraints
+
+  - File must be exactly 7 lines.
+
+  - No other content beyond the module docstring.
+
+  '
+verification:
+  type: import
+  target: mcp_terminal/commands/__init__.py
+  expected: '`import mcp_terminal.commands` succeeds without error.'
+status: draft
