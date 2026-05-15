@@ -938,7 +938,6 @@ tests/test_imports.py         # import smoke test
 The current server is visible in the proxy and already exposes adapter built-in commands and queue commands. This means the implementation must be an incremental structural extension, not a rewrite.
 
 Missing terminal-specific structure that must be added:
-
 ```text
 mcp_terminal/commands/
   __init__.py
@@ -952,6 +951,7 @@ mcp_terminal/commands/
   terminal_search_commands_command.py
   terminal_search_output_command.py
   terminal_tail_command.py
+  terminal_stat_command.py
   terminal_delete_command.py
 
 mcp_terminal/jobs/
@@ -1020,8 +1020,9 @@ The actual container execution must be implemented as a queue job, not as a publ
 - Implement `terminal_search_commands` with regex over command history metadata.
 - Implement `terminal_search_output` with regex over stdout/stderr files.
 - Implement `terminal_tail` for last lines of stdout/stderr.
+- Implement `terminal_stat` for lightweight command/session metadata and output size statistics.
 - Implement `terminal_get_status` as a terminal-aware wrapper over queue state plus command metadata.
-- Implement `terminal_delete` for session deletion by `session_id`, optionally scoped by `project_id`.
+- Implement `terminal_delete` for session deletion by `session_id`, optionally scoped by `project_id`, with running-session deletion allowed only through an explicit force flag.
 - Do not expose short public MCP aliases such as `list`, `delete`, `grep`, `tail`, `head`, or `stat` in MVP because they can be confused with commands executed inside the sandbox container.
 
 ### Phase 6: Container isolation
@@ -1045,7 +1046,9 @@ Tests must include both normal and hostile cases.
 - Command sequence allocation is monotonic per session.
 - `terminal_list` requires `project_id` and `session_id`.
 - `terminal_delete` requires `session_id` and treats `project_id` as optional.
+- `terminal_delete` rejects running sessions unless explicit force is provided.
 - `terminal_get` requires exact `project_id + session_id + seq`.
+- `terminal_stat` returns command/session metadata without reading full output files.
 - `terminal_search_commands` searches command metadata only.
 - `terminal_search_output` searches stdout/stderr files only.
 - Output reader rejects invalid stream names and path traversal.
@@ -1054,7 +1057,7 @@ Tests must include both normal and hostile cases.
 ### Integration tests
 
 - `mcp-terminal` appears in proxy server list.
-- MCP `help` shows `terminal_sessions`, `terminal_session_create`, `terminal_run`, `terminal_list`, `terminal_get`, `terminal_read`, `terminal_search_commands`, `terminal_search_output`, `terminal_tail`, `terminal_delete`, and `terminal_get_status`.
+- MCP `help` shows `terminal_sessions`, `terminal_session_create`, `terminal_run`, `terminal_list`, `terminal_get`, `terminal_read`, `terminal_search_commands`, `terminal_search_output`, `terminal_tail`, `terminal_stat`, `terminal_delete`, and `terminal_get_status`.
 - MCP `help` does not expose short aliases such as `list`, `delete`, `grep`, `tail`, `head`, or `stat`.
 - `terminal_session_create` creates `.terminals/<session_id>/`.
 - `terminal_run` returns `job_id`, `seq`, `stdout_file`, `stderr_file`, and `meta_file`.
@@ -1067,11 +1070,8 @@ Tests must include both normal and hostile cases.
 - `terminal_search_commands` finds regex matches in command history metadata.
 - `terminal_search_output` finds regex matches in stdout/stderr files.
 - `terminal_tail` returns last lines from stdout/stderr without loading the whole file.
+- `terminal_stat` returns command/session metadata and output sizes without loading full output files.
 - `terminal_delete` removes the requested session directory and verifies it is gone by a separate `terminal_sessions` / `terminal_list` read command.
-
-### Security regression tests
-
-- Attempt `cwd=..`.
 - Attempt `cwd=/`.
 - Attempt reading `/host`.
 - Attempt reading `/var/run/docker.sock`.
