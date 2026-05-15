@@ -1,0 +1,36 @@
+step_id: T-002
+parent_global_step: G-002
+name: Registry Build and Duplicate Handling
+status: draft
+description: 'Defines how ProjectRegistry (C-001) builds the in-memory project index
+  on startup and on explicit refresh. Scans direct subdirectories of projects.root_dir.
+  For each candidate directory, reads the "projectid" marker file and applies C-002
+  validation rules. Accepts a candidate only when validation succeeds. Rejects: files
+  directly inside projects.root_dir, directories without the marker, nested project
+  markers when allow_nested_projects is false, and directories that resolve outside
+  projects.root_dir. On duplicate id detection (same UUID4 found in two or more directories),
+  disables all conflicting projects until the operator resolves the conflict; no conflicting
+  project is silently preferred. The resulting registry maps each valid project_id
+  to its canonical host directory path. The registry is read-only from this point;
+  no write to disk occurs during build.'
+concepts:
+- C-001
+- C-002
+inputs:
+- name: projects_root_dir
+  type: configured host path
+  description: The host directory containing candidate project subdirectories, from
+    server configuration.
+- name: validation_config
+  type: configuration values
+  description: require_uuid4_id and allow_nested_projects flags from server configuration.
+- name: marker_validation_result
+  type: validated ProjectMarker or rejection reason
+  description: Per-candidate validation outcome from the C-002 marker validation step.
+outputs:
+- name: project_registry
+  type: in-memory index
+  description: Map from project_id (UUID4 string) to canonical host project root path.
+    Disabled entries for conflicting duplicate ids are included with a "disabled"
+    flag and a conflict reason. Used by runtime resolution.
+atomic_steps: []
