@@ -859,75 +859,72 @@ The MVP is complete only when all items are true:
 - Container cannot access `/var/run/docker.sock`.
 - Container cannot access files outside the mounted project.
 - Timeout works and cleans up the container.
-- stdout/stderr are captured and truncated according to limits.
+- stdout/stderr are written to sequence-based files, not returned as large inline payloads.
 - Every run has an audit record.
-- Result can be verified through `terminal_get_run_status` or equivalent read command.
+- Result can be verified through queue status plus `terminal_read_output` / `terminal_search_output`.
 
-## 20. Recommended Implementation Phases
+## 20. Current Code State and Required Structural Refactor
 
-### Phase 1: Policy and project resolution
+The current `mcp_terminal` codebase already contains a working server skeleton based on `mcp_proxy_adapter`, but it does not yet contain the terminal domain implementation.
 
-- Implement project lookup by `project_id`.
-- Implement canonical path validation.
-- Implement image profile allowlist.
-- Implement request schema and semantic validation.
+Existing code that must be preserved and extended:
 
-### Phase 2: Disposable execution
+```text
+mcp_terminal/term_server.py   # adapter-based FastAPI/Hypercorn server startup
+mcp_terminal/term_config.py   # adapter SimpleConfig reader and validator entrypoint
+mcp_terminal/termgr.py        # start/stop/status process manager
+mcp_terminal/paths.py         # repository root helper
+tests/test_imports.py         # import smoke test
+```
 
-- Implement `terminal_run` using one container per command.
-- Enforce non-root user, fixed `/workspace`, resource limits, network none, no capabilities.
-- Capture output and exit code.
-- Remove container after execution.
+The current server is visible in the proxy and already exposes adapter built-in commands and queue commands. This means the implementation must be an incremental structural extension, not a rewrite.
 
-### Phase 3: Audit and read commands
+Missing terminal-specific structure that must be added:
 
-- Persist run records.
-- Add `terminal_get_run_status`.
-- Add `terminal_get_run_logs` with pagination/truncation.
+```text
+mcp_terminal/commands/
+  __init__.py
+  list_command.py
+  delete_command.py
+  terminal_session_create_command.py
+  terminal_run_command.py
+  terminal_get_status_command.py
+  terminal_read_output_command.py
+  terminal_search_output_command.py
 
-### Phase 4: Test suite
+mcp_terminal/jobs/
+  __init__.py
+  terminal_execution_job.py
 
-- Add unit tests for validators.
-- Add integration tests for container execution.
-- Add negative escape tests.
-- Add read-only/write-mode tests.
+mcp_terminal/services/
+  __init__.py
+  project_registry.py
+  session_store.py
+  command_history.py
+  output_reader.py
+  sandbox_policy.py
+  container_runner.py
+  ttl_cleanup.py
 
-### Phase 5: Optional sessions
+mcp_terminal/config/
+  __init__.py
+  config_generator.py
+  config_validator.py
+  config_cli.py
+```
 
-Only after disposable execution is stable:
+`term_server.py` must register terminal custom commands through the adapter hook mechanism, following the `embed` project pattern.
 
-- Add `terminal_session_start`.
-- Add TTL and idle cleanup.
-- Add per-project/session quotas.
-- Add `terminal_session_exec` and `terminal_session_close`.
+The actual container execution must be implemented as a queue job, not as a public direct command. Do not expose an internal `terminal_execute` command in MCP `help`.
 
-## 21. Testing Strategy
+## 21. Implementation Phases
 
-Tests must include both normal and hostile cases.
+### Phase 1: Preserve and extend the adapter skeleton
 
-### Unit tests
-
-- Schema validation.
-- `project_id` validation.
-- Canonical path confinement.
-- `cwd` normalization.
-- image profile allowlist.
-- mode/network policy decisions.
-
-### Integration tests
-
-- Run `python --version` in a sandbox.
-- Run `pwd` and verify `/workspace`.
-- Run `ls` and verify project files visible.
-- Verify read-only mount rejects file creation.
-- Verify scratch write allows `/scratch` writes.
-- Verify timeout kills `sleep`.
-- Verify output truncation.
-
-### Security regression tests
-
-- Attempt `cwd=..`.
-- Attempt `cwd=/`.
+- Keep `term_server.py`, `term_config.py`, `termgr.py`, and `paths.py`.
+- Add terminal command registration hook to `term_server.py`.
+- Verify that existing built-in and queue commands still appear in MCP `help`.
+- Add terminal commands to `help` only after their schemas and validators are implemented.
 - Attempt reading `/host`.
 - Attempt reading `/var/run/docker.sock`.
 - Attempt writing outside `/workspace`.
