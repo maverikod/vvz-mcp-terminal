@@ -1,0 +1,85 @@
+step_id: G-004
+name: Sessions, Commands, and Execution Lifecycle
+status: frozen
+description: 'Covers the full domain of terminal sessions and command execution. A
+  session is identified by (project_id, session_id) where session_id is UUID4. Each
+  session owns a storage directory with an append-only command history and per-command
+  output files named by a monotonic sequence number. Execution is queue-only: terminal_run
+  allocates a seq, creates output files, appends a pending record, enqueues a job,
+  and returns without waiting. The worker starts the container, redirects stdout and
+  stderr to separate files, and updates record and queue state on completion. Covers
+  all public API commands: terminal_session_create, terminal_run, terminal_list, terminal_get,
+  terminal_read, terminal_search_commands, terminal_search_output, terminal_tail,
+  terminal_stat, terminal_sessions, terminal_delete, terminal_get_status.'
+concepts:
+- C-004
+- C-005
+- C-006
+- C-007
+- C-008
+- C-009
+- C-011
+- C-014
+relations:
+- from_concept: C-004
+  to_concept: C-001
+  type: depends_on
+- from_concept: C-005
+  to_concept: C-004
+  type: owns
+- from_concept: C-005
+  to_concept: C-001
+  type: uses
+- from_concept: C-006
+  to_concept: C-004
+  type: depends_on
+- from_concept: C-007
+  to_concept: C-004
+  type: depends_on
+- from_concept: C-007
+  to_concept: C-006
+  type: produces
+- from_concept: C-008
+  to_concept: C-007
+  type: depends_on
+- from_concept: C-009
+  to_concept: C-010
+  type: uses
+- from_concept: C-009
+  to_concept: C-008
+  type: produces
+- from_concept: C-009
+  to_concept: C-006
+  type: produces
+- from_concept: C-009
+  to_concept: C-012
+  type: produces
+- from_concept: C-011
+  to_concept: C-009
+  type: depends_on
+- from_concept: C-014
+  to_concept: C-001
+  type: uses
+- from_concept: C-014
+  to_concept: C-004
+  type: uses
+- from_concept: C-014
+  to_concept: C-005
+  type: uses
+- from_concept: C-014
+  to_concept: C-008
+  type: uses
+- from_concept: C-014
+  to_concept: C-009
+  type: produces
+- from_concept: C-014
+  to_concept: C-011
+  type: uses
+source_ranges:
+- start: 461
+  end: 782
+depends_on:
+- G-001
+- G-002
+- G-003
+tactical_steps: []
