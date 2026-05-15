@@ -31,10 +31,14 @@ LLM / MCP client
     -> mcp_terminal server
       -> project registry lookup by project_id
       -> policy validation
-      -> sandbox container runtime
-        -> /workspace mounted from the resolved project directory
-        -> command executes inside /workspace
-      -> captured stdout/stderr/exit_code returned to caller
+      -> terminal_run queues a terminal command
+        -> worker starts sandbox container
+          -> /workspace mounted from the resolved project directory
+          -> command executes inside /workspace
+          -> stdout redirected to .terminals/<session_id>/NNNNNN.stdout.log
+          -> stderr redirected to .terminals/<session_id>/NNNNNN.stderr.log
+        -> worker writes metadata and updates queue state
+      -> caller reads output via terminal_read / terminal_search_output / terminal_tail
 ```
 
 `code-analysis-server` remains responsible for code analysis and project metadata operations. `mcp_terminal` may query a trusted project registry or a dedicated read-only project lookup interface, but must not depend on direct user-provided paths.
