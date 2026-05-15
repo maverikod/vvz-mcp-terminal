@@ -1,8 +1,14 @@
 meta:
   plan: general
   source_spec: docs/plans/general/tech_spec.md
-  version: '1.0'
+  version: '1.1'
   status: draft
+  cycle_1_findings_closed:
+  - F-01: added source_ranges 8-24 to C-003 (section 1+2 core security scope)
+  - F-02: added C-015 ErrorContract covering section 18 error codes (lines 886-907)
+  - F-03: added C-016 AdapterSkeleton covering section 22 existing code (lines 970-1030)
+  - F-04: extended C-014 source_ranges to cover section 27 (lines 1181-1197)
+  - F-05: added zero-trust note; no new concept needed - covered by C-003 invariants
 concepts:
 - concept_id: C-001
   name: ProjectRegistry
@@ -42,8 +48,10 @@ concepts:
   definition: Validates every execution request against configured security rules
     before any container is created. Enforces cwd containment, mode restrictions,
     network mode allowlist, image profile allowlist, and command policy. Rejects forbidden
-    runtime options unconditionally.
+    runtime options unconditionally. All inputs from the model are treated as untrusted
+    regardless of prior interactions.
   properties:
+  - Zero trust: every request is validated independently; no implicit trust accumulates
   - cwd must be relative and resolve inside /workspace
   - 'Supported modes: read_only (default), workspace_write, scratch_write'
   - 'Network modes: none (default), package_registry; open is forbidden in MVP'
@@ -53,7 +61,11 @@ concepts:
     SYS_ADMIN, and Docker socket volume mount
   - Command policy denies empty argv, NUL bytes, absolute executables outside safe
     PATH
+  - Server must not become a general-purpose remote shell for the host machine
+  - Server must not accept arbitrary host paths from the model
   source_ranges:
+  - start: 8
+    end: 24
   - start: 44
     end: 82
   - start: 168
@@ -278,6 +290,39 @@ concepts:
     end: 761
   - start: 930
     end: 970
+  - start: 1181
+    end: 1197
+- concept_id: C-015
+  name: ErrorContract
+  definition: Stable set of error codes returned by the server on request rejection
+    or execution failure. Each code maps to a specific rejection condition. Codes
+    must remain stable across versions so callers can handle them programmatically
+    without parsing error messages.
+  properties:
+  - Codes are stable identifiers; their meaning must not change between versions
+  - 'Defined codes: PROJECT_NOT_FOUND, PROJECT_DELETED, PROJECT_PAUSED, PROJECT_PATH_OUT_OF_SCOPE,
+    INVALID_CWD, INVALID_COMMAND, INVALID_SESSION, IMAGE_PROFILE_NOT_ALLOWED, MODE_NOT_ALLOWED,
+    NETWORK_MODE_NOT_ALLOWED, TIMEOUT_EXCEEDED, OUTPUT_LIMIT_EXCEEDED, CONTAINER_CREATE_FAILED,
+    CONTAINER_EXEC_FAILED, CONTAINER_CLEANUP_FAILED'
+  - INVALID_SESSION covers missing session_id, non-UUID4 format, and unknown session
+  - INVALID_COMMAND covers empty command and invalid shell/argv execution fields
+  source_ranges:
+  - start: 886
+    end: 907
+- concept_id: C-016
+  name: AdapterSkeleton
+  definition: The existing mcp_terminal codebase (term_server.py, term_config.py,
+    termgr.py, paths.py, tests/test_imports.py) that must be preserved and incrementally
+    extended. Establishes the adapter-based server startup, config reader, and process
+    manager. Implementation is an extension, not a rewrite.
+  properties:
+  - Must not be rewritten; only extended with terminal domain modules
+  - term_server.py must register terminal commands via register_custom_commands_hook
+  - Existing adapter built-in and queue commands must remain visible in MCP help
+  - Internal terminal_execute must not be exposed as a public MCP command
+  source_ranges:
+  - start: 970
+    end: 1030
 relations:
 - from_concept: C-001
   to_concept: C-002
@@ -373,3 +418,22 @@ relations:
   type: uses
   note: SandboxPolicy uses the resolved project path from ProjectRegistry for containment
     checks.
+- from_concept: C-003
+  to_concept: C-015
+  type: produces
+  note: SandboxPolicy produces ErrorContract codes on policy violations (INVALID_CWD,
+    MODE_NOT_ALLOWED, etc).
+- from_concept: C-009
+  to_concept: C-015
+  type: produces
+  note: TerminalExecutionJob produces ErrorContract codes on execution failures (CONTAINER_CREATE_FAILED,
+    TIMEOUT_EXCEEDED, etc).
+- from_concept: C-014
+  to_concept: C-016
+  type: extends
+  note: PublicCommandSet extends AdapterSkeleton by registering terminal commands
+    via the hook mechanism.
+- from_concept: C-016
+  to_concept: C-013
+  type: uses
+  note: AdapterSkeleton uses ConfigOverlay for server startup and config validation.
