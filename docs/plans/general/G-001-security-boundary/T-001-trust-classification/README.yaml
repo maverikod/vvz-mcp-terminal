@@ -1,0 +1,29 @@
+step_id: T-001
+parent_global_step: G-001
+name: Trust Classification
+status: draft
+description: 'Defines the trust classification schema that underpins the entire security
+  model. Creates the TrustBoundary entity (C-003) as a named enumeration of three
+  categories: trusted components (service code, project registry, server-side policy
+  config, container image allowlist), untrusted inputs (command arguments, cwd values,
+  environment variable requests, network mode requests, write-mode requests, any file
+  content inside the mounted project), and sensitive host resources that must never
+  be exposed (host root filesystem, home directories beyond the resolved project root,
+  SSH/cloud credentials, Docker socket, host /etc /proc /sys /dev, parent watch directories,
+  unrelated project directories). The classification is exhaustive and closed: any
+  input not on the trusted list is treated as untrusted. This schema is the input
+  consumed by the validation invariant in T-002.'
+concepts:
+- C-003
+inputs:
+- name: server_policy_config
+  type: configuration object
+  description: Server-side policy configuration identifying trusted components and
+    allowlists.
+outputs:
+- name: trust_classification_schema
+  type: structured enumeration
+  description: Named and exhaustive list of trusted components, untrusted input categories,
+    and sensitive host resources. Used as the authoritative reference by C-003 during
+    request validation.
+atomic_steps: []
