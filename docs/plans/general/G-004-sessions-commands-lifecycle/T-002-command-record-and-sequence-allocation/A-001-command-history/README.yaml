@@ -1,0 +1,101 @@
+step_id: A-001
+parent_tactical_step: T-002
+name: CommandHistory append and seq allocation
+target_file: mcp_terminal/services/command_history.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-006
+- C-007
+prompt: "Create the file `mcp_terminal/services/command_history.py`.\n\nOperation:\
+  \ create_file\n\n## Purpose\n\nImplements CommandSequence (C-007) and CommandRecord\
+  \ (C-006) management.\nHandles seq allocation, history.jsonl append, and output\
+  \ file pre-creation.\n\n## MRS concept excerpts\n\nC-007 CommandSequence:\n  - Monotonic;\
+  \ never decreases or reuses values within a session\n  - Zero-padded to 6 digits\
+  \ for output file names\n  - Allocation happens before the queue job is created\n\
+  \nC-006 CommandRecord:\n  - execution_kind is either \"shell\" or \"argv\" and is\
+  \ mandatory\n  - For shell kind: command is non-null string, argv is null\n  - For\
+  \ argv kind: command is null, argv is non-null array\n  - resolved_argv is always\
+  \ present\n  - Appended to history.jsonl; file is append-only\n\n## Module docstring\n\
+  \"\"\"\nCommand history and sequence management for mcp_terminal (C-006, C-007).\n\
+  \nManages the per-session history.jsonl file and allocates monotonically\nincreasing\
+  \ seq numbers for output file naming.\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\
+  \"\"\"\n\n## Imports (exact)\nfrom __future__ import annotations\n\nimport json\n\
+  import logging\nfrom dataclasses import asdict, dataclass\nfrom datetime import\
+  \ datetime, timezone\nfrom pathlib import Path\nfrom typing import List, Optional\n\
+  \n## Classes\n\n### @dataclass class CommandRecord\nDocstring:\n  \"\"\"Single history.jsonl\
+  \ entry for one executed command (C-006).\"\"\"\nFields (all Optional where nullable):\n\
+  \  seq: int                           # session-local monotonic integer\n  job_id:\
+  \ Optional[str]              # queue job id; None until job is created\n  project_id:\
+  \ str\n  session_id: str\n  timestamp: str                     # ISO 8601 UTC string\n\
+  \  execution_kind: str                # \"shell\" or \"argv\"\n  command: Optional[str]\
+  \             # non-null for shell kind\n  argv: Optional[List[str]]          #\
+  \ non-null for argv kind\n  resolved_argv: List[str]           # always present\n\
+  \  cwd: str\n  mode: str\n  network: str\n  image_profile: str\n  status: str =\
+  \ \"pending\"            # pending | running | completed | failed | stopped\n  exit_code:\
+  \ Optional[int] = None\n  timed_out: Optional[bool] = None\n  stdout_file: str =\
+  \ \"\"              # NNNNNN.stdout.log\n  stderr_file: str = \"\"             \
+  \ # NNNNNN.stderr.log\n  meta_file: str = \"\"                # NNNNNN.meta.json\n\
+  \n### class CommandHistory\nDocstring:\n  \"\"\"Manages the append-only history.jsonl\
+  \ for a terminal session (C-006/C-007).\"\"\"\n\n__init__:\n  def __init__(self,\
+  \ session_dir: Path) -> None:\n      self._session_dir = session_dir\n      self._history_file\
+  \ = session_dir / \"history.jsonl\"\n      self._logger = logging.getLogger(__name__)\n\
+  \n### allocate_seq() method\nSignature: def allocate_seq(self) -> int:\nDocstring:\n\
+  \  \"\"\"Allocate the next session-local command sequence number.\n\n  Reads the\
+  \ current maximum seq from history.jsonl (0 if empty),\n  increments by 1. The result\
+  \ is the stable external reference for\n  the new command within this session.\n\
+  \n  Returns:\n      Next seq as a positive integer (1-based).\n  \"\"\"\nImplementation:\n\
+  \  if not self._history_file.exists():\n      return 1\n  max_seq = 0\n  try:\n\
+  \      for line in self._history_file.read_text(encoding=\"utf-8\").splitlines():\n\
+  \          line = line.strip()\n          if not line:\n              continue\n\
+  \          entry = json.loads(line)\n          max_seq = max(max_seq, entry.get(\"\
+  seq\", 0))\n  except Exception:  # noqa: BLE001\n      pass\n  return max_seq +\
+  \ 1\n\n### seq_to_prefix() staticmethod\nSignature: @staticmethod def seq_to_prefix(seq:\
+  \ int) -> str:\nDocstring: \"\"\"Return zero-padded 6-digit prefix for seq.\"\"\"\
+  \nBody: return f\"{seq:06d}\"\n\n### pre_create_output_files() method\nSignature:\n\
+  \  def pre_create_output_files(self, seq: int) -> tuple[str, str, str]:\nDocstring:\n\
+  \  \"\"\"Create empty output files for the given seq before the job starts.\n\n\
+  \  Args:\n      seq: Allocated command sequence number.\n\n  Returns:\n      Tuple\
+  \ of (stdout_file, stderr_file, meta_file) relative file names.\n  \"\"\"\nImplementation:\n\
+  \  prefix = self.seq_to_prefix(seq)\n  stdout_file = f\"{prefix}.stdout.log\"\n\
+  \  stderr_file = f\"{prefix}.stderr.log\"\n  meta_file = f\"{prefix}.meta.json\"\
+  \n  for fname in (stdout_file, stderr_file):\n      (self._session_dir / fname).touch()\n\
+  \  (self._session_dir / meta_file).write_text(\n      json.dumps({\"seq\": seq,\
+  \ \"status\": \"pending\"}), encoding=\"utf-8\"\n  )\n  return stdout_file, stderr_file,\
+  \ meta_file\n\n### append_record() method\nSignature: def append_record(self, record:\
+  \ CommandRecord) -> None:\nDocstring: \"\"\"Append a CommandRecord as a JSON line\
+  \ to history.jsonl.\"\"\"\nImplementation:\n  line = json.dumps(asdict(record),\
+  \ ensure_ascii=False)\n  with self._history_file.open(\"a\", encoding=\"utf-8\"\
+  ) as fh:\n      fh.write(line + \"\\n\")\n\n### update_record() method\nSignature:\n\
+  \  def update_record(\n      self,\n      seq: int,\n      *,\n      status: str,\n\
+  \      exit_code: Optional[int] = None,\n      timed_out: Optional[bool] = None,\n\
+  \      job_id: Optional[str] = None,\n  ) -> None:\nDocstring:\n  \"\"\"Rewrite\
+  \ the history.jsonl entry for seq with updated fields.\n\n  Reads all lines, finds\
+  \ the entry with matching seq, updates it,\n  and rewrites the full file. Intended\
+  \ for post-execution updates only.\n  \"\"\"\nImplementation:\n  if not self._history_file.exists():\n\
+  \      return\n  lines = []\n  for line in self._history_file.read_text(encoding=\"\
+  utf-8\").splitlines():\n      line = line.strip()\n      if not line:\n        \
+  \  continue\n      entry = json.loads(line)\n      if entry.get(\"seq\") == seq:\n\
+  \          entry[\"status\"] = status\n          if exit_code is not None:\n   \
+  \           entry[\"exit_code\"] = exit_code\n          if timed_out is not None:\n\
+  \              entry[\"timed_out\"] = timed_out\n          if job_id is not None:\n\
+  \              entry[\"job_id\"] = job_id\n      lines.append(json.dumps(entry,\
+  \ ensure_ascii=False))\n  self._history_file.write_text(\"\\n\".join(lines) + \"\
+  \\n\", encoding=\"utf-8\")\n\n### list_records() method\nSignature:\n  def list_records(\n\
+  \      self,\n      *,\n      limit: int = 25,\n      offset: int = 0,\n  ) -> List[CommandRecord]:\n\
+  Docstring:\n  \"\"\"Return up to limit CommandRecords in descending timestamp order.\"\
+  \"\"\nImplementation:\n  if not self._history_file.exists():\n      return []\n\
+  \  records = []\n  for line in self._history_file.read_text(encoding=\"utf-8\").splitlines():\n\
+  \      line = line.strip()\n      if not line:\n          continue\n      records.append(CommandRecord(**json.loads(line)))\n\
+  \  records.sort(key=lambda r: r.timestamp, reverse=True)\n  return records[offset\
+  \ : offset + limit]\n\n## Constraints\n- File must be valid Python, importable with\
+  \ no runtime errors.\n- All type annotations required.\n- File must not exceed 250\
+  \ lines.\n- Line length limit 99. Must pass flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/command_history.py
+  expected: '`from mcp_terminal.services.command_history import CommandHistory, CommandRecord`
+    succeeds. CommandHistory.seq_to_prefix(1) returns ''000001''. CommandHistory.seq_to_prefix(25)
+    returns ''000025''.'
+status: draft
