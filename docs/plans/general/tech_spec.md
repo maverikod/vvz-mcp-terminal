@@ -588,9 +588,11 @@ Response:
 }
 ```
 
-### 14.4 `terminal_history`
+### 14.4 `terminal_list`
 
 Returns recent commands for a specific terminal session, similar to `bash history`.
+
+The `terminal_` prefix is required for all public MCP commands to avoid ambiguity with commands executed inside the sandbox container, such as `grep`, `tail`, `head`, or `stat`.
 
 Default output order is descending by launch timestamp. Default limit is 25.
 
@@ -610,7 +612,23 @@ Response columns:
 timestamp | seq | status | exit_code | command
 ```
 
-### 14.5 `terminal_read_output`
+### 14.5 `terminal_get`
+
+Returns metadata for one command by exact session-local command sequence number.
+
+Request:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "seq": 25
+}
+```
+
+The response must include timestamp, `seq`, `job_id`, command display string, cwd, status, exit code, timeout flag, stdout/stderr file names, and stdout/stderr byte sizes.
+
+### 14.6 `terminal_read`
 
 Reads command output by session-local command sequence number. The caller selects `stdout` or `stderr`.
 
@@ -627,9 +645,58 @@ Request:
 }
 ```
 
-### 14.6 `terminal_search_output`
+### 14.7 `terminal_search_commands`
 
-Searches command output by regular expression. The search is scoped to one command sequence number and one stream, or to both streams when `stream` is omitted.
+Searches command history by regular expression. This command searches command metadata, not command output files.
+
+Searchable fields should include `cmd_display`, `cwd`, `status`, `exit_code`, and timestamp fields.
+
+Request:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "pattern": "pytest|mypy|ruff",
+  "limit": 25
+}
+```
+
+### 14.8 `terminal_search_output`
+
+Searches command output files by regular expression.
+
+The search may be scoped to one command sequence number and one stream, or to both streams when `stream` is omitted. If `seq` is omitted, the search is scoped to recent commands in the session using `limit_commands`.
+
+Request for one command:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "seq": 25,
+  "stream": "stderr",
+  "pattern": "ERROR|Traceback",
+  "max_matches": 50
+}
+```
+
+Request across recent commands:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "stream": "stderr",
+  "pattern": "ModuleNotFoundError",
+  "limit_commands": 25,
+  "max_matches_per_command": 20
+}
+```
+
+### 14.9 `terminal_tail`
+
+Returns the last lines from a command output file. This is a convenience reader for large outputs.
 
 Request:
 
@@ -639,29 +706,19 @@ Request:
   "session_id": "<uuid4>",
   "seq": 25,
   "stream": "stdout",
-  "pattern": "ERROR|Traceback",
-  "max_matches": 50
+  "lines": 100
 }
 ```
 
-### 14.7 `terminal_get_status`
+### 14.10 `terminal_sessions`
 
-Returns queue status plus terminal-specific metadata for a command by `project_id`, `session_id`, and `seq`.
-
-The status response must include `job_id`, queue status, terminal status, `exit_code`, `timed_out`, file names, and output byte sizes.
-
-### 14.8 `list`
-
-Returns the command history for one terminal session. This command is intentionally short because it is expected to be used frequently, similarly to `bash history`.
-
-`session_id` is required. `project_id` is also required for unambiguous access because the same `session_id` value may theoretically exist in different projects.
+Returns terminal sessions for one project.
 
 Request:
 
 ```json
 {
   "project_id": "<uuid4>",
-  "session_id": "<uuid4>",
   "limit": 25
 }
 ```
@@ -669,12 +726,10 @@ Request:
 Response columns:
 
 ```text
-timestamp | seq | status | exit_code | command
+session_id | created_at | last_command_at | commands_count | status | expires_at
 ```
 
-Default output order is descending by command launch timestamp.
-
-### 14.9 `delete`
+### 14.11 `terminal_delete`
 
 Deletes terminal session directories and their command output files.
 
@@ -701,6 +756,12 @@ Request across projects:
 ```
 
 The command must report every deleted or skipped session path using logical project/session identifiers, not raw host paths.
+
+### 14.12 `terminal_get_status`
+
+Returns queue status plus terminal-specific metadata for a command by `project_id`, `session_id`, and `seq`.
+
+The status response must include `job_id`, queue status, terminal status, `exit_code`, `timed_out`, file names, and output byte sizes.
 
 ## 15. Execution Lifecycle
 
