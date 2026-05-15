@@ -1,0 +1,34 @@
+step_id: G-006
+name: Contracts, Error Model, and Acceptance Criteria
+status: frozen
+description: 'Covers the observable contracts the system must honour: the stable error
+  code set that callers use to handle rejections and failures programmatically, the
+  queue result semantics invariant (queue completed does not imply terminal success;
+  callers must inspect exit_code and timed_out), and the MVP acceptance criteria that
+  define when the implementation is complete. Also covers the safety invariants that
+  must be covered by tests, ensuring no escape path from the security boundary exists.'
+concepts:
+- C-011
+- C-015
+relations:
+- from_concept: C-003
+  to_concept: C-015
+  type: produces
+- from_concept: C-009
+  to_concept: C-015
+  type: produces
+- from_concept: C-011
+  to_concept: C-009
+  type: depends_on
+- from_concept: C-014
+  to_concept: C-011
+  type: uses
+source_ranges:
+- start: 886
+  end: 970
+depends_on:
+- G-001
+- G-003
+- G-004
+- G-005
+tactical_steps: []
