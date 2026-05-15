@@ -1100,7 +1100,6 @@ terminal:
     default_read_bytes: 65536
     max_read_bytes: 262144
   commands:
-  commands:
     default_history_limit: 25
     max_history_limit: 200
     default_tail_lines: 100
