@@ -1,0 +1,56 @@
+step_id: A-001
+parent_tactical_step: T-003
+name: Network policy validation in SandboxPolicy
+target_file: mcp_terminal/services/sandbox_policy.py
+operation: modify_file
+priority: 3
+depends_on: []
+concepts:
+- C-003
+- C-010
+prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
+  \ modify_file\n\n## Current state of the file (after prior atomic steps)\n\nThe\
+  \ file contains: TrustCategory, TrustBoundary, TERMINAL_TRUST_BOUNDARY,\nPolicyConfig,\
+  \ DEFAULT_POLICY_CONFIG, MountSpec, ValidationResult,\nand SandboxPolicy with validate()\
+  \ and build_mount_spec() methods.\n\n## MRS concept excerpt\n\nC-003 SandboxPolicy\
+  \ / C-010 ContainerRuntime network:\n  - Network modes: none (default), package_registry;\
+  \ open is forbidden in MVP\n  - Network: none by default; package_registry via allowlisted\
+  \ egress only\n  - Network mode must be part of the request and audit record\n\n\
+  ## What to add\n\nAdd the following dataclass and method. Do not modify any existing\
+  \ code.\n\n### @dataclass(frozen=True) NetworkSpec  (add after MountSpec)\n\n```python\n\
+  @dataclass(frozen=True)\nclass NetworkSpec:\n    \"\"\"Validated network configuration\
+  \ for a container (C-010).\n\n    Produced by SandboxPolicy.build_network_spec().\n\
+  \    \"\"\"\n\n    mode: str\n    \"\"\"Validated network mode: 'none' or 'package_registry'.\"\
+  \"\"\n    allow_egress: bool\n    \"\"\"True when mode is 'package_registry'; False\
+  \ for 'none'.\"\"\"\n    allowed_hosts: FrozenSet[str]\n    \"\"\"Allowlisted host\
+  \ names for egress; empty when allow_egress is False.\"\"\"\n```\n\n### DEFAULT_NETWORK_SPEC\
+  \ constant (after NetworkSpec)\n\n```python\nDEFAULT_NETWORK_SPEC: NetworkSpec =\
+  \ NetworkSpec(\n    mode=\"none\",\n    allow_egress=False,\n    allowed_hosts=frozenset(),\n\
+  )\n\nPACKAGE_REGISTRY_NETWORK_SPEC: NetworkSpec = NetworkSpec(\n    mode=\"package_registry\"\
+  ,\n    allow_egress=True,\n    allowed_hosts=frozenset({\"pypi.org\", \"files.pythonhosted.org\"\
+  }),\n)\n```\n\n### build_network_spec() method on SandboxPolicy\n\nSignature:\n\
+  \  def build_network_spec(\n      self,\n      network: str,\n  ) -> tuple[Optional[NetworkSpec],\
+  \ Optional[ValidationResult]]:\n\nDocstring:\n  \"\"\"Build a NetworkSpec from the\
+  \ requested network mode.\n\n  'open' network mode is forbidden in MVP and always\
+  \ rejected.\n\n  Args:\n      network: Network mode string from the request.\n\n\
+  \  Returns:\n      (NetworkSpec, None) on success, or (None, ValidationResult) with\n\
+  \      error_code='NETWORK_MODE_NOT_ALLOWED' on failure.\n  \"\"\"\n\nImplementation:\n\
+  \  if network not in self._config.allowed_network_modes:\n      return None, ValidationResult(\n\
+  \          permitted=False,\n          error_code=\"NETWORK_MODE_NOT_ALLOWED\",\n\
+  \          rejected_field=\"network\",\n          detail=f\"network {network!r}\
+  \ is not allowed in MVP\",\n      )\n  if network == \"none\":\n      return DEFAULT_NETWORK_SPEC,\
+  \ None\n  if network == \"package_registry\":\n      return PACKAGE_REGISTRY_NETWORK_SPEC,\
+  \ None\n  return None, ValidationResult(\n      permitted=False,\n      error_code=\"\
+  NETWORK_MODE_NOT_ALLOWED\",\n      rejected_field=\"network\",\n      detail=f\"\
+  unhandled network mode: {network!r}\",\n  )\n\n## Constraints\n- NetworkSpec requires\
+  \ FrozenSet from existing typing imports.\n- Insert NetworkSpec and constants after\
+  \ MountSpec in the file.\n- Add build_network_spec() to SandboxPolicy after build_mount_spec().\n\
+  - File must not exceed 380 lines after this step.\n- Line length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/sandbox_policy.py
+  expected: '`from mcp_terminal.services.sandbox_policy import NetworkSpec, SandboxPolicy`
+    succeeds. SandboxPolicy().build_network_spec("none") returns (NetworkSpec(mode=''none'',
+    allow_egress=False, ...), None). build_network_spec("open") returns (None, ValidationResult
+    with error_code=''NETWORK_MODE_NOT_ALLOWED'').'
+status: draft
