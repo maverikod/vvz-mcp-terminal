@@ -269,6 +269,8 @@ Network mode must be part of the request and audit record.
 
 `open` network must not be available in the initial MVP.
 
+## 10. Command Execution Model
+
 The MVP should support atomic, non-interactive command execution.
 
 The command must be represented as an argv array by default:
