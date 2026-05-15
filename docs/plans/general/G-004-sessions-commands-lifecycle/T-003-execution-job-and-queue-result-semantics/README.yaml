@@ -1,0 +1,40 @@
+step_id: T-003
+parent_global_step: G-004
+name: Execution Job and Queue Result Semantics
+status: draft
+description: 'Defines TerminalExecutionJob (C-009) and QueueResultSemantics (C-011).
+  After CommandRecord is appended, terminal_run enqueues a TerminalExecutionJob with:
+  project_id, session_id, seq, NNNNNN prefix, execution_kind, command or argv, resolved_argv,
+  cwd, mode, network, image_profile, timeout. The job_id returned by the queue is
+  backfilled into the CommandRecord. terminal_run returns immediately with job_id,
+  seq, and output file names; no synchronous container execution occurs in the request
+  handler. The worker executes the job: starts the container using the validated container
+  spec (C-010), redirects stdout exclusively to NNNNNN.stdout.log and stderr exclusively
+  to NNNNNN.stderr.log, updates NNNNNN.meta.json with start_time on start and exit_code,
+  timed_out, finish_time on completion. On completion, failure, stop, or timeout the
+  worker updates the history.jsonl entry (status, exit_code, timed_out) and the queue
+  job state, then stops and removes the container (cleanup_always=true). QueueResultSemantics
+  invariant: queue status=completed does not imply terminal success. Terminal success
+  requires queue status=completed AND exit_code==0 AND timed_out==false. terminal_get_status
+  exposes both the queue job status and the nested terminal command result.'
+concepts:
+- C-009
+- C-011
+inputs:
+- name: command_record_pending
+  type: CommandRecord in pending status
+  description: Pending history entry with seq and output file names, ready for execution.
+- name: container_runtime_spec
+  type: container creation parameters
+  description: Security-hardened container spec from sandbox enforcement, used by
+    C-010 inside the worker.
+outputs:
+- name: terminal_run_response
+  type: response object
+  description: Returned immediately to caller; contains job_id, seq, stdout_file,
+    stderr_file, meta_file, status=pending.
+- name: command_record_final
+  type: CommandRecord in terminal status
+  description: Updated history.jsonl entry with final status, exit_code, timed_out;
+    written by worker on job completion.
+atomic_steps: []
