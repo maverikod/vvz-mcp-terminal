@@ -9,38 +9,40 @@ concepts:
 - C-003
 - C-010
 prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
-  \ modify_file\n\n## Current file content structure (after G-001/T-001, G-001/T-002,\
-  \ G-003/T-001)\n\nThe file currently has this class/constant order (top to bottom):\n\
-  1. Module docstring\n2. Imports: from __future__ import annotations; from dataclasses\
-  \ import\n   dataclass, field; from enum import Enum, auto; from typing import\n\
-  \   FrozenSet, Optional; from pathlib import Path (already used by MountSpec)\n\
-  3. class TrustCategory(Enum)\n4. @dataclass(frozen=True) class TrustBoundary\n5.\
-  \ TERMINAL_TRUST_BOUNDARY: TrustBoundary\n6. @dataclass(frozen=True) class PolicyConfig\n\
-  7. DEFAULT_POLICY_CONFIG: PolicyConfig\n8. @dataclass(frozen=True) class MountSpec\
-  \  ← added in G-003/T-001\n9. @dataclass(frozen=True) class ValidationResult\n10.\
-  \ class SandboxPolicy with methods:\n    - __init__(self, config: PolicyConfig =\
-  \ DEFAULT_POLICY_CONFIG) -> None\n    - validate(self, *, project_id, execution_kind,\
-  \ cwd, mode, network,\n      image_profile, command, argv) -> ValidationResult\n\
-  \    - build_mount_spec(self, *, workspace_source, mode, cwd) ->\n      tuple[Optional[MountSpec],\
-  \ Optional[ValidationResult]]\n\nNote: `from pathlib import Path` must already be\
-  \ in the imports because\nMountSpec.workspace_source: Path requires it. If not present,\
-  \ add it.\n\n## MRS concept excerpt\n\nC-003 SandboxPolicy / C-010 ContainerRuntime\
-  \ network:\n  - Network modes: none (default), package_registry; open is forbidden\
-  \ in MVP\n  - Network: none by default; package_registry via allowlisted egress\
-  \ only\n  - Network mode must be part of the request and audit record\n\n## What\
-  \ to add\n\n### @dataclass(frozen=True) NetworkSpec  (insert after MountSpec, before\
-  \ ValidationResult)\n\n```python\n@dataclass(frozen=True)\nclass NetworkSpec:\n\
-  \    \"\"\"Validated network configuration for a container (C-010).\n\n    Produced\
-  \ by SandboxPolicy.build_network_spec().\n    \"\"\"\n\n    mode: str\n    \"\"\"\
-  Validated network mode: 'none' or 'package_registry'.\"\"\"\n    allow_egress: bool\n\
-  \    \"\"\"True when mode is 'package_registry'; False for 'none'.\"\"\"\n    allowed_hosts:\
-  \ FrozenSet[str]\n    \"\"\"Allowlisted host names for egress; empty when allow_egress\
-  \ is False.\"\"\"\n```\n\n### Module-level constants (insert after NetworkSpec,\
-  \ before ValidationResult)\n\n```python\nDEFAULT_NETWORK_SPEC: NetworkSpec = NetworkSpec(\n\
-  \    mode=\"none\",\n    allow_egress=False,\n    allowed_hosts=frozenset(),\n)\n\
-  \nPACKAGE_REGISTRY_NETWORK_SPEC: NetworkSpec = NetworkSpec(\n    mode=\"package_registry\"\
+  \ modify_file\n\n## Current file content structure (full, after all prior steps)\n\
+  \nThe file now contains (in order):\n\n1. Module docstring + imports:\n   from __future__\
+  \ import annotations\n   from dataclasses import dataclass, field\n   from enum\
+  \ import Enum, auto\n   from pathlib import Path\n   from typing import FrozenSet,\
+  \ Optional\n\n2. class TrustCategory(Enum): TRUSTED_COMPONENT, UNTRUSTED_INPUT,\n\
+  \   SENSITIVE_HOST_RESOURCE\n\n3. @dataclass(frozen=True) TrustBoundary:\n   trusted_components,\
+  \ untrusted_input_categories, sensitive_host_resources\n   (all FrozenSet[str])\n\
+  \n4. TERMINAL_TRUST_BOUNDARY: TrustBoundary constant\n\n5. @dataclass(frozen=True)\
+  \ PolicyConfig:\n   allowed_modes, allowed_network_modes, allowed_image_profiles,\n\
+  \   safe_path_prefixes (all FrozenSet[str])\n\n6. DEFAULT_POLICY_CONFIG: PolicyConfig\
+  \ constant\n\n7. @dataclass(frozen=True) MountSpec:\n   workspace_source: Path\n\
+  \   workspace_readonly: bool\n   scratch_enabled: bool\n   workdir: str\n   mode:\
+  \ str\n\n8. @dataclass(frozen=True) ValidationResult:\n   permitted: bool\n   error_code:\
+  \ Optional[str] = None\n   rejected_field: Optional[str] = None\n   detail: Optional[str]\
+  \ = None\n\n9. class SandboxPolicy:\n   - _FORBIDDEN_OPTIONS: FrozenSet[str]\n \
+  \  - __init__(self, config: PolicyConfig = DEFAULT_POLICY_CONFIG) -> None\n   -\
+  \ validate(self, *, project_id, execution_kind, cwd, mode, network,\n     image_profile,\
+  \ command, argv) -> ValidationResult\n   - build_mount_spec(self, *, workspace_source:\
+  \ Path, mode: str,\n     cwd: Optional[str]) -> tuple[Optional[MountSpec], Optional[ValidationResult]]\n\
+  \n## MRS concept excerpt\n\nC-003 SandboxPolicy / C-010 ContainerRuntime network:\n\
+  \  - Network modes: none (default), package_registry; open is forbidden in MVP\n\
+  \  - Network: none by default; package_registry via allowlisted egress only\n  -\
+  \ Network mode must be part of the request and audit record\n\n## What to add\n\n\
+  ### Insert @dataclass(frozen=True) NetworkSpec after MountSpec, before ValidationResult:\n\
+  \n```python\n@dataclass(frozen=True)\nclass NetworkSpec:\n    \"\"\"Validated network\
+  \ configuration for a container (C-010).\n\n    Produced by SandboxPolicy.build_network_spec().\n\
+  \    \"\"\"\n\n    mode: str\n    \"\"\"Validated network mode: 'none' or 'package_registry'.\"\
+  \"\"\n    allow_egress: bool\n    \"\"\"True when mode is 'package_registry'; False\
+  \ for 'none'.\"\"\"\n    allowed_hosts: FrozenSet[str]\n    \"\"\"Allowlisted host\
+  \ names for egress; empty when allow_egress is False.\"\"\"\n\n\nDEFAULT_NETWORK_SPEC:\
+  \ NetworkSpec = NetworkSpec(\n    mode=\"none\",\n    allow_egress=False,\n    allowed_hosts=frozenset(),\n\
+  )\n\nPACKAGE_REGISTRY_NETWORK_SPEC: NetworkSpec = NetworkSpec(\n    mode=\"package_registry\"\
   ,\n    allow_egress=True,\n    allowed_hosts=frozenset({\"pypi.org\", \"files.pythonhosted.org\"\
-  }),\n)\n```\n\n### build_network_spec() method on SandboxPolicy\n\nAdd after build_mount_spec():\n\
+  }),\n)\n```\n\n### Add build_network_spec() to SandboxPolicy after build_mount_spec():\n\
   \n```python\n    def build_network_spec(\n        self,\n        network: str,\n\
   \    ) -> tuple[Optional[NetworkSpec], Optional[ValidationResult]]:\n        \"\"\
   \"Build a NetworkSpec from the requested network mode.\n\n        'open' network\
@@ -56,16 +58,17 @@ prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation
   \ None\n        return None, ValidationResult(\n            permitted=False,\n \
   \           error_code=\"NETWORK_MODE_NOT_ALLOWED\",\n            rejected_field=\"\
   network\",\n            detail=f\"unhandled network mode: {network!r}\",\n     \
-  \   )\n```\n\n## Constraints\n- NetworkSpec uses FrozenSet from existing typing\
-  \ imports.\n- Insert NetworkSpec and its constants after MountSpec, before ValidationResult.\n\
-  - Add build_network_spec() to SandboxPolicy after build_mount_spec().\n- Do not\
-  \ remove or alter any existing code.\n- File must not exceed 380 lines after this\
-  \ step.\n- Line length limit 99. Must pass flake8.\n"
+  \   )\n```\n\n## Constraints\n- Insert NetworkSpec class and its two constants (DEFAULT_NETWORK_SPEC,\n\
+  \  PACKAGE_REGISTRY_NETWORK_SPEC) between MountSpec and ValidationResult.\n- Add\
+  \ build_network_spec() to SandboxPolicy after build_mount_spec().\n- Do not remove\
+  \ or alter any existing code.\n- FrozenSet is already imported from typing.\n- File\
+  \ must not exceed 380 lines after this step.\n- Line length limit 99. Must pass\
+  \ flake8.\n"
 verification:
   type: import
   target: mcp_terminal/services/sandbox_policy.py
-  expected: '`from mcp_terminal.services.sandbox_policy import NetworkSpec, SandboxPolicy`
-    succeeds. SandboxPolicy().build_network_spec("none") returns (NetworkSpec(mode=''none'',
-    allow_egress=False, allowed_hosts=frozenset()), None). SandboxPolicy().build_network_spec(
-    "open") returns (None, ValidationResult(permitted=False, error_code=''NETWORK_MODE_NOT_ALLOWED'')).'
+  expected: '`from mcp_terminal.services.sandbox_policy import NetworkSpec, DEFAULT_NETWORK_SPEC,
+    SandboxPolicy` succeeds. SandboxPolicy().build_network_spec("none") returns (DEFAULT_NETWORK_SPEC,
+    None) where DEFAULT_NETWORK_SPEC.mode == ''none''. SandboxPolicy().build_network_spec("open")
+    returns (None, ValidationResult(permitted=False, error_code=''NETWORK_MODE_NOT_ALLOWED'')).'
 status: draft
