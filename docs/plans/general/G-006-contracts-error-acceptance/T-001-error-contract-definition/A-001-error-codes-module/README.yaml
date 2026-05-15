@@ -1,0 +1,57 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: ErrorContract stable codes module
+target_file: mcp_terminal/errors.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-015
+prompt: "Create the file `mcp_terminal/errors.py`.\n\nOperation: create_file\n\n##\
+  \ Purpose\n\nImplements ErrorContract (C-015): the stable, closed set of error codes\n\
+  returned by the server. Each code maps to one rejection condition and\nmust not\
+  \ change meaning between versions.\n\n## MRS concept excerpt\n\nC-015 ErrorContract:\n\
+  \  - Codes are stable identifiers; their meaning must not change between versions\n\
+  \  - Defined codes: PROJECT_NOT_FOUND, PROJECT_DELETED, PROJECT_PAUSED,\n    PROJECT_PATH_OUT_OF_SCOPE,\
+  \ INVALID_CWD, INVALID_COMMAND, INVALID_SESSION,\n    IMAGE_PROFILE_NOT_ALLOWED,\
+  \ MODE_NOT_ALLOWED, NETWORK_MODE_NOT_ALLOWED,\n    TIMEOUT_EXCEEDED, OUTPUT_LIMIT_EXCEEDED,\
+  \ CONTAINER_CREATE_FAILED,\n    CONTAINER_EXEC_FAILED, CONTAINER_CLEANUP_FAILED\n\
+  \  - INVALID_SESSION covers missing, non-UUID4, and unknown session_id\n  - INVALID_COMMAND\
+  \ covers empty command and invalid shell/argv fields\n\n## Module docstring\n\"\"\
+  \"\nErrorContract: stable error codes for mcp_terminal (C-015).\n\nThese codes are\
+  \ returned on request rejection or execution failure.\nTheir meaning is stable across\
+  \ versions; callers handle them programmatically.\n\nAuthor: Vasiliy Zdanovskiy\n\
+  Email: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\nfrom __future__ import annotations\n\
+  from dataclasses import dataclass\nfrom typing import FrozenSet, Optional\n\n##\
+  \ class ErrorCode (enum-like namespace)\nUse a class with class-level str constants\
+  \ (not Enum, for easy string comparison):\n\n```python\nclass ErrorCode:\n    \"\
+  \"\"Stable error code constants for mcp_terminal (C-015).\n\n    Each constant maps\
+  \ to exactly one rejection condition.\n    Do not change the string values; they\
+  \ are part of the public contract.\n    \"\"\"\n\n    PROJECT_NOT_FOUND: str = \"\
+  PROJECT_NOT_FOUND\"\n    PROJECT_DELETED: str = \"PROJECT_DELETED\"\n    PROJECT_PAUSED:\
+  \ str = \"PROJECT_PAUSED\"\n    PROJECT_PATH_OUT_OF_SCOPE: str = \"PROJECT_PATH_OUT_OF_SCOPE\"\
+  \n    INVALID_CWD: str = \"INVALID_CWD\"\n    INVALID_COMMAND: str = \"INVALID_COMMAND\"\
+  \n    INVALID_SESSION: str = \"INVALID_SESSION\"\n    IMAGE_PROFILE_NOT_ALLOWED:\
+  \ str = \"IMAGE_PROFILE_NOT_ALLOWED\"\n    MODE_NOT_ALLOWED: str = \"MODE_NOT_ALLOWED\"\
+  \n    NETWORK_MODE_NOT_ALLOWED: str = \"NETWORK_MODE_NOT_ALLOWED\"\n    TIMEOUT_EXCEEDED:\
+  \ str = \"TIMEOUT_EXCEEDED\"\n    OUTPUT_LIMIT_EXCEEDED: str = \"OUTPUT_LIMIT_EXCEEDED\"\
+  \n    CONTAINER_CREATE_FAILED: str = \"CONTAINER_CREATE_FAILED\"\n    CONTAINER_EXEC_FAILED:\
+  \ str = \"CONTAINER_EXEC_FAILED\"\n    CONTAINER_CLEANUP_FAILED: str = \"CONTAINER_CLEANUP_FAILED\"\
+  \n```\n\n## Module-level constant: ALL_ERROR_CODES\n```python\nALL_ERROR_CODES:\
+  \ FrozenSet[str] = frozenset(\n    v for k, v in vars(ErrorCode).items() if not\
+  \ k.startswith(\"_\")\n)\n```\n\n## @dataclass(frozen=True) class TerminalError\n\
+  Docstring:\n  \"\"\"Structured error response for mcp_terminal.\n\n  error_code\
+  \ is always a value from ErrorCode. message is human-readable\n  and not stable\
+  \ across versions.\n  \"\"\"\nFields:\n  error_code: str\n    docstring: \"Stable\
+  \ ErrorContract code from ErrorCode constants.\"\n  message: str\n    docstring:\
+  \ \"Human-readable detail; not stable across versions.\"\n  field: Optional[str]\
+  \ = None\n    docstring: \"Name of the request field that triggered this error,\
+  \ if applicable.\"\n\n## Constraints\n- File must not exceed 80 lines. Line length\
+  \ limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/errors.py
+  expected: '`from mcp_terminal.errors import ErrorCode, TerminalError, ALL_ERROR_CODES`
+    succeeds. ErrorCode.PROJECT_NOT_FOUND == "PROJECT_NOT_FOUND". len(ALL_ERROR_CODES)
+    == 15.'
+status: draft
