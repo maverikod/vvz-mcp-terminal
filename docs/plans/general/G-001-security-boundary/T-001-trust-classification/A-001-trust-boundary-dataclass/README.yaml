@@ -1,0 +1,63 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: TrustBoundary dataclass
+target_file: mcp_terminal/services/sandbox_policy.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-003
+prompt: "Create the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
+  \ create_file\n\n## Purpose\n\nThis module defines the trust classification schema\
+  \ (TrustBoundary) and the\nSandboxPolicy class that enforces zero-trust validation\
+  \ on every request.\nThis first atomic step creates the file with the TrustBoundary\
+  \ data\nstructures only. The SandboxPolicy class is added in a subsequent step.\n\
+  \n## MRS concept excerpt\n\nC-003 SandboxPolicy:\n  definition: Validates every\
+  \ execution request against configured security\n    rules before any container\
+  \ is created. All inputs from the model are\n    treated as untrusted regardless\
+  \ of prior interactions (zero trust).\n  properties:\n    - Zero trust: every request\
+  \ is validated independently; no implicit\n      trust accumulates across requests\n\
+  \    - Server must not become a general-purpose remote shell for the host\n    -\
+  \ Server must not accept arbitrary host paths from the model\n\n## Required content\n\
+  \nModule docstring:\n  \"\"\"Trust classification schema and sandbox policy validation\
+  \ for mcp_terminal.\n\n  Every request from the model is treated as untrusted regardless\
+  \ of session\n  history or prior successful requests (zero-trust invariant).\n\n\
+  \  Author: Vasiliy Zdanovskiy\n  Email: vasilyvz@gmail.com\n  \"\"\"\n\nImports\
+  \ (exact):\n  from __future__ import annotations\n  from dataclasses import dataclass,\
+  \ field\n  from enum import Enum, auto\n  from typing import FrozenSet\n\n## Classes\
+  \ to create\n\n### class TrustCategory(Enum)\nDocstring: \"Categories of entities\
+  \ in the trust classification schema.\"\nMembers:\n  TRUSTED_COMPONENT = auto()\n\
+  \  UNTRUSTED_INPUT = auto()\n  SENSITIVE_HOST_RESOURCE = auto()\n\n### @dataclass(frozen=True)\
+  \ class TrustBoundary\nDocstring:\n  \"\"\"Exhaustive, closed enumeration of trust\
+  \ categories for mcp_terminal.\n\n  The classification is closed: any input not\
+  \ listed in trusted_components\n  is treated as untrusted. This schema is consulted\
+  \ by SandboxPolicy on\n  every request validation.\n  \"\"\"\n\nFields (all FrozenSet[str]\
+  \ with field(default_factory=frozenset)):\n  trusted_components: FrozenSet[str]\n\
+  \    docstring: \"Names of trusted system components.\"\n  untrusted_input_categories:\
+  \ FrozenSet[str]\n    docstring: \"Names of input categories that must never be\
+  \ trusted.\"\n  sensitive_host_resources: FrozenSet[str]\n    docstring: \"Host\
+  \ resource names that must never be exposed to the sandbox.\"\n\n### Module-level\
+  \ constant: TERMINAL_TRUST_BOUNDARY: TrustBoundary\nDocstring: \"Default trust boundary\
+  \ for mcp_terminal.\"\nValue:\n  TrustBoundary(\n      trusted_components=frozenset({\n\
+  \          \"service_code\",\n          \"project_registry\",\n          \"server_side_policy_config\"\
+  ,\n          \"container_image_allowlist\",\n      }),\n      untrusted_input_categories=frozenset({\n\
+  \          \"command_arguments\",\n          \"cwd_values\",\n          \"environment_variable_requests\"\
+  ,\n          \"network_mode_requests\",\n          \"write_mode_requests\",\n  \
+  \        \"mounted_project_file_content\",\n      }),\n      sensitive_host_resources=frozenset({\n\
+  \          \"host_root_filesystem\",\n          \"home_directories_outside_project\"\
+  ,\n          \"ssh_credentials\",\n          \"cloud_credentials\",\n          \"\
+  docker_socket\",\n          \"host_etc_proc_sys_dev\",\n          \"parent_watch_directories\"\
+  ,\n          \"unrelated_project_directories\",\n      }),\n  )\n\n## Constraints\n\
+  - File must be valid Python, importable with no runtime errors.\n- No class other\
+  \ than TrustCategory and TrustBoundary in this step.\n- No SandboxPolicy class yet\
+  \ — that is added in a later step.\n- All type annotations must be present.\n- Module\
+  \ must pass `flake8 mcp_terminal/services/sandbox_policy.py` with\n  no errors (line\
+  \ length limit 99).\n"
+verification:
+  type: import
+  target: mcp_terminal/services/sandbox_policy.py
+  expected: '`from mcp_terminal.services.sandbox_policy import TrustBoundary, TERMINAL_TRUST_BOUNDARY`
+    succeeds without error. TERMINAL_TRUST_BOUNDARY.trusted_components contains "service_code".
+    TERMINAL_TRUST_BOUNDARY.untrusted_input_categories contains "command_arguments".
+    TERMINAL_TRUST_BOUNDARY.sensitive_host_resources contains "docker_socket".'
+status: draft
