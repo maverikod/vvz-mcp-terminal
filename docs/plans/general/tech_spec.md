@@ -720,6 +720,68 @@ MVP lifecycle for `terminal_run`:
 12. Worker stops and removes the container.
 
 No terminal command may execute a container synchronously in the request handler.
+
+## 16. Configuration, TTL, Generator, and Validator
+
+The server must use the existing `mcp_proxy_adapter` configuration reader. `mcp_terminal` must not reimplement adapter config loading.
+
+The terminal-specific config generator and validator must be overlays around the adapter generator and validator, following the `embed` project pattern:
+
+- generator: call the adapter `SimpleConfigGenerator` first, then merge terminal-specific sections;
+- validator: validate with adapter `SimpleConfig` / `SimpleConfigValidator` first, then run terminal-specific validation;
+- CLI: expose `generate`, `validate`, and `help` subcommands similar to `embed.cli.config_cli`;
+- generated configs must be valid adapter configs plus terminal-specific sections.
+
+Required terminal-specific config sections:
+
+```yaml
+terminal:
+  sessions:
+    ttl_seconds: 86400
+    cleanup_interval_seconds: 3600
+    max_sessions_per_project: 50
+    max_commands_per_session: 1000
+  output:
+    max_stdout_file_bytes: 100000000
+    max_stderr_file_bytes: 100000000
+    default_read_bytes: 65536
+    max_read_bytes: 262144
+  commands:
+    default_history_limit: 25
+    max_history_limit: 200
+  cleanup:
+    delete_expired_sessions: true
+    delete_running_sessions: false
+```
+
+`terminal.sessions.ttl_seconds` is required and must be included in both the config generator defaults and the terminal-specific validator.
+
+The validator must reject:
+
+- missing `terminal.sessions.ttl_seconds`;
+- non-positive TTL values;
+- non-positive cleanup interval;
+- non-positive output read limits;
+- `default_history_limit` greater than `max_history_limit`;
+- `max_sessions_per_project` less than 1;
+- `max_commands_per_session` less than 1.
+
+The server must track forgotten sessions and delete expired session directories according to `terminal.sessions.ttl_seconds`. A session is expired when its last command timestamp or session creation timestamp is older than the configured TTL.
+
+Cleanup must never delete active running jobs unless `terminal.cleanup.delete_running_sessions` is explicitly enabled. The default is false.
+
+## 17. Audit Requirements
+
+Every run must create an audit record containing:
+
+- `run_id`;
+- caller identity if available;
+- `project_id`;
+- `session_id`;
+- command sequence number;
+- resolved project root hash or redacted path;
+- command display string;
+- command argv;
 - `cwd`;
 - `mode`;
 - `network`;
@@ -730,13 +792,9 @@ No terminal command may execute a container synchronously in the request handler
 - duration;
 - exit code;
 - timeout flag;
-- output truncation flags;
+- stdout/stderr file names and byte sizes;
 - policy decision summary;
 - error code if failed.
-
-Audit logs must avoid recording secret environment values.
-
-## 17. Error Model
 
 Errors must use stable codes.
 
