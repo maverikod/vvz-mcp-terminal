@@ -1,0 +1,62 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: Config overlay package init and generator
+target_file: mcp_terminal/config/config_generator.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-013
+prompt: "Create the file `mcp_terminal/config/config_generator.py`.\n\nAlso create\
+  \ `mcp_terminal/config/__init__.py` with only:\n  \"\"\"\n  Terminal-specific configuration\
+  \ overlay for mcp_terminal (C-013).\n  Author: Vasiliy Zdanovskiy\n  Email: vasilyvz@gmail.com\n\
+  \  \"\"\"\n\nNOTE: The __init__.py is a required package companion. Both files must\n\
+  be created. The primary target is config_generator.py.\n\n## Purpose\n\nImplements\
+  \ ConfigOverlay (C-013) generator: extends the adapter\nSimpleConfigGenerator with\
+  \ terminal-specific config sections.\n\n## MRS concept excerpt\n\nC-013 ConfigOverlay:\n\
+  \  - Must call adapter generator/validator first, then terminal-specific layer\n\
+  \  - Required sections: terminal.sessions, terminal.output,\n    terminal.commands,\
+  \ terminal.cleanup, runtime\n  - terminal.sessions.ttl_seconds is required; rejected\
+  \ if missing or non-positive\n\n## Module docstring\n\"\"\"\nConfig generator overlay\
+  \ for mcp_terminal (C-013).\n\nExtends adapter SimpleConfigGenerator with terminal-specific\
+  \ sections.\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n\
+  ## Imports\nfrom __future__ import annotations\nfrom typing import Any, Dict\n\n\
+  ## Constants: TERMINAL_CONFIG_DEFAULTS\n```python\nTERMINAL_CONFIG_DEFAULTS: Dict[str,\
+  \ Any] = {\n    \"terminal\": {\n        \"sessions\": {\n            \"ttl_seconds\"\
+  : 86400,\n            \"cleanup_interval_seconds\": 3600,\n            \"max_sessions_per_project\"\
+  : 50,\n            \"max_commands_per_session\": 1000,\n        },\n        \"output\"\
+  : {\n            \"max_stdout_file_bytes\": 100_000_000,\n            \"max_stderr_file_bytes\"\
+  : 100_000_000,\n            \"default_read_bytes\": 65536,\n            \"max_read_bytes\"\
+  : 262144,\n        },\n        \"commands\": {\n            \"default_history_limit\"\
+  : 25,\n            \"max_history_limit\": 200,\n            \"default_tail_lines\"\
+  : 100,\n            \"max_tail_lines\": 5000,\n        },\n        \"cleanup\":\
+  \ {\n            \"delete_expired_sessions\": True,\n            \"delete_running_sessions\"\
+  : False,\n        },\n    },\n    \"runtime\": {\n        \"default_image_profile\"\
+  : \"python_dev_3_12\",\n        \"default_mode\": \"read_only\",\n        \"default_network\"\
+  : \"none\",\n        \"timeout_seconds\": 60,\n        \"max_timeout_seconds\":\
+  \ 300,\n        \"memory\": \"1g\",\n        \"cpus\": 1.0,\n        \"pids_limit\"\
+  : 256,\n        \"max_concurrent_runs\": 4,\n        \"cleanup_always\": True,\n\
+  \    },\n}\n```\n\n## Function: generate_terminal_config\nSignature:\n  def generate_terminal_config(\n\
+  \      base_config: Dict[str, Any],\n      *,\n      overrides: Optional[Dict[str,\
+  \ Any]] = None,\n  ) -> Dict[str, Any]:\n(Add Optional to imports: from typing import\
+  \ Any, Dict, Optional)\nDocstring:\n  \"\"\"Merge terminal-specific default sections\
+  \ into base_config.\n\n  Calls the adapter generator first (represented by base_config\
+  \ which\n  the caller has already built using adapter SimpleConfigGenerator),\n\
+  \  then deep-merges TERMINAL_CONFIG_DEFAULTS into it. Caller-supplied\n  overrides\
+  \ are applied last.\n\n  Args:\n      base_config: Adapter-valid config dict (already\
+  \ generated).\n      overrides: Optional terminal-specific overrides to apply on\
+  \ top.\n\n  Returns:\n      New config dict containing both adapter sections and\
+  \ terminal sections.\n  \"\"\"\nImplementation:\n  import copy\n  result = copy.deepcopy(base_config)\n\
+  \  for key, value in TERMINAL_CONFIG_DEFAULTS.items():\n      if key not in result:\n\
+  \          result[key] = copy.deepcopy(value)\n      elif isinstance(value, dict):\n\
+  \          for subkey, subval in value.items():\n              result[key].setdefault(subkey,\
+  \ copy.deepcopy(subval))\n  if overrides:\n      for key, value in overrides.items():\n\
+  \          result[key] = value\n  return result\n\n## Constraints\n- File must not\
+  \ exceed 100 lines. Line length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/config/config_generator.py
+  expected: '`from mcp_terminal.config.config_generator import TERMINAL_CONFIG_DEFAULTS,
+    generate_terminal_config` succeeds. generate_terminal_config({}) contains key
+    ''terminal'' with terminal.sessions.ttl_seconds == 86400.'
+status: draft
