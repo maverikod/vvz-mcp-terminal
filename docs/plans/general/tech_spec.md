@@ -98,25 +98,20 @@ Forbidden input pattern:
 ### 6.1 Configured projects root
 
 The server configuration must contain a section that defines the host directory containing project subdirectories.
-
-Example configuration:
-
 ```yaml
 projects:
   root_dir: /home/vasilyvz/projects/tools
-  marker_file: projectid
-  marker_format: json
   require_uuid4_id: true
   allow_nested_projects: false
 ```
 
 Only direct subdirectories of `projects.root_dir` are candidates by default.
 
-A candidate directory is considered a project only when it contains the application marker file configured by `projects.marker_file`. The default marker file name is `projectid`.
+A candidate directory is considered a project only when it contains the standard code-project marker file named `projectid`.
 
-The marker file must be JSON. The minimum required shape is:
+`projectid` is a fixed project standard. It must not be renamed, made configurable, migrated, rewritten, or otherwise modified by `mcp_terminal`. The server may only read it.
 
-```json
+The `projectid` marker file must be JSON. The minimum required shape is:
 {
   "id": "<uuid4>",
   "description": "<human-readable project description>"
