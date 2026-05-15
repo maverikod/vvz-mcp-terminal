@@ -1,0 +1,49 @@
+step_id: A-004
+parent_tactical_step: T-005
+name: terminal_search_commands command
+target_file: mcp_terminal/commands/terminal_search_commands_command.py
+operation: create_file
+priority: 4
+depends_on: []
+concepts:
+- C-014
+prompt: "Create the file `mcp_terminal/commands/terminal_search_commands_command.py`.\n\
+  \nOperation: create_file\n\n## Purpose\n\nImplements terminal_search_commands MCP\
+  \ command (C-014): searches command\nhistory metadata (not output files) by regex.\n\
+  \n## Module docstring\n\"\"\"\nterminal_search_commands command for mcp_terminal\
+  \ (C-014).\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n##\
+  \ Imports\nfrom __future__ import annotations\nimport re\nfrom typing import Any,\
+  \ Dict, List\nfrom mcp_terminal.services.command_history import CommandHistory\n\
+  from mcp_terminal.services.session_store import SessionStore\n\n## Class: TerminalSearchCommandsCommand\n\
+  Class attributes:\n  name: str = \"terminal_search_commands\"\n  description: str\
+  \ = \"Search command history metadata by regex.\"\n\n@classmethod def get_schema(cls)\
+  \ -> Dict[str, Any]:\n  return {\n      \"type\": \"object\",\n      \"properties\"\
+  : {\n          \"project_id\": {\"type\": \"string\"},\n          \"session_id\"\
+  : {\"type\": \"string\"},\n          \"pattern\": {\"type\": \"string\", \"description\"\
+  : \"Regex pattern.\"},\n          \"limit\": {\"type\": \"integer\", \"default\"\
+  : 25, \"minimum\": 1},\n      },\n      \"required\": [\"project_id\", \"session_id\"\
+  , \"pattern\"],\n  }\n\ndef execute(self, params: Dict[str, Any], *, session_store:\
+  \ SessionStore) -> Dict[str, Any]:\n  Docstring: \"\"\"Search command metadata for\
+  \ lines matching pattern.\"\"\"\n  Implementation:\n    project_id = params.get(\"\
+  project_id\", \"\")\n    session_id = params.get(\"session_id\", \"\")\n    pattern\
+  \ = params.get(\"pattern\", \"\")\n    limit = int(params.get(\"limit\", 25))\n\
+  \    record = session_store.get_session(session_id)\n    if record is None or record.project_id\
+  \ != project_id:\n        return {\"success\": False, \"data\": None, \"error\"\
+  : \"INVALID_SESSION\"}\n    try:\n        regex = re.compile(pattern)\n    except\
+  \ re.error as exc:\n        return {\"success\": False, \"data\": None, \"error\"\
+  : f\"INVALID_PATTERN: {exc}\"}\n    session_store.touch_activity(session_id)\n \
+  \   history = CommandHistory(record.session_dir)\n    all_records = history.list_records(limit=10000)\n\
+  \    matches: List[Dict[str, Any]] = []\n    for r in all_records:\n        display\
+  \ = r.command or \" \".join(r.argv or [])\n        if regex.search(display) or regex.search(r.status):\n\
+  \            matches.append({\n                \"seq\": r.seq, \"timestamp\": r.timestamp,\n\
+  \                \"status\": r.status, \"exit_code\": r.exit_code,\n           \
+  \     \"command_display\": display,\n            })\n            if len(matches)\
+  \ >= limit:\n                break\n    return {\"success\": True, \"data\": matches,\
+  \ \"error\": None}\n\n## Constraints\n- File must not exceed 100 lines. Line length\
+  \ limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/commands/terminal_search_commands_command.py
+  expected: '`from mcp_terminal.commands.terminal_search_commands_command import TerminalSearchCommandsCommand`
+    succeeds. TerminalSearchCommandsCommand.name == "terminal_search_commands".'
+status: draft
