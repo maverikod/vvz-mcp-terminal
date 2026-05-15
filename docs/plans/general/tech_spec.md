@@ -467,7 +467,6 @@ For MVP, the recommended default is:
 - deny commands containing empty argv or NUL bytes;
 - record the resolved executable path in the audit record;
 - treat package installation as a sensitive operation requiring `network: package_registry`.
-- maximum timeout.
 
 ## 14. API Commands
 
