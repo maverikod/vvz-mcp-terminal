@@ -933,18 +933,117 @@ The actual container execution must be implemented as a queue job, not as a publ
 - Attempt requesting arbitrary image.
 - Attempt requesting privileged options.
 
-## 22. Operational Defaults
+### Phase 2: Config overlay
+
+- Keep using adapter `SimpleConfig` as the reader.
+- Implement `mcp_terminal.config.config_generator` as an overlay over adapter `SimpleConfigGenerator`.
+- Implement `mcp_terminal.config.config_validator` as an overlay over adapter `SimpleConfig` / `SimpleConfigValidator`.
+- Implement `mcp_terminal.config.config_cli` with `generate`, `validate`, and `help` commands, following `embed.cli.config_cli`.
+- Add terminal TTL and output parameters to generator defaults and validator checks.
+
+### Phase 3: Project and session services
+
+- Implement project discovery from `projects.root_dir` and `projectid` marker files.
+- Implement session directory creation under `.terminals/<session_id>/`.
+- Implement command sequence allocation per session.
+- Implement `history.jsonl` append and read logic.
+- Implement session TTL cleanup with protection for running jobs.
+
+### Phase 4: Queue-only execution
+
+- Implement `TerminalExecutionJob`.
+- `terminal_run` must only create metadata/output files, append history, add queue job, and return `job_id` + `seq`.
+- The worker must run the container and redirect stdout/stderr to `NNNNNN.stdout.log` and `NNNNNN.stderr.log`.
+- The worker must update command metadata and queue state on success, failure, stop, and timeout.
+
+### Phase 5: Reader commands
+
+- Implement `list` for session command history.
+- Implement `terminal_read_output` with offset and byte limits.
+- Implement `terminal_search_output` with regex and match limits.
+- Implement `terminal_get_status` as a terminal-aware wrapper over queue state plus command metadata.
+- Implement `delete` for session deletion by `session_id`, optionally scoped by `project_id`.
+
+### Phase 6: Container isolation
+
+- Implement sandbox policy validation.
+- Implement container creation with fixed `/workspace` mount.
+- Enforce non-root user, no Docker socket, no privileged mode, resource limits, and network policy.
+- Ensure stdout/stderr redirection to files is the only output path for command execution.
+
+## 22. Testing Strategy
+
+Tests must include both normal and hostile cases.
+
+### Unit tests
+
+- Config generator produces adapter-valid config plus terminal sections.
+- Config validator calls adapter validation first and then terminal-specific checks.
+- Missing or invalid `terminal.sessions.ttl_seconds` is rejected.
+- Project discovery accepts only valid `projectid` marker files.
+- Session ids are UUID4.
+- Command sequence allocation is monotonic per session.
+- `list` requires `project_id` and `session_id`.
+- `delete` requires `session_id` and treats `project_id` as optional.
+- Output reader rejects invalid stream names and path traversal.
+- Regex search enforces match limits.
+
+### Integration tests
+
+- `mcp-terminal` appears in proxy server list.
+- MCP `help` shows `list`, `delete`, `terminal_run`, `terminal_read_output`, `terminal_search_output`, and `terminal_get_status`.
+- `terminal_session_create` creates `.terminals/<session_id>/`.
+- `terminal_run` returns `job_id`, `seq`, `stdout_file`, `stderr_file`, and `meta_file`.
+- Queue status reaches completed/failed/stopped without masking nested command failure.
+- stdout is written only to `NNNNNN.stdout.log`.
+- stderr is written only to `NNNNNN.stderr.log`.
+- `list` returns the last 25 commands in descending timestamp order by default.
+- `terminal_read_output` reads by `project_id + session_id + seq + stream`.
+- `terminal_search_output` finds regex matches in stdout/stderr files.
+- `delete` removes the requested session directory and verifies it is gone by a separate read/list command.
+
+### Security regression tests
+
+- Attempt `cwd=..`.
+- Attempt `cwd=/`.
+- Attempt reading `/host`.
+- Attempt reading `/var/run/docker.sock`.
+- Attempt writing outside `/workspace`.
+- Attempt symlink escape from project tree.
+- Attempt requesting forbidden network mode.
+- Attempt requesting arbitrary image.
+- Attempt requesting privileged options.
+- Attempt deleting a session outside `.terminals`.
+- Attempt reading output with path traversal instead of `seq`.
+
+## 23. Operational Defaults
 
 Recommended initial defaults:
 
 ```yaml
+terminal:
+  sessions:
+    ttl_seconds: 86400
+    cleanup_interval_seconds: 3600
+    max_sessions_per_project: 50
+    max_commands_per_session: 1000
+  output:
+    max_stdout_file_bytes: 100000000
+    max_stderr_file_bytes: 100000000
+    default_read_bytes: 65536
+    max_read_bytes: 262144
+  commands:
+    default_history_limit: 25
+    max_history_limit: 200
+  cleanup:
+    delete_expired_sessions: true
+    delete_running_sessions: false
 runtime:
   default_image_profile: python_dev_3_12
   default_mode: read_only
   default_network: none
   timeout_seconds: 60
   max_timeout_seconds: 300
-  max_output_bytes: 200000
   memory: 1g
   cpus: 1.0
   pids_limit: 256
@@ -952,35 +1051,31 @@ runtime:
   cleanup_always: true
 ```
 
-## 23. Open Questions
+## 24. Open Questions
 
-1. Which service is the source of truth for `project_id -> project root` lookup?
-2. Should paused projects block terminal execution or only background analysis?
-3. Which image profiles are required for the first production use case?
-4. Should write mode require a separate explicit confirmation flag?
-5. Should network access be disabled globally for MVP?
-6. Where should audit records be stored?
-7. Should stdout/stderr be stored fully on disk or only partially in database?
-8. How should file ownership be mapped between container user and host user?
-9. Is rootless Docker/Podman required for deployment?
-10. Should this server support Windows hosts, or Linux-only initially?
+1. Which exact marker filename is final: `projectid` only, or configurable `projects.marker_file`?
+2. Should `list` require `project_id` despite `delete` allowing omitted `project_id`? Current recommendation: yes.
+3. Should `terminal_session_create` be explicit, or should `terminal_run` create sessions when `session_id` is omitted? Current recommendation: explicit session creation.
+4. Should shell-style commands be the only public command format because pipelines are required?
+5. Should session TTL be based on session creation time, last command start time, or last command finish time? Current recommendation: last command timestamp, fallback to creation timestamp.
+6. Should expired sessions with failed or stopped jobs be deleted immediately after TTL?
+7. Should `delete` be allowed to remove sessions with running jobs? Current recommendation: no by default.
+8. Should output files live inside project `.terminals` even in read-only mode? Current recommendation: yes, terminal metadata is service-managed project state.
+9. How should file ownership be mapped between container user and host user?
+10. Is rootless Docker/Podman required for deployment?
 
-## 24. Initial Recommendation
+## 25. Initial Recommendation
 
-Start with a conservative MVP:
+Implement the current adapter skeleton as a queue-only, session-scoped terminal service:
 
-- one command per disposable container;
-- `project_id` only;
-- fixed `/workspace` mount;
-- default `read_only`;
-- default `network: none`;
-- no shell mode;
-- no sessions;
-- no arbitrary images;
-- no Docker socket;
-- non-root execution;
-- hard resource limits;
-- full audit trail;
-- negative escape tests before declaring the server ready.
-
-This approach keeps the first version simple, testable, and much safer than a long-lived interactive terminal.
+- preserve existing adapter server startup and config reader;
+- add terminal commands via `register_custom_commands_hook`;
+- implement config generator/validator as overlays over adapter tools;
+- use `project_id + session_id` for every session-scoped operation;
+- store per-session state in `.terminals/<session_id>/`;
+- store stdout and stderr in separate per-command files with sequence-based names;
+- expose history through `list`;
+- expose output through read/search commands, not queue result payloads;
+- enforce TTL cleanup from config;
+- keep actual container execution inside queue jobs only;
+- validate completion through MCP calls, queue status, and read-back of generated files.
