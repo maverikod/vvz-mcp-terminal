@@ -1,0 +1,26 @@
+step_id: G-001
+name: Security Boundary and Trust Model
+status: frozen
+description: 'Establishes the security boundary of the system: what the server is
+  permitted to be (a controlled project sandbox), what it must never become (a general-purpose
+  host shell), and who is trusted versus untrusted. Defines the zero-trust invariant:
+  every request from the model is treated as untrusted regardless of prior interactions.
+  Covers the full enumeration of trusted components, untrusted inputs, and sensitive
+  host resources that must remain unexposed.'
+concepts:
+- C-003
+relations:
+- from_concept: C-010
+  to_concept: C-003
+  type: depends_on
+- from_concept: C-003
+  to_concept: C-001
+  type: uses
+- from_concept: C-003
+  to_concept: C-015
+  type: produces
+source_ranges:
+- start: 8
+  end: 82
+depends_on: []
+tactical_steps: []
