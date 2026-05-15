@@ -470,103 +470,185 @@ For MVP, the recommended default is:
 
 ## 14. API Commands
 
-### 14.1 `terminal_run`
-Runs one command in a disposable sandbox container.
+Terminal execution is queue-only and session-scoped. A terminal session is identified by the pair `project_id` + `session_id`, where `session_id` is a UUID4 value.
 
-Request schema draft:
+Each project may have multiple terminal sessions. Each session stores command history and command output files under the project-local `.terminals/<session_id>/` directory.
+
+### 14.1 Session storage layout
+
+For every terminal session, the server stores files under:
+
+```text
+.terminals/<session_id>/
+```
+
+The directory must contain an append-only command index and per-command output files:
+
+```text
+.terminals/<session_id>/
+  history.jsonl
+  000001.meta.json
+  000001.stdout.log
+  000001.stderr.log
+  000002.meta.json
+  000002.stdout.log
+  000002.stderr.log
+```
+
+The command sequence number is session-local and monotonically increasing. File names use a zero-padded decimal sequence number.
+
+`stdout` and `stderr` must be stored in separate files. A separate combined output file is not required for MVP.
+
+`history.jsonl` contains one JSON object per command:
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "project_id": {
-      "type": "string",
-      "description": "Registered project UUID. The server resolves it to a project root."
-    },
-    "cmd": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Command argv array. Shell is not used by default."
-    },
-    "cwd": {
-      "type": "string",
-      "default": ".",
-      "description": "Relative working directory inside /workspace."
-    },
-    "mode": {
-      "type": "string",
-      "enum": ["read_only", "workspace_write", "scratch_write"],
-      "default": "read_only"
-    },
-    "network": {
-      "type": "string",
-      "enum": ["none", "restricted"],
-      "default": "none"
-    },
-    "image_profile": {
-      "type": "string",
-      "description": "Allowlisted runtime image profile."
-    },
-    "timeout_seconds": {
-      "type": "integer",
-      "default": 60
-    },
-    "max_output_bytes": {
-      "type": "integer",
-      "default": 200000
-    }
-  },
-  "required": ["project_id", "cmd"],
-  "additionalProperties": false
+  "seq": 1,
+  "job_id": "terminal_...",
+  "project_id": "...",
+  "session_id": "<uuid4>",
+  "timestamp": "2026-05-15T12:34:56Z",
+  "cmd_display": "grep \"some text\" file.txt | more",
+  "cmd": ["bash", "-lc", "grep \"some text\" file.txt | more"],
+  "cwd": ".",
+  "mode": "read_only",
+  "network": "none",
+  "image_profile": "python_dev_3_12",
+  "status": "completed",
+  "exit_code": 0,
+  "timed_out": false,
+  "stdout_file": "000001.stdout.log",
+  "stderr_file": "000001.stderr.log"
 }
 ```
 
-Response draft:
+### 14.2 `terminal_session_create`
+
+Creates a new terminal session for a project and returns `session_id`.
+
+Request:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "image_profile": "python_dev_3_12",
+  "mode": "read_only",
+  "network": "none"
+}
+```
+
+Response:
 
 ```json
 {
   "success": true,
   "data": {
-    "run_id": "trun_...",
-    "project_id": "...",
-    "mode": "read_only",
-    "network": "none",
-    "image_profile": "python_dev_3_12",
-    "cwd": ".",
-    "exit_code": 0,
-    "timed_out": false,
-    "stdout": "...",
-    "stderr": "...",
-    "stdout_truncated": false,
-    "stderr_truncated": false,
-    "duration_ms": 1234
+    "project_id": "<uuid4>",
+    "session_id": "<uuid4>",
+    "session_dir": ".terminals/<session_id>/"
   }
 }
 ```
 
-### 14.2 `terminal_get_run_status`
+### 14.3 `terminal_run`
 
-Returns status and metadata for a previous run.
+Queues a command for execution inside an existing terminal session. It must not execute the command synchronously in the request handler.
 
-This is required for auditability and for queued/asynchronous execution.
+The command may be either argv-style or shell-style. Shell-style is required for pipelines such as `grep "some text" file.txt | more`; when shell-style is used, the server must run it through an allowlisted shell such as `bash -lc` inside the sandbox.
 
-### 14.3 `terminal_get_run_logs`
+Request:
 
-Returns captured stdout/stderr for a previous run, with truncation and pagination support.
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "command": "grep \"some text\" file.txt | more",
+  "cwd": ".",
+  "timeout_seconds": 300,
+  "mode": "read_only",
+  "network": "none"
+}
+```
 
-### 14.4 Future: `terminal_session_start`
+Response:
 
-Starts a reusable sandbox session with TTL.
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "<uuid4>",
+    "session_id": "<uuid4>",
+    "seq": 25,
+    "job_id": "terminal_...",
+    "status": "pending",
+    "stdout_file": "000025.stdout.log",
+    "stderr_file": "000025.stderr.log",
+    "meta_file": "000025.meta.json"
+  }
+}
+```
 
-Not part of MVP unless required.
+### 14.4 `terminal_history`
 
-### 14.5 Future: `terminal_session_exec`
+Returns recent commands for a specific terminal session, similar to `bash history`.
 
-Executes a command inside an existing session.
+Default output order is descending by launch timestamp. Default limit is 25.
 
-### 14.6 Future: `terminal_session_close`
+Request:
 
-Stops and removes a reusable session.
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "limit": 25
+}
+```
+
+Response columns:
+
+```text
+timestamp | seq | status | exit_code | command
+```
+
+### 14.5 `terminal_read_output`
+
+Reads command output by session-local command sequence number. The caller selects `stdout` or `stderr`.
+
+Request:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "seq": 25,
+  "stream": "stdout",
+  "offset": 0,
+  "max_bytes": 65536
+}
+```
+
+### 14.6 `terminal_search_output`
+
+Searches command output by regular expression. The search is scoped to one command sequence number and one stream, or to both streams when `stream` is omitted.
+
+Request:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "seq": 25,
+  "stream": "stdout",
+  "pattern": "ERROR|Traceback",
+  "max_matches": 50
+}
+```
+
+### 14.7 `terminal_get_status`
+
+Returns queue status plus terminal-specific metadata for a command by `project_id`, `session_id`, and `seq`.
+
+The status response must include `job_id`, queue status, terminal status, `exit_code`, `timed_out`, file names, and output byte sizes.
 
 ## 15. Execution Lifecycle
 
@@ -574,20 +656,18 @@ MVP lifecycle for `terminal_run`:
 
 1. Validate request schema.
 2. Validate semantic constraints.
-3. Resolve `project_id` to project metadata.
-4. Validate project state and canonical path confinement.
-5. Select image from allowlist.
-6. Build container create request from server-side policy, not from caller-supplied Docker flags.
-7. Mount project according to `mode`.
-8. Create disposable container.
-9. Execute argv command with timeout.
-10. Capture stdout/stderr with byte limits.
-11. Collect exit code and timing metadata.
-12. Stop and remove container.
-13. Persist audit record.
-14. Return result.
+3. Resolve `project_id` and `session_id`.
+4. Allocate the next session-local command sequence number.
+5. Create `NNNNNN.meta.json`, `NNNNNN.stdout.log`, and `NNNNNN.stderr.log`.
+6. Append the pending command record to `history.jsonl`.
+7. Add a terminal execution job to the queue.
+8. Return `job_id`, `seq`, and output file names.
+9. Worker starts the sandbox container.
+10. Worker redirects stdout to `NNNNNN.stdout.log` and stderr to `NNNNNN.stderr.log`.
+11. Worker updates metadata and queue state on completion, failure, stop, or timeout.
+12. Worker stops and removes the container.
 
-Containers should be single-use for MVP.
+No terminal command may execute a container synchronously in the request handler.
 
 ## 16. Audit Requirements
 
