@@ -1,0 +1,28 @@
+step_id: G-003
+name: Sandbox Enforcement
+status: frozen
+description: Defines how execution requests are constrained inside an isolated container.
+  Covers container mount modes (/workspace fixed, caller cannot choose), mandatory
+  runtime security settings (non-root, cap-drop ALL, no-new-privileges, read-only
+  root filesystem, resource limits), network policy (none by default, package_registry
+  as the only permitted outbound mode in MVP), command execution kinds (shell and
+  argv), working directory containment, environment variable restrictions, and image
+  profile allowlist. Also covers tools excluded from MVP images and the command policy
+  layer that denies dangerous invocations even if the tool is present in the image.
+concepts:
+- C-003
+- C-010
+relations:
+- from_concept: C-010
+  to_concept: C-003
+  type: depends_on
+- from_concept: C-013
+  to_concept: C-010
+  type: owns
+source_ranges:
+- start: 168
+  end: 460
+depends_on:
+- G-001
+- G-002
+tactical_steps: []
