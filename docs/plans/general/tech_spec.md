@@ -1100,8 +1100,11 @@ terminal:
     default_read_bytes: 65536
     max_read_bytes: 262144
   commands:
+  commands:
     default_history_limit: 25
     max_history_limit: 200
+    default_tail_lines: 100
+    max_tail_lines: 5000
   cleanup:
     delete_expired_sessions: true
     delete_running_sessions: false
@@ -1115,6 +1118,9 @@ runtime:
   cpus: 1.0
   pids_limit: 256
   max_concurrent_runs: 4
+  cleanup_always: true
+```
+
 ## 24. Final Decisions
 
 The following decisions are binding for decomposition and implementation:
@@ -1127,8 +1133,6 @@ The following decisions are binding for decomposition and implementation:
 6. Running sessions may be deleted only when the request contains an explicit force flag.
 7. `.terminals/<session_id>/` is stored inside the project directory. The service must ensure `.terminals/` is ignored by Git.
 8. `terminal_stat` is included in MVP as a lightweight metadata/statistics command.
-8. Should output files live inside project `.terminals` even in read-only mode? Current recommendation: yes, terminal metadata is service-managed project state.
-9. How should file ownership be mapped between container user and host user?
 10. Is rootless Docker/Podman required for deployment?
 
 ## 25. Initial Recommendation
