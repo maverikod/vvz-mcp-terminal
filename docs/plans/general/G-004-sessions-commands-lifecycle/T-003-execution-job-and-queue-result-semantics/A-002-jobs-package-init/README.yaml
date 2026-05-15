@@ -1,0 +1,55 @@
+step_id: A-002
+parent_tactical_step: T-003
+name: mcp_terminal/jobs/__init__.py package init
+target_file: mcp_terminal/jobs/__init__.py
+operation: create_file
+priority: 2
+depends_on: []
+concepts:
+- C-009
+prompt: 'Create the file `mcp_terminal/jobs/__init__.py`.
+
+
+  Operation: create_file
+
+
+  ## Purpose
+
+
+  Required package init file for the mcp_terminal.jobs package.
+
+  Without this file the package cannot be imported.
+
+
+  ## Required content (complete file)
+
+
+  ```python
+
+  """
+
+  Queue job implementations for mcp_terminal (C-009).
+
+
+  Author: Vasiliy Zdanovskiy
+
+  Email: vasilyvz@gmail.com
+
+  """
+
+  ```
+
+
+  That is the complete file. No other content.
+
+
+  ## Constraints
+
+  - File must be exactly 7 lines (docstring only, no imports, no code).
+
+  '
+verification:
+  type: import
+  target: mcp_terminal/jobs/__init__.py
+  expected: '`import mcp_terminal.jobs` succeeds without error.'
+status: draft
