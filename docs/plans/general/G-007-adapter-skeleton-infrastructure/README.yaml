@@ -1,0 +1,31 @@
+step_id: G-007
+name: Adapter Skeleton and Implementation Infrastructure
+status: frozen
+description: Covers the existing codebase that must be preserved and the incremental
+  extension model. The server is built on top of the adapter skeleton and must not
+  be rewritten. Terminal domain modules are added by registering commands through
+  the adapter hook mechanism. Covers the required module structure, the phased delivery
+  order (config overlay, services, queue job, readers, container isolation), the testing
+  strategy including hostile-input cases, operational defaults, final binding decisions,
+  and the implementation recommendation.
+concepts:
+- C-013
+- C-016
+relations:
+- from_concept: C-014
+  to_concept: C-016
+  type: extends
+- from_concept: C-016
+  to_concept: C-013
+  type: uses
+source_ranges:
+- start: 970
+  end: 1197
+depends_on:
+- G-001
+- G-002
+- G-003
+- G-004
+- G-005
+- G-006
+tactical_steps: []
