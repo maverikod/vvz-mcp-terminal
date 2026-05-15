@@ -1,0 +1,63 @@
+step_id: A-005
+parent_tactical_step: T-005
+name: terminal_get_status command
+target_file: mcp_terminal/commands/terminal_get_status_command.py
+operation: create_file
+priority: 5
+depends_on: []
+concepts:
+- C-014
+- C-011
+prompt: "Create the file `mcp_terminal/commands/terminal_get_status_command.py`.\n\
+  \nOperation: create_file\n\n## Purpose\n\nImplements terminal_get_status MCP command\
+  \ (C-014) applying\nQueueResultSemantics (C-011): exposes both queue job status\
+  \ and terminal\ncommand success state.\n\n## MRS concept excerpts\n\nC-011 QueueResultSemantics:\n\
+  \  - queue completed does not imply terminal success\n  - Terminal success requires\
+  \ exit_code==0 AND timed_out==false\n  - terminal_get_status returns: job_id, queue_status,\
+  \ terminal_status,\n    exit_code, timed_out, output file names, and output byte\
+  \ sizes\n\n## Module docstring\n\"\"\"\nterminal_get_status command for mcp_terminal\
+  \ (C-014, C-011).\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\
+  \n\n## Imports\nfrom __future__ import annotations\nfrom pathlib import Path\nfrom\
+  \ typing import Any, Dict, Optional\nfrom mcp_terminal.services.command_history\
+  \ import CommandHistory\nfrom mcp_terminal.services.output_reader import OutputReader\n\
+  from mcp_terminal.services.session_store import SessionStore\n\n## Class: TerminalGetStatusCommand\n\
+  Class attributes:\n  name: str = \"terminal_get_status\"\n  description: str = (\n\
+  \      \"Return queue status and terminal command result for a command. \"\n   \
+  \   \"Queue completed does not imply terminal success (C-011).\"\n  )\n\n@classmethod\
+  \ def get_schema(cls) -> Dict[str, Any]:\n  return {\n      \"type\": \"object\"\
+  ,\n      \"properties\": {\n          \"project_id\": {\"type\": \"string\"},\n\
+  \          \"session_id\": {\"type\": \"string\"},\n          \"seq\": {\"type\"\
+  : \"integer\"},\n      },\n      \"required\": [\"project_id\", \"session_id\",\
+  \ \"seq\"],\n  }\n\ndef execute(self, params: Dict[str, Any], *, session_store:\
+  \ SessionStore) -> Dict[str, Any]:\n  Docstring:\n    \"\"\"Return combined queue\
+  \ status and terminal command result (C-011).\n\n    Applies QueueResultSemantics:\
+  \ terminal_status is 'success' only when\n    queue_status is 'completed', exit_code\
+  \ == 0, and timed_out is False.\n    \"\"\"\n  Implementation:\n    project_id =\
+  \ params.get(\"project_id\", \"\")\n    session_id = params.get(\"session_id\",\
+  \ \"\")\n    seq = int(params.get(\"seq\", 0))\n    record = session_store.get_session(session_id)\n\
+  \    if record is None or record.project_id != project_id:\n        return {\"success\"\
+  : False, \"data\": None, \"error\": \"INVALID_SESSION\"}\n    session_store.touch_activity(session_id)\n\
+  \    history = CommandHistory(record.session_dir)\n    all_records = history.list_records(limit=10000)\n\
+  \    cmd_record = next((r for r in all_records if r.seq == seq), None)\n    if cmd_record\
+  \ is None:\n        return {\"success\": False, \"data\": None, \"error\": \"NOT_FOUND\"\
+  }\n    # Apply QueueResultSemantics (C-011)\n    queue_status = cmd_record.status\n\
+  \    exit_code = cmd_record.exit_code\n    timed_out = cmd_record.timed_out\n  \
+  \  if queue_status == \"completed\" and exit_code == 0 and timed_out is False:\n\
+  \        terminal_status = \"success\"\n    elif queue_status == \"completed\" and\
+  \ timed_out:\n        terminal_status = \"timed_out\"\n    elif queue_status ==\
+  \ \"completed\":\n        terminal_status = \"failure\"\n    else:\n        terminal_status\
+  \ = queue_status  # pending, running, failed, stopped\n    reader = OutputReader(record.session_dir)\n\
+  \    stat = reader.stat(seq)\n    return {\n        \"success\": True,\n       \
+  \ \"data\": {\n            \"job_id\": cmd_record.job_id,\n            \"queue_status\"\
+  : queue_status,\n            \"terminal_status\": terminal_status,\n           \
+  \ \"exit_code\": exit_code,\n            \"timed_out\": timed_out,\n           \
+  \ \"stdout_file\": stat.stdout_file,\n            \"stderr_file\": stat.stderr_file,\n\
+  \            \"stdout_bytes\": stat.stdout_bytes,\n            \"stderr_bytes\"\
+  : stat.stderr_bytes,\n        },\n        \"error\": None,\n    }\n\n## Constraints\n\
+  - File must not exceed 120 lines. Line length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/commands/terminal_get_status_command.py
+  expected: '`from mcp_terminal.commands.terminal_get_status_command import TerminalGetStatusCommand`
+    succeeds. TerminalGetStatusCommand.name == "terminal_get_status".'
+status: draft
