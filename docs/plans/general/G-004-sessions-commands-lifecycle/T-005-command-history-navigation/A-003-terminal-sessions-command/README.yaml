@@ -1,0 +1,37 @@
+step_id: A-003
+parent_tactical_step: T-005
+name: terminal_sessions command
+target_file: mcp_terminal/commands/terminal_sessions_command.py
+operation: create_file
+priority: 3
+depends_on: []
+concepts:
+- C-014
+prompt: "Create the file `mcp_terminal/commands/terminal_sessions_command.py`.\n\n\
+  Operation: create_file\n\n## Purpose\n\nImplements terminal_sessions MCP command\
+  \ (C-014): lists all sessions\nfor a project with per-session summary.\n\n## Module\
+  \ docstring\n\"\"\"\nterminal_sessions command for mcp_terminal (C-014).\nAuthor:\
+  \ Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\nfrom __future__\
+  \ import annotations\nfrom typing import Any, Dict\nfrom mcp_terminal.services.session_store\
+  \ import SessionStore\n\n## Class: TerminalSessionsCommand\nClass attributes:\n\
+  \  name: str = \"terminal_sessions\"\n  description: str = \"Return all terminal\
+  \ sessions for a project.\"\n\n@classmethod def get_schema(cls) -> Dict[str, Any]:\n\
+  \  return {\n      \"type\": \"object\",\n      \"properties\": {\n          \"\
+  project_id\": {\"type\": \"string\"},\n          \"limit\": {\"type\": \"integer\"\
+  , \"default\": 25, \"minimum\": 1},\n      },\n      \"required\": [\"project_id\"\
+  ],\n  }\n\ndef execute(self, params: Dict[str, Any], *, session_store: SessionStore)\
+  \ -> Dict[str, Any]:\n  Docstring: \"\"\"Return session summaries for the given\
+  \ project_id.\"\"\"\n  Implementation:\n    project_id = params.get(\"project_id\"\
+  , \"\")\n    limit = int(params.get(\"limit\", 25))\n    sessions = session_store.list_sessions(project_id)\n\
+  \    summaries = [\n        {\n            \"session_id\": r.session_id,\n     \
+  \       \"project_id\": r.project_id,\n            \"created_at\": r.created_at.isoformat(),\n\
+  \            \"last_activity_at\": r.last_activity_at.isoformat(),\n           \
+  \ \"status\": r.status,\n        }\n        for r in sessions[:limit]\n    ]\n \
+  \   return {\"success\": True, \"data\": summaries, \"error\": None}\n\n## Constraints\n\
+  - File must not exceed 80 lines. Line length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/commands/terminal_sessions_command.py
+  expected: '`from mcp_terminal.commands.terminal_sessions_command import TerminalSessionsCommand`
+    succeeds. TerminalSessionsCommand.name == "terminal_sessions".'
+status: draft
