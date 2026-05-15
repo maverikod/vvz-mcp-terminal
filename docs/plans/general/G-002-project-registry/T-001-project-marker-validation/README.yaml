@@ -1,0 +1,29 @@
+step_id: T-001
+parent_global_step: G-002
+name: Project Marker Validation
+status: draft
+description: 'Defines the validation rules for ProjectMarker (C-002): the fixed-name
+  file "projectid" at a project directory root. Validates that the marker exists,
+  is valid JSON, contains the required field "id" of UUID4 format (when require_uuid4_id
+  is enabled in config), and contains the required field "description" as a non-empty
+  string. Rejects markers that are not valid JSON, missing "id", missing "description",
+  or whose "id" fails UUID4 format check. The directory name where the marker resides
+  is not the project identity; only the "id" field value is. mcp_terminal reads the
+  marker but must not rename, reconfigure, or rewrite it under any circumstances.'
+concepts:
+- C-002
+inputs:
+- name: marker_file_candidate
+  type: filesystem entry
+  description: A file named "projectid" found inside a candidate project directory
+    under projects.root_dir.
+- name: validation_config
+  type: configuration values
+  description: require_uuid4_id boolean flag from server configuration.
+outputs:
+- name: marker_validation_result
+  type: validated ProjectMarker or rejection reason
+  description: 'On success: a validated C-002 record containing id (UUID4 string)
+    and description. On failure: a structured rejection reason (invalid JSON, missing
+    field, UUID4 format violation) used by the registry build step.'
+atomic_steps: []
