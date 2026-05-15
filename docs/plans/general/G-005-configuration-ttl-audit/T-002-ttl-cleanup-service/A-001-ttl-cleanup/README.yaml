@@ -11,47 +11,57 @@ concepts:
 prompt: "Create the file `mcp_terminal/services/ttl_cleanup.py`.\n\nOperation: create_file\n\
   \n## Purpose\n\nImplements TTL cleanup service (C-013 owns C-005): periodically\
   \ deletes\nexpired sessions according to configured TTL.\n\n## MRS concept excerpts\n\
-  \nC-013 ConfigOverlay owns C-005 SessionStore:\n  - Cleanup interval configurable\n\
-  \  - Never deletes running jobs without force\n  - delete_expired_sessions and delete_running_sessions\
-  \ flags from config\n\n## Module docstring\n\"\"\"\nTTL cleanup service for mcp_terminal\
-  \ (C-013, C-005).\n\nDeletes expired terminal sessions according to configured TTL.\n\
-  Never deletes running sessions unless delete_running_sessions=True.\n\nAuthor: Vasiliy\
-  \ Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\nfrom __future__ import\
-  \ annotations\nimport logging\nimport threading\nimport time\nfrom datetime import\
-  \ datetime, timedelta, timezone\nfrom typing import Any, Dict\nfrom mcp_terminal.services.session_store\
+  \nC-013 ConfigOverlay owns C-005 SessionStore:\n  - Cleanup interval configurable;\
+  \ never deletes running jobs without force\n  - delete_expired_sessions and delete_running_sessions\
+  \ flags from config\n\nC-005 SessionStore:\n  - Cleanup interval is configurable;\
+  \ never deletes running jobs without force\n\n## Module docstring\n\"\"\"\nTTL cleanup\
+  \ service for mcp_terminal (C-013, C-005).\n\nDeletes expired terminal sessions\
+  \ according to configured TTL.\nNever deletes running sessions unless delete_running_sessions=True.\n\
+  \nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports (exact)\n\
+  from __future__ import annotations\n\nimport logging\nimport threading\nfrom datetime\
+  \ import datetime, timedelta, timezone\nfrom typing import Optional\n\nfrom mcp_terminal.services.session_store\
   \ import SessionStore\n\n## class TtlCleanupService\nDocstring:\n  \"\"\"Background\
-  \ service that cleans up expired terminal sessions (C-013/C-005).\"\"\"\n\n__init__:\n\
-  \  def __init__(\n      self,\n      session_store: SessionStore,\n      *,\n  \
-  \    ttl_seconds: int,\n      cleanup_interval_seconds: int = 3600,\n      delete_expired:\
-  \ bool = True,\n      delete_running: bool = False,\n  ) -> None:\n      self._store\
-  \ = session_store\n      self._ttl = timedelta(seconds=ttl_seconds)\n      self._interval\
-  \ = cleanup_interval_seconds\n      self._delete_expired = delete_expired\n    \
-  \  self._delete_running = delete_running\n      self._logger = logging.getLogger(__name__)\n\
-  \      self._thread: threading.Thread | None = None\n      self._stop_event = threading.Event()\n\
+  \ service that cleans up expired terminal sessions (C-013/C-005).\"\"\"\n\n__init__\
+  \ signature:\n  def __init__(\n      self,\n      session_store: SessionStore,\n\
+  \      *,\n      ttl_seconds: int,\n      cleanup_interval_seconds: int = 3600,\n\
+  \      delete_expired: bool = True,\n      delete_running: bool = False,\n  ) ->\
+  \ None:\nDocstring:\n  \"\"\"Initialise the cleanup service.\n\n  Args:\n      session_store:\
+  \ SessionStore instance to clean up expired sessions from.\n      ttl_seconds: Session\
+  \ TTL in seconds from ConfigOverlay.\n      cleanup_interval_seconds: How often\
+  \ to run a cleanup cycle.\n      delete_expired: When True, delete expired non-running\
+  \ sessions.\n      delete_running: When True, allow deleting running sessions too.\n\
+  \  \"\"\"\nBody:\n  self._store = session_store\n  self._ttl = timedelta(seconds=ttl_seconds)\n\
+  \  self._interval = cleanup_interval_seconds\n  self._delete_expired = delete_expired\n\
+  \  self._delete_running = delete_running\n  self._logger = logging.getLogger(__name__)\n\
+  \  self._thread: Optional[threading.Thread] = None\n  self._stop_event = threading.Event()\n\
   \n### start() method\nSignature: def start(self) -> None:\nDocstring: \"\"\"Start\
   \ the background cleanup thread.\"\"\"\nBody:\n  self._stop_event.clear()\n  self._thread\
-  \ = threading.Thread(target=self._run, daemon=True, name=\"ttl-cleanup\")\n  self._thread.start()\n\
-  \  self._logger.info(\"TTL cleanup started (interval=%ds, ttl=%ds)\",\n        \
-  \            self._interval, self._ttl.total_seconds())\n\n### stop() method\nSignature:\
-  \ def stop(self) -> None:\nDocstring: \"\"\"Stop the background cleanup thread.\"\
-  \"\"\nBody:\n  self._stop_event.set()\n  if self._thread:\n      self._thread.join(timeout=5)\n\
-  \n### _run() method\nSignature: def _run(self) -> None:\nDocstring: \"\"\"Background\
-  \ loop: clean up expired sessions on each interval.\"\"\"\nBody:\n  while not self._stop_event.wait(timeout=self._interval):\n\
-  \      self._cleanup_once()\n\n### _cleanup_once() method\nSignature: def _cleanup_once(self)\
-  \ -> None:\nDocstring: \"\"\"Run one cleanup pass over all sessions.\"\"\"\nBody:\n\
-  \  now = datetime.now(timezone.utc)\n  for record in list(self._store._sessions.values()):\n\
-  \      age = now - record.last_activity_at\n      if age < self._ttl:\n        \
-  \  continue\n      if not self._delete_expired:\n          continue\n      if record.status\
-  \ == \"running\" and not self._delete_running:\n          self._logger.debug(\"\
-  Skipping running session %s\", record.session_id)\n          continue\n      deleted\
-  \ = self._store.delete_session(\n          record.session_id, force=self._delete_running\n\
-  \      )\n      if deleted:\n          self._logger.info(\n              \"TTL deleted\
-  \ session %s (age=%.0fs)\",\n              record.session_id, age.total_seconds(),\n\
-  \          )\n\n## Constraints\n- File must not exceed 120 lines. Line length limit\
-  \ 99.\n"
+  \ = threading.Thread(\n      target=self._run, daemon=True, name=\"ttl-cleanup\"\
+  \n  )\n  self._thread.start()\n  self._logger.info(\n      \"TTL cleanup started\
+  \ (interval=%ds, ttl=%ds)\",\n      self._interval,\n      int(self._ttl.total_seconds()),\n\
+  \  )\n\n### stop() method\nSignature: def stop(self) -> None:\nDocstring: \"\"\"\
+  Stop the background cleanup thread.\"\"\"\nBody:\n  self._stop_event.set()\n  if\
+  \ self._thread is not None:\n      self._thread.join(timeout=5)\n\n### _run() method\
+  \ (private)\nSignature: def _run(self) -> None:\nDocstring: \"\"\"Background loop:\
+  \ clean up expired sessions on each interval.\"\"\"\nBody:\n  while not self._stop_event.wait(timeout=self._interval):\n\
+  \      self._cleanup_once()\n\n### _cleanup_once() method (private)\nSignature:\
+  \ def _cleanup_once(self) -> None:\nDocstring: \"\"\"Run one cleanup pass over all\
+  \ sessions in the store.\"\"\"\nBody:\n  now = datetime.now(timezone.utc)\n  for\
+  \ record in list(self._store._sessions.values()):\n      age = now - record.last_activity_at\n\
+  \      if age < self._ttl:\n          continue\n      if not self._delete_expired:\n\
+  \          continue\n      if record.status == \"running\" and not self._delete_running:\n\
+  \          self._logger.debug(\n              \"Skipping running session %s\", record.session_id\n\
+  \          )\n          continue\n      deleted = self._store.delete_session(\n\
+  \          record.session_id, force=self._delete_running\n      )\n      if deleted:\n\
+  \          self._logger.info(\n              \"TTL deleted session %s (age=%.0fs)\"\
+  ,\n              record.session_id,\n              age.total_seconds(),\n      \
+  \    )\n\n## Constraints\n- File must be valid Python, importable with no runtime\
+  \ errors.\n- All type annotations required.\n- File must not exceed 120 lines.\n\
+  - Line length limit 99. Must pass flake8 with no errors.\n"
 verification:
   type: import
   target: mcp_terminal/services/ttl_cleanup.py
   expected: '`from mcp_terminal.services.ttl_cleanup import TtlCleanupService` succeeds.
-    Instantiating TtlCleanupService(SessionStore(), ttl_seconds=86400) succeeds.'
+    Instantiating TtlCleanupService( session_store=SessionStore(), ttl_seconds=86400)
+    succeeds without error.'
 status: draft
