@@ -1,0 +1,39 @@
+step_id: T-002
+parent_global_step: G-007
+name: Testing Strategy and Operational Defaults
+status: draft
+description: 'Defines the testing strategy required by AdapterSkeleton (C-016) and
+  the operational defaults of ConfigOverlay (C-013). Testing must include both normal
+  and hostile cases. Unit tests cover: config generator produces adapter-valid config
+  with terminal sections; validator rejects missing or non-positive ttl_seconds; project
+  discovery accepts only valid projectid markers; session_id allocation produces UUID4;
+  seq allocation is monotonic; output reader rejects invalid stream names and path
+  traversal; regex search enforces match limits; terminal_delete rejects running sessions
+  without force. Integration tests cover: mcp-terminal visible in proxy server list;
+  MCP help shows all 12 terminal_* commands and no short aliases; session create/run/read/delete
+  lifecycle end-to-end; queue status does not mask nested command failure; stdout
+  and stderr written to separate files only. Hostile-input integration tests cover
+  all safety invariants: cwd escape, Docker socket access, symlink escape, forbidden
+  network mode, arbitrary image, privileged options, path traversal via seq, session
+  deletion outside .terminals. Operational defaults from source_spec section 25 are
+  the starting values for the ConfigOverlay generator: ttl_seconds=86400, cleanup_interval=3600,
+  max_sessions=50, timeout=60, memory=1g, max_concurrent_runs=4, cleanup_always=true.'
+concepts:
+- C-016
+- C-013
+inputs:
+- name: extended_server
+  type: incremental codebase state
+  description: Fully extended AdapterSkeleton with all terminal domain modules active,
+    ready for test execution.
+outputs:
+- name: test_suite_specification
+  type: structured test plan
+  description: Complete list of required unit and integration test cases including
+    hostile-input cases, organised by category. Serves as the verification target
+    for MVP acceptance.
+- name: default_config_values
+  type: ConfigOverlay default values set
+  description: Canonical set of operational default values for all ConfigOverlay (C-013)
+    sections, as specified in source_spec section 25. Used as the generator baseline.
+atomic_steps: []
