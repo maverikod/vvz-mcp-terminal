@@ -925,13 +925,6 @@ The actual container execution must be implemented as a queue job, not as a publ
 - Add terminal command registration hook to `term_server.py`.
 - Verify that existing built-in and queue commands still appear in MCP `help`.
 - Add terminal commands to `help` only after their schemas and validators are implemented.
-- Attempt reading `/host`.
-- Attempt reading `/var/run/docker.sock`.
-- Attempt writing outside `/workspace`.
-- Attempt symlink escape from project tree.
-- Attempt requesting forbidden network mode.
-- Attempt requesting arbitrary image.
-- Attempt requesting privileged options.
 
 ### Phase 2: Config overlay
 
