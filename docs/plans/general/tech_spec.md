@@ -791,7 +791,9 @@ Every run must create an audit record containing:
 - finish time;
 - duration;
 - exit code;
-- timeout flag;
+## 18. Error Model
+
+Errors must use stable codes.
 - stdout/stderr file names and byte sizes;
 - policy decision summary;
 - error code if failed.
