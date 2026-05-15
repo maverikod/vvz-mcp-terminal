@@ -7,57 +7,58 @@ priority: 1
 depends_on: []
 concepts:
 - C-014
-prompt: "Create the file `mcp_terminal/commands/terminal_list_command.py`.\n\nAlso\
-  \ create `mcp_terminal/commands/__init__.py` as an empty file with only:\n  \"\"\
-  \"\n  Public MCP command implementations for mcp_terminal (C-014).\n\n  Author:\
-  \ Vasiliy Zdanovskiy\n  Email: vasilyvz@gmail.com\n  \"\"\"\n\nNOTE: The __init__.py\
-  \ is a required package companion. Both files must\nbe created. The one-file rule\
-  \ primary target is terminal_list_command.py.\n\n## Purpose\n\nImplements the terminal_list\
-  \ MCP command (part of C-014 PublicCommandSet).\nReturns recent commands for a session\
-  \ in descending timestamp order.\n\n## MRS concept excerpt\n\nC-014 PublicCommandSet:\n\
-  \  - All commands carry the terminal_ prefix\n  - terminal_list default limit is\
-  \ 25 in descending timestamp order\n  - Commands registered via adapter register_custom_commands_hook\n\
-  \n## Module docstring\n\"\"\"\nterminal_list command for mcp_terminal (C-014).\n\
-  \nReturns recent command history for a terminal session.\n\nAuthor: Vasiliy Zdanovskiy\n\
-  Email: vasilyvz@gmail.com\n\"\"\"\n\n## Imports (exact)\nfrom __future__ import\
-  \ annotations\n\nfrom pathlib import Path\nfrom typing import Any, Dict, List, Optional\n\
-  \nfrom mcp_terminal.services.command_history import CommandHistory\nfrom mcp_terminal.services.session_store\
-  \ import SessionStore\n\n## Class\n\n### class TerminalListCommand\nDocstring:\n\
-  \  \"\"\"MCP command: terminal_list.\n\n  Returns the most recent N commands for\
-  \ a terminal session,\n  ordered descending by timestamp. Default limit is 25.\n\
+prompt: "Create the file `mcp_terminal/commands/terminal_list_command.py`.\n\nOperation:\
+  \ create_file\n\nNote: `mcp_terminal/commands/__init__.py` is created by a separate\
+  \ atomic step.\nDo NOT create it here. Only create `terminal_list_command.py`.\n\
+  \n## Purpose\n\nImplements the terminal_list MCP command (C-014 PublicCommandSet).\n\
+  Returns recent commands for a session in descending timestamp order.\n\n## MRS concept\
+  \ excerpt\n\nC-014 PublicCommandSet:\n  - All commands carry the terminal_ prefix\n\
+  \  - terminal_list default limit is 25 in descending timestamp order\n  - Commands\
+  \ registered via adapter register_custom_commands_hook\n  - Forbidden public aliases:\
+  \ list, delete, grep, tail, head, stat\n\n## Module docstring\n\"\"\"\nterminal_list\
+  \ command for mcp_terminal (C-014).\n\nReturns recent command history for a terminal\
+  \ session.\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n\
+  ## Imports (exact)\nfrom __future__ import annotations\n\nfrom typing import Any,\
+  \ Dict, List\n\nfrom mcp_terminal.services.command_history import CommandHistory\n\
+  from mcp_terminal.services.session_store import SessionStore\n\n## Class: TerminalListCommand\n\
+  Docstring:\n  \"\"\"MCP command: terminal_list.\n\n  Returns the most recent N commands\
+  \ for a terminal session,\n  ordered descending by timestamp. Default limit is 25.\n\
   \  \"\"\"\n\nClass attributes:\n  name: str = \"terminal_list\"\n  description:\
   \ str = (\n      \"Return recent command history for a terminal session, \"\n  \
   \    \"ordered descending by launch timestamp.\"\n  )\n\n### get_schema() classmethod\n\
   Signature: @classmethod def get_schema(cls) -> Dict[str, Any]:\nDocstring: \"\"\"\
-  JSON schema for terminal_list parameters.\"\"\"\nReturn value:\n  {\n      \"type\"\
-  : \"object\",\n      \"properties\": {\n          \"project_id\": {\"type\": \"\
-  string\", \"description\": \"Project UUID4 identifier.\"},\n          \"session_id\"\
-  : {\"type\": \"string\", \"description\": \"Session UUID4 identifier.\"},\n    \
-  \      \"limit\": {\"type\": \"integer\", \"default\": 25, \"minimum\": 1, \"maximum\"\
-  : 200,\n                    \"description\": \"Maximum number of commands to return.\"\
-  },\n      },\n      \"required\": [\"project_id\", \"session_id\"],\n  }\n\n###\
-  \ execute() method\nSignature:\n  def execute(\n      self,\n      params: Dict[str,\
+  JSON schema for terminal_list parameters.\"\"\"\nReturn value (exact dict):\n  {\n\
+  \      \"type\": \"object\",\n      \"properties\": {\n          \"project_id\"\
+  : {\"type\": \"string\", \"description\": \"Project UUID4 identifier.\"},\n    \
+  \      \"session_id\": {\"type\": \"string\", \"description\": \"Session UUID4 identifier.\"\
+  },\n          \"limit\": {\n              \"type\": \"integer\",\n             \
+  \ \"default\": 25,\n              \"minimum\": 1,\n              \"maximum\": 200,\n\
+  \              \"description\": \"Maximum number of commands to return.\",\n   \
+  \       },\n      },\n      \"required\": [\"project_id\", \"session_id\"],\n  }\n\
+  \n### execute() method\nSignature:\n  def execute(\n      self,\n      params: Dict[str,\
   \ Any],\n      *,\n      session_store: SessionStore,\n  ) -> Dict[str, Any]:\n\
   Docstring:\n  \"\"\"Execute terminal_list and return command history.\n\n  Args:\n\
-  \      params: Validated request parameters.\n      session_store: Injected SessionStore\
-  \ instance.\n\n  Returns:\n      Dict with keys 'success' (bool), 'data' (list of\
-  \ command summaries\n      or None), and 'error' (str or None).\n  \"\"\"\nImplementation:\n\
-  \  project_id: str = params.get(\"project_id\", \"\")\n  session_id: str = params.get(\"\
-  session_id\", \"\")\n  limit: int = int(params.get(\"limit\", 25))\n  record = session_store.get_session(session_id)\n\
+  \      params: Validated request parameters containing project_id,\n          session_id,\
+  \ and optional limit.\n      session_store: Injected SessionStore instance.\n\n\
+  \  Returns:\n      Dict with keys 'success' (bool), 'data' (list of command summaries\n\
+  \      or None), and 'error' (str or None).\n  \"\"\"\nImplementation:\n  project_id:\
+  \ str = params.get(\"project_id\", \"\")\n  session_id: str = params.get(\"session_id\"\
+  , \"\")\n  limit: int = int(params.get(\"limit\", 25))\n  record = session_store.get_session(session_id)\n\
   \  if record is None or record.project_id != project_id:\n      return {\n     \
   \     \"success\": False,\n          \"data\": None,\n          \"error\": \"INVALID_SESSION\"\
   ,\n      }\n  session_store.touch_activity(session_id)\n  history = CommandHistory(record.session_dir)\n\
-  \  records = history.list_records(limit=limit)\n  summaries = [\n      {\n     \
-  \     \"seq\": r.seq,\n          \"timestamp\": r.timestamp,\n          \"status\"\
-  : r.status,\n          \"exit_code\": r.exit_code,\n          \"execution_kind\"\
-  : r.execution_kind,\n          \"command_display\": r.command or \" \".join(r.argv\
-  \ or []),\n      }\n      for r in records\n  ]\n  return {\"success\": True, \"\
-  data\": summaries, \"error\": None}\n\n## Constraints\n- File must be valid Python,\
-  \ importable.\n- All type annotations required.\n- File must not exceed 130 lines.\n\
-  - Line length limit 99. Must pass flake8.\n"
+  \  records = history.list_records(limit=limit)\n  summaries: List[Dict[str, Any]]\
+  \ = [\n      {\n          \"seq\": r.seq,\n          \"timestamp\": r.timestamp,\n\
+  \          \"status\": r.status,\n          \"exit_code\": r.exit_code,\n      \
+  \    \"execution_kind\": r.execution_kind,\n          \"command_display\": r.command\
+  \ or \" \".join(r.argv or []),\n      }\n      for r in records\n  ]\n  return {\"\
+  success\": True, \"data\": summaries, \"error\": None}\n\n## Constraints\n- Create\
+  \ ONLY `mcp_terminal/commands/terminal_list_command.py`.\n- Do NOT create mcp_terminal/commands/__init__.py\
+  \ here.\n- All type annotations required.\n- File must not exceed 100 lines.\n-\
+  \ Line length limit 99. Must pass flake8.\n"
 verification:
   type: import
   target: mcp_terminal/commands/terminal_list_command.py
-  expected: '`from mcp_terminal.commands.terminal_list_command import TerminalListCommand`
-    succeeds. TerminalListCommand.name == "terminal_list".'
+  expected: After mcp_terminal/commands/__init__.py also exists, `from mcp_terminal.commands.terminal_list_command
+    import TerminalListCommand` succeeds. TerminalListCommand.name == "terminal_list".
 status: draft
