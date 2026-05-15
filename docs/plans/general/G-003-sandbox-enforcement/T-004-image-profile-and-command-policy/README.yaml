@@ -1,0 +1,38 @@
+step_id: T-004
+parent_global_step: G-003
+name: Image Profile and Command Policy
+status: draft
+description: 'Defines image profile selection and command policy enforced by SandboxPolicy
+  (C-003) before ContainerRuntime (C-010) starts a container. Image profiles are defined
+  server-side as an allowlist (e.g. python_dev_3_12, node_dev_20, base_tools); the
+  caller supplies an image_profile name and SandboxPolicy maps it to a concrete server-side
+  image reference. Arbitrary image names from the caller are rejected (IMAGE_PROFILE_NOT_ALLOWED).
+  Each profile defines: image digest or pinned tag, default non-root user, available
+  tools, network policy compatibility, and maximum timeout. Command policy layer:
+  denies empty argv, NUL bytes in any argument, and absolute executable paths outside
+  the safe PATH defined for the profile. Environment variable injection is restricted:
+  the model may not inject host secrets, SSH agent sockets, cloud credentials, or
+  Docker credentials. A safe minimal environment is provided by the server (HOME,
+  PWD, TMPDIR, PATH). The resolved executable path is recorded in the audit trail.'
+concepts:
+- C-003
+- C-010
+inputs:
+- name: requested_image_profile
+  type: string
+  description: Image profile name from the inbound request (e.g. python_dev_3_12).
+- name: image_allowlist
+  type: configuration object
+  description: Server-side allowlist mapping profile names to concrete image references,
+    user, tools, and constraints.
+- name: command_fields
+  type: execution_kind + command or argv
+  description: The execution_kind, command string (for shell kind), or argv array
+    (for argv kind) from the request.
+outputs:
+- name: image_and_command_spec
+  type: validated image reference and command configuration
+  description: Concrete server-side image reference for the container, validated execution_kind,
+    resolved argv or shell command, safe environment variables, and resolved executable
+    path for audit. Merged into container_runtime_spec for use by ContainerRuntime.
+atomic_steps: []
