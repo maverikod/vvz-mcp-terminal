@@ -1,0 +1,84 @@
+step_id: A-001
+parent_tactical_step: T-002
+name: ContainerRuntime spec dataclass and builder
+target_file: mcp_terminal/services/container_runner.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-010
+- C-003
+prompt: "Create the file `mcp_terminal/services/container_runner.py`.\n\nOperation:\
+  \ create_file\n\n## Purpose\n\nThis module implements ContainerRuntime (C-010):\
+  \ builds security-hardened\ncontainer creation parameters and runs containers with\
+  \ fixed /workspace mount.\nThis atomic step creates the ContainerSpec dataclass\
+  \ and the ContainerRunner\nclass with its build_spec() method. The run() method\
+  \ is added in a later step\non this same file.\n\n## MRS concept excerpt\n\nC-010\
+  \ ContainerRuntime:\n  definition: Creates and runs sandbox containers with fixed\
+  \ /workspace mount.\n    Enforces non-root user, capability drop, no-new-privileges,\
+  \ resource\n    limits (memory, cpus, pids), network policy, and read-only root\n\
+  \    filesystem.\n  properties:\n    - /workspace is always the container mount\
+  \ point; caller cannot choose it\n    - --cap-drop ALL and --security-opt no-new-privileges\
+  \ enforced by default\n    - Forbidden: --privileged, host pid/network/ipc/uts namespaces,\
+  \ Docker socket\n    - Rootless Docker or Podman recommended but not required for\
+  \ MVP\n\n## Required content\n\nModule docstring:\n  \"\"\"\n  Container runtime\
+  \ for mcp_terminal sandbox execution (C-010).\n\n  Builds security-hardened container\
+  \ creation parameters and executes\n  containers with fixed /workspace mount, non-root\
+  \ user, and capability drop.\n\n  Author: Vasiliy Zdanovskiy\n  Email: vasilyvz@gmail.com\n\
+  \  \"\"\"\n\nImports (exact):\n  from __future__ import annotations\n\n  import\
+  \ logging\n  import subprocess\n  from dataclasses import dataclass, field\n  from\
+  \ pathlib import Path\n  from typing import Dict, FrozenSet, List, Optional\n\n\
+  \  from mcp_terminal.services.sandbox_policy import MountSpec\n\n## Classes to create\n\
+  \n### @dataclass(frozen=True) ContainerSpec\nDocstring:\n  \"\"\"Security-hardened\
+  \ container creation parameters (C-010).\n\n  Produced by ContainerRunner.build_spec().\
+  \ Consumed by ContainerRunner.run().\n  Encodes all mount, security, resource, and\
+  \ network settings in one\n  immutable object.\n  \"\"\"\nFields:\n  image: str\n\
+  \    docstring: \"Concrete server-side image reference (not caller-supplied name).\"\
+  \n  mount_spec: MountSpec\n    docstring: \"Validated mount configuration from SandboxPolicy.\"\
+  \n  network_spec: str\n    docstring: \"Network mode string: 'none' or 'package_registry'\
+  \ egress config.\"\n  user: str\n    docstring: \"Non-root uid:gid string, e.g.\
+  \ '65534:65534'.\"\n  memory_limit: str\n    docstring: \"Memory limit string for\
+  \ Docker/Podman, e.g. '1g'.\"\n  cpu_limit: float\n    docstring: \"CPU limit as\
+  \ a float, e.g. 1.0.\"\n  pids_limit: int\n    docstring: \"Maximum number of processes\
+  \ in the container.\"\n  timeout_seconds: int\n    docstring: \"Execution timeout\
+  \ in seconds.\"\n  environment: Dict[str, str] = field(default_factory=dict)\n \
+  \   docstring: \"Safe minimal environment variables for the container.\"\n  resolved_argv:\
+  \ List[str] = field(default_factory=list)\n    docstring: \"Actual argv passed to\
+  \ the container entrypoint.\"\n\n### class ContainerRunner\nDocstring:\n  \"\"\"\
+  Builds and executes security-hardened containers (C-010).\n\n  All containers use\
+  \ /workspace as the fixed mount point. Forbidden options\n  (--privileged, host\
+  \ namespaces, Docker socket) are never included\n  regardless of the input.\n  \"\
+  \"\"\n\nClass attribute:\n  _FORBIDDEN_DOCKER_OPTIONS: FrozenSet[str] = frozenset({\n\
+  \      \"--privileged\",\n      \"--pid=host\", \"--pid host\",\n      \"--network=host\"\
+  , \"--network host\",\n      \"--ipc=host\", \"--ipc host\",\n      \"--uts=host\"\
+  , \"--uts host\",\n      \"/var/run/docker.sock\",\n  })\n\n__init__ signature:\n\
+  \  def __init__(self, *, runtime: str = \"docker\") -> None:\nDocstring:\n  \"\"\
+  \"Initialise ContainerRunner.\n\n  Args:\n      runtime: Container runtime executable\
+  \ name ('docker' or 'podman').\n  \"\"\"\nBody:\n  self._runtime: str = runtime\n\
+  \  self._logger: logging.Logger = logging.getLogger(__name__)\n\n### build_cmd()\
+  \ method\nSignature:\n  def build_cmd(self, spec: ContainerSpec) -> List[str]:\n\
+  Docstring:\n  \"\"\"Build the docker/podman run command list from a ContainerSpec.\n\
+  \n  The resulting command includes all security hardening flags.\n  --privileged,\
+  \ host namespace flags, and Docker socket mounts are\n  never included.\n\n  Args:\n\
+  \      spec: Immutable container creation parameters.\n\n  Returns:\n      List\
+  \ of strings forming the complete docker/podman run command.\n  \"\"\"\nImplementation:\n\
+  \  cmd: List[str] = [\n      self._runtime, \"run\", \"--rm\",\n      \"--user\"\
+  , spec.user,\n      \"--workdir\", spec.mount_spec.workdir,\n      \"--cap-drop\"\
+  , \"ALL\",\n      \"--security-opt\", \"no-new-privileges\",\n      \"--read-only\"\
+  ,\n      \"--tmpfs\", \"/tmp:rw,noexec,nosuid,size=256m\",\n      \"--tmpfs\", \"\
+  /scratch:rw,noexec,nosuid,size=1g\",\n      \"--pids-limit\", str(spec.pids_limit),\n\
+  \      \"--memory\", spec.memory_limit,\n      \"--cpus\", str(spec.cpu_limit),\n\
+  \      \"--network\", \"none\" if spec.network_spec == \"none\" else \"bridge\"\
+  ,\n  ]\n  ro = \":ro\" if spec.mount_spec.workspace_readonly else \":rw\"\n  cmd\
+  \ += [\"-v\", f\"{spec.mount_spec.workspace_source}:/workspace{ro}\"]\n  for key,\
+  \ val in spec.environment.items():\n      cmd += [\"-e\", f\"{key}={val}\"]\n  cmd.append(spec.image)\n\
+  \  cmd.extend(spec.resolved_argv)\n  return cmd\n\n## Constraints\n- File must be\
+  \ valid Python, importable with no runtime errors.\n- ContainerRunner.run() is NOT\
+  \ in this step.\n- All type annotations must be present.\n- Line length limit 99.\
+  \ Must pass flake8.\n- File must not exceed 200 lines.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/container_runner.py
+  expected: '`from mcp_terminal.services.container_runner import ContainerSpec, ContainerRunner`
+    succeeds without error.'
+status: draft
