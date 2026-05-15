@@ -1,0 +1,79 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: ProjectMarker validation dataclasses
+target_file: mcp_terminal/services/project_registry.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-002
+prompt: "Create the file `mcp_terminal/services/project_registry.py`.\n\nOperation:\
+  \ create_file\n\n## Purpose\n\nThis module implements the project registry service\
+  \ (C-001) and project marker\nvalidation (C-002). This first atomic step creates\
+  \ the file with the\nProjectMarker dataclass and its validation logic only. Registry\
+  \ build and\nruntime resolution are added in subsequent steps.\n\n## MRS concept\
+  \ excerpt\n\nC-002 ProjectMarker:\n  definition: Fixed-format file named exactly\
+  \ \"projectid\" at the root of a\n    project directory. Contains JSON with required\
+  \ fields id (UUID4) and\n    description (string). mcp_terminal may only read this\
+  \ file; it must not\n    rename, reconfigure, or rewrite it.\n  properties:\n  \
+  \  - Filename is fixed to \"projectid\" and is not configurable\n    - Must be valid\
+  \ JSON\n    - id field must be present; UUID4 format enforced when require_uuid4_id\
+  \ is true\n    - description field is required\n    - Directory name is not the\
+  \ project identity; the id field is\n\n## Required content\n\nModule docstring:\n\
+  \  \"\"\"\n  Project registry and marker validation for mcp_terminal.\n\n  ProjectRegistry\
+  \ (C-001) builds an in-memory index of valid projects from\n  projectid marker files\
+  \ (C-002) found under the configured projects root.\n  Runtime resolution enforces\
+  \ canonical path containment before any mount.\n\n  Author: Vasiliy Zdanovskiy\n\
+  \  Email: vasilyvz@gmail.com\n  \"\"\"\n\nImports (exact):\n  from __future__ import\
+  \ annotations\n\n  import json\n  import re\n  import uuid\n  from dataclasses import\
+  \ dataclass\n  from pathlib import Path\n  from typing import Optional\n\n## Classes\
+  \ to create\n\n### @dataclass(frozen=True) class ProjectMarker\nDocstring:\n  \"\
+  \"\"Validated content of a projectid marker file (C-002).\n\n  Constructed only\
+  \ by validate_marker_file(); never directly by callers.\n  The directory that contains\
+  \ this marker is not the project identity;\n  only the id field is.\n  \"\"\"\n\
+  Fields:\n  project_id: str\n    docstring: \"UUID4 string from the id field of the\
+  \ marker file.\"\n  description: str\n    docstring: \"Human-readable project description\
+  \ from the description field.\"\n  marker_path: Path\n    docstring: \"Absolute\
+  \ path to the projectid marker file (read-only reference).\"\n  project_dir: Path\n\
+  \    docstring: \"Absolute path to the project root directory containing the marker.\"\
+  \n\n### @dataclass(frozen=True) class MarkerValidationError\nDocstring:\n  \"\"\"\
+  Structured rejection reason from validate_marker_file().\"\"\"\nFields:\n  path:\
+  \ Path\n    docstring: \"Path of the candidate file that failed validation.\"\n\
+  \  reason: str\n    docstring: \"Human-readable description of the validation failure.\"\
+  \n  code: str\n    docstring: \"Short machine-readable code: invalid_json, missing_id,\
+  \ missing_description, invalid_uuid4, not_a_file.\"\n\n## UUID4 validation helper\n\
+  \n```python\n_UUID4_RE: re.Pattern[str] = re.compile(\n    r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',\n\
+  \    re.IGNORECASE,\n)\n\n\ndef _is_uuid4(value: str) -> bool:\n    \"\"\"Return\
+  \ True if value matches the UUID4 format.\"\"\"\n    return bool(_UUID4_RE.match(value))\n\
+  ```\n\n## validate_marker_file() function\n\nSignature:\n  def validate_marker_file(\n\
+  \      candidate: Path,\n      *,\n      require_uuid4_id: bool = True,\n  ) ->\
+  \ tuple[Optional[ProjectMarker], Optional[MarkerValidationError]]:\n\nDocstring:\n\
+  \  \"\"\"Validate a candidate projectid marker file.\n\n  Reads the file, parses\
+  \ JSON, checks required fields, and optionally\n  validates UUID4 format on the\
+  \ id field. The file must be named\n  \"projectid\"; callers are responsible for\
+  \ providing only files with\n  that name.\n\n  mcp_terminal must never rename, reconfigure,\
+  \ or rewrite the marker file.\n  This function is read-only.\n\n  Args:\n      candidate:\
+  \ Absolute path to a file named \"projectid\".\n      require_uuid4_id: When True,\
+  \ reject id values that do not match\n          UUID4 format.\n\n  Returns:\n  \
+  \    A tuple (ProjectMarker, None) on success, or (None, MarkerValidationError)\n\
+  \      on failure.\n  \"\"\"\n\nImplementation:\n  - If candidate is not a file:\
+  \ return (None, MarkerValidationError(path=candidate,\n      reason=\"not a regular\
+  \ file\", code=\"not_a_file\"))\n  - Read text with encoding=\"utf-8\"; parse JSON.\n\
+  \  - If JSON parse fails: return (None, MarkerValidationError(..., code=\"invalid_json\"\
+  ))\n  - If \"id\" key missing or empty string: return (None, MarkerValidationError(...,\n\
+  \      code=\"missing_id\"))\n  - If \"description\" key missing or not a string:\
+  \ return (None,\n      MarkerValidationError(..., code=\"missing_description\"))\n\
+  \  - If require_uuid4_id is True and id value does not match _UUID4_RE: return\n\
+  \      (None, MarkerValidationError(..., code=\"invalid_uuid4\"))\n  - On success:\
+  \ return (ProjectMarker(\n        project_id=data[\"id\"].strip(),\n        description=str(data[\"\
+  description\"]),\n        marker_path=candidate.resolve(),\n        project_dir=candidate.resolve().parent,\n\
+  \    ), None)\n\n## Constraints\n- File must be valid Python, importable with no\
+  \ runtime errors.\n- No ProjectRegistry class in this step.\n- All type annotations\
+  \ must be present.\n- Line length limit 99. Must pass `flake8 mcp_terminal/services/project_registry.py`.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/project_registry.py
+  expected: '`from mcp_terminal.services.project_registry import ProjectMarker, MarkerValidationError,
+    validate_marker_file` succeeds. Calling validate_marker_file on a non-existent
+    path returns (None, MarkerValidationError) with code="not_a_file".'
+status: draft
