@@ -1,0 +1,32 @@
+step_id: T-003
+parent_global_step: G-003
+name: Network Policy Enforcement
+status: draft
+description: 'Defines the network policy validated by SandboxPolicy (C-003) and enforced
+  by ContainerRuntime (C-010). Default network mode for all executions is "none" (no
+  network access). The only permitted outbound mode in MVP is "package_registry":
+  egress allowed only to configured package indexes (pypi.org, files.pythonhosted.org)
+  on port 443, with DNS and TLS permitted. The "open" network mode is forbidden in
+  MVP and must be rejected by SandboxPolicy before container creation. Network mode
+  is part of the request, validated against the allowlist, and recorded in the audit
+  trail. The allowlisted registries and permitted ports are defined in server configuration
+  and cannot be overridden per-request.'
+concepts:
+- C-003
+- C-010
+inputs:
+- name: requested_network_mode
+  type: enumerated string
+  description: Network mode from the inbound request; one of none, package_registry,
+    or any other value to be rejected.
+- name: network_policy_config
+  type: configuration values
+  description: Allowlisted network modes, permitted hosts, and permitted ports from
+    server configuration.
+outputs:
+- name: network_spec
+  type: network configuration for container
+  description: 'Validated network configuration to apply to the container: none (no
+    network) or package_registry egress rules. Merged into container_runtime_spec
+    for use by ContainerRuntime.'
+atomic_steps: []
