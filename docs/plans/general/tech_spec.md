@@ -853,9 +853,6 @@ Every run must create an audit record containing:
 - stdout/stderr file names and byte sizes;
 - policy decision summary;
 - error code if failed.
-
-Audit logs must avoid recording secret environment values.
-
 ## 18. Error Model
 
 Errors must use stable codes.
@@ -868,7 +865,8 @@ Recommended error codes:
 | `PROJECT_PAUSED` | Execution blocked by project processing policy. |
 | `PROJECT_PATH_OUT_OF_SCOPE` | Canonical path is outside allowed roots. |
 | `INVALID_CWD` | `cwd` escapes `/workspace` or is invalid. |
-| `INVALID_COMMAND` | `cmd` is empty or contains invalid argv elements. |
+| `INVALID_COMMAND` | Command request is empty or contains invalid shell/argv execution fields. |
+| `INVALID_SESSION` | `session_id` is missing, not a UUID4, or does not exist. |
 | `IMAGE_PROFILE_NOT_ALLOWED` | Requested image profile is not allowlisted. |
 | `MODE_NOT_ALLOWED` | Requested mount/write mode is forbidden by policy. |
 | `NETWORK_MODE_NOT_ALLOWED` | Requested network mode is forbidden. |
@@ -878,7 +876,7 @@ Recommended error codes:
 | `CONTAINER_EXEC_FAILED` | Runtime failed to execute command. |
 | `CONTAINER_CLEANUP_FAILED` | Container cleanup failed after execution. |
 
-## 18. Safety Invariants
+## 19. Safety Invariants
 
 The following invariants must be covered by tests:
 
@@ -900,14 +898,32 @@ The following invariants must be covered by tests:
 16. Container cleanup happens after success, failure, and timeout.
 17. Audit record is created for success and failure.
 
-## 19. MVP Acceptance Criteria
+## 20. Queue Result Semantics
+
+Queue job completion and terminal command success are distinct states.
+
+A queue job reaches `completed` (progress=100) when the worker executed the full lifecycle and wrote metadata.
+This does not mean the terminal command succeeded.
+
+Terminal command success requires all of:
+
+- queue status is `completed`;
+- `exit_code == 0`;
+- `timed_out == false`.
+
+`terminal_get_status` must expose both the queue job status and the nested terminal command result.
+Callers must not treat `queue completed` as `command success` without inspecting `exit_code` and `timed_out`.
+
+## 21. MVP Acceptance Criteria
 
 The MVP is complete only when all items are true:
 
 - `terminal_run` appears in MCP `help`.
 - `terminal_run` rejects unknown `project_id`.
 - `terminal_run` rejects direct host path input.
-- `terminal_run` executes `cmd` in a disposable non-root container.
+- `terminal_run` rejects missing or invalid `session_id`.
+- `terminal_run` queues a terminal command for an existing session and returns `job_id`, `seq`, and output file names.
+- `terminal_run` supports both `shell` and `argv` execution kinds.
 - Project is mounted only at `/workspace`.
 - Default mode is `read_only`.
 - Default network is `none`.
@@ -919,10 +935,9 @@ The MVP is complete only when all items are true:
 - Timeout works and cleans up the container.
 - stdout/stderr are written to sequence-based files, not returned as large inline payloads.
 - Every run has an audit record.
-- Result can be verified through queue status plus `terminal_read` / `terminal_search_output`.
+- Result can be verified through `terminal_get_status` plus `terminal_read` / `terminal_search_output`.
 
-## 20. Current Code State and Required Structural Refactor
-
+## 22. Current Code State and Required Structural Refactor
 The current `mcp_terminal` codebase already contains a working server skeleton based on `mcp_proxy_adapter`, but it does not yet contain the terminal domain implementation.
 
 Existing code that must be preserved and extended:
