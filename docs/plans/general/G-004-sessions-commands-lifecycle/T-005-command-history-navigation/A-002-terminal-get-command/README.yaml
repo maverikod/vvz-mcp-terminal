@@ -9,40 +9,50 @@ concepts:
 - C-014
 prompt: "Create the file `mcp_terminal/commands/terminal_get_command.py`.\n\nOperation:\
   \ create_file\n\n## Purpose\n\nImplements the terminal_get MCP command (C-014):\
-  \ returns full\nCommandRecord for one exact project_id + session_id + seq.\n\n##\
-  \ MRS concept excerpt\nC-014 PublicCommandSet: terminal_get returns metadata for\
-  \ one command by\nexact session-local command sequence number.\n\n## Module docstring\n\
-  \"\"\"\nterminal_get command for mcp_terminal (C-014).\nAuthor: Vasiliy Zdanovskiy\n\
-  Email: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\nfrom __future__ import annotations\n\
-  from typing import Any, Dict, Optional\nfrom mcp_terminal.services.command_history\
-  \ import CommandHistory\nfrom mcp_terminal.services.session_store import SessionStore\n\
-  \n## Class: TerminalGetCommand\nClass attributes:\n  name: str = \"terminal_get\"\
-  \n  description: str = \"Return metadata for one command by exact seq.\"\n\n@classmethod\
-  \ def get_schema(cls) -> Dict[str, Any]:\n  return {\n      \"type\": \"object\"\
-  ,\n      \"properties\": {\n          \"project_id\": {\"type\": \"string\"},\n\
-  \          \"session_id\": {\"type\": \"string\"},\n          \"seq\": {\"type\"\
-  : \"integer\", \"description\": \"Session-local command sequence number.\"},\n \
-  \     },\n      \"required\": [\"project_id\", \"session_id\", \"seq\"],\n  }\n\n\
-  def execute(self, params: Dict[str, Any], *, session_store: SessionStore) -> Dict[str,\
-  \ Any]:\n  Docstring:\n    \"\"\"Return full CommandRecord for project_id + session_id\
-  \ + seq.\"\"\"\n  Implementation:\n    project_id = params.get(\"project_id\", \"\
-  \")\n    session_id = params.get(\"session_id\", \"\")\n    seq = int(params.get(\"\
-  seq\", 0))\n    record = session_store.get_session(session_id)\n    if record is\
-  \ None or record.project_id != project_id:\n        return {\"success\": False,\
-  \ \"data\": None, \"error\": \"INVALID_SESSION\"}\n    session_store.touch_activity(session_id)\n\
-  \    history = CommandHistory(record.session_dir)\n    all_records = history.list_records(limit=10000)\n\
-  \    for r in all_records:\n        if r.seq == seq:\n            return {\"success\"\
-  : True, \"data\": {\n                \"seq\": r.seq, \"timestamp\": r.timestamp,\
-  \ \"status\": r.status,\n                \"exit_code\": r.exit_code, \"timed_out\"\
-  : r.timed_out,\n                \"execution_kind\": r.execution_kind,\n        \
-  \        \"command\": r.command, \"argv\": r.argv,\n                \"resolved_argv\"\
-  : r.resolved_argv, \"cwd\": r.cwd,\n                \"mode\": r.mode, \"network\"\
-  : r.network,\n                \"image_profile\": r.image_profile,\n            \
-  \    \"stdout_file\": r.stdout_file, \"stderr_file\": r.stderr_file,\n         \
-  \   }, \"error\": None}\n    return {\"success\": False, \"data\": None, \"error\"\
-  : \"NOT_FOUND\"}\n\n## Constraints\n- File must be valid Python, importable.\n-\
-  \ All type annotations required.\n- File must not exceed 100 lines.\n- Line length\
-  \ limit 99.\n"
+  \ returns full\nCommandRecord metadata for one exact project_id + session_id + seq.\n\
+  \n## MRS concept excerpt\n\nC-014 PublicCommandSet:\n  - terminal_get returns metadata\
+  \ for one command by exact session-local\n    sequence number\n  - All commands\
+  \ carry the terminal_ prefix\n\n## Module docstring\n\"\"\"\nterminal_get command\
+  \ for mcp_terminal (C-014).\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\
+  \"\"\"\n\n## Imports (exact)\nfrom __future__ import annotations\n\nfrom typing\
+  \ import Any, Dict\n\nfrom mcp_terminal.services.command_history import CommandHistory\n\
+  from mcp_terminal.services.session_store import SessionStore\n\n## Class: TerminalGetCommand\n\
+  \nDocstring:\n  \"\"\"MCP command: terminal_get.\n\n  Returns full CommandRecord\
+  \ metadata for one exact\n  project_id + session_id + seq combination.\n  \"\"\"\
+  \n\nClass attributes:\n  name: str = \"terminal_get\"\n  description: str = \"Return\
+  \ metadata for one command by exact seq.\"\n\n### get_schema() classmethod\nSignature:\
+  \ @classmethod def get_schema(cls) -> Dict[str, Any]:\nDocstring: \"\"\"JSON schema\
+  \ for terminal_get parameters.\"\"\"\nReturn value (exact dict):\n  {\n      \"\
+  type\": \"object\",\n      \"properties\": {\n          \"project_id\": {\"type\"\
+  : \"string\"},\n          \"session_id\": {\"type\": \"string\"},\n          \"\
+  seq\": {\n              \"type\": \"integer\",\n              \"description\": \"\
+  Session-local command sequence number.\",\n          },\n      },\n      \"required\"\
+  : [\"project_id\", \"session_id\", \"seq\"],\n  }\n\n### execute() method\nSignature:\n\
+  \  def execute(\n      self,\n      params: Dict[str, Any],\n      *,\n      session_store:\
+  \ SessionStore,\n  ) -> Dict[str, Any]:\nDocstring:\n  \"\"\"Return full CommandRecord\
+  \ for project_id + session_id + seq.\n\n  Args:\n      params: Request parameters\
+  \ with project_id, session_id, seq.\n      session_store: Injected SessionStore.\n\
+  \n  Returns:\n      Dict with success, data (full record fields), and error.\n \
+  \ \"\"\"\nImplementation:\n  project_id = params.get(\"project_id\", \"\")\n  session_id\
+  \ = params.get(\"session_id\", \"\")\n  seq = int(params.get(\"seq\", 0))\n  record\
+  \ = session_store.get_session(session_id)\n  if record is None or record.project_id\
+  \ != project_id:\n      return {\"success\": False, \"data\": None, \"error\": \"\
+  INVALID_SESSION\"}\n  session_store.touch_activity(session_id)\n  history = CommandHistory(record.session_dir)\n\
+  \  all_records = history.list_records(limit=10000)\n  for r in all_records:\n  \
+  \    if r.seq == seq:\n          return {\n              \"success\": True,\n  \
+  \            \"data\": {\n                  \"seq\": r.seq,\n                  \"\
+  timestamp\": r.timestamp,\n                  \"status\": r.status,\n           \
+  \       \"exit_code\": r.exit_code,\n                  \"timed_out\": r.timed_out,\n\
+  \                  \"execution_kind\": r.execution_kind,\n                  \"command\"\
+  : r.command,\n                  \"argv\": r.argv,\n                  \"resolved_argv\"\
+  : r.resolved_argv,\n                  \"cwd\": r.cwd,\n                  \"mode\"\
+  : r.mode,\n                  \"network\": r.network,\n                  \"image_profile\"\
+  : r.image_profile,\n                  \"stdout_file\": r.stdout_file,\n        \
+  \          \"stderr_file\": r.stderr_file,\n              },\n              \"error\"\
+  : None,\n          }\n  return {\"success\": False, \"data\": None, \"error\": \"\
+  NOT_FOUND\"}\n\n## Constraints\n- File must be valid Python, importable with no\
+  \ runtime errors.\n- All type annotations required.\n- File must not exceed 100\
+  \ lines.\n- Line length limit 99. Must pass flake8 with no errors.\n"
 verification:
   type: import
   target: mcp_terminal/commands/terminal_get_command.py
