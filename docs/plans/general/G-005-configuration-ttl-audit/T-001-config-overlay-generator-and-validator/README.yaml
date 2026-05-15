@@ -1,0 +1,36 @@
+step_id: T-001
+parent_global_step: G-005
+name: Config Overlay Generator and Validator
+status: draft
+description: 'Defines the ConfigOverlay (C-013) generator and validator as layered
+  extensions over the adapter SimpleConfig tooling. The generator calls the adapter
+  SimpleConfigGenerator first to produce the base adapter config, then merges terminal-specific
+  sections: terminal.sessions (ttl_seconds, cleanup_interval_seconds, max_sessions_per_project,
+  max_commands_per_session), terminal.output (max_stdout_file_bytes, max_stderr_file_bytes,
+  default_read_bytes, max_read_bytes), terminal.commands (default_history_limit, max_history_limit,
+  default_tail_lines, max_tail_lines), terminal.cleanup (delete_expired_sessions,
+  delete_running_sessions), and runtime (default_image_profile, default_mode, default_network,
+  timeout_seconds, max_timeout_seconds, memory, cpus, pids_limit, max_concurrent_runs,
+  cleanup_always). The validator calls the adapter SimpleConfigValidator first, then
+  runs terminal-specific checks: terminal.sessions.ttl_seconds required and positive;
+  cleanup_interval_seconds positive; output read limits positive; default_history_limit
+  must not exceed max_history_limit; max_sessions_per_project >= 1; max_commands_per_session
+  >= 1.'
+concepts:
+- C-013
+inputs:
+- name: raw_config_file
+  type: YAML configuration file
+  description: Server configuration file to validate, or a request to generate a default
+    config.
+outputs:
+- name: validated_config
+  type: ConfigOverlay object
+  description: 'Fully validated configuration object containing both adapter sections
+    and terminal-specific sections. Consumed by all terminal domain services at startup:
+    SessionStore, ContainerRuntime, OutputStore, command history.'
+- name: validation_errors
+  type: list of error descriptions
+  description: Non-empty when validation fails; contains the specific field and rejection
+    reason for each error.
+atomic_steps: []
