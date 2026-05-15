@@ -1,0 +1,59 @@
+step_id: A-001
+parent_tactical_step: T-003
+name: AuditWriter
+target_file: mcp_terminal/services/audit_writer.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-012
+prompt: "Create the file `mcp_terminal/services/audit_writer.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nImplements AuditRecord (C-012) production: writes immutable audit\
+  \ entries\nfor every terminal_run invocation regardless of outcome.\n\n## MRS concept\
+  \ excerpt\n\nC-012 AuditRecord:\n  - Created for both successful and failed executions\n\
+  \  - Must not record secret environment variable values\n  - Contains: run_id, project_id,\
+  \ session_id, seq, command, resolved path\n    hash, cwd, mode, network, image_profile,\
+  \ container_id, timing,\n    exit_code, timed_out, output file names and sizes,\
+  \ policy decision\n    summary, error code\n\n## Module docstring\n\"\"\"\nAudit\
+  \ record writer for mcp_terminal (C-012).\n\nCreates immutable audit entries for\
+  \ every terminal_run invocation.\nMust not record secret environment variable values.\n\
+  \nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\n\
+  from __future__ import annotations\nimport hashlib\nimport json\nimport logging\n\
+  import uuid\nfrom datetime import datetime, timezone\nfrom pathlib import Path\n\
+  from typing import Any, Dict, Optional\n\n## class AuditWriter\nDocstring:\n  \"\
+  \"\"Writes immutable AuditRecord entries for terminal executions (C-012).\"\"\"\n\
+  \n__init__:\n  def __init__(self, audit_log_path: Path) -> None:\n      self._log_path\
+  \ = audit_log_path\n      self._logger = logging.getLogger(__name__)\n\n### write()\
+  \ method\nSignature:\n  def write(\n      self,\n      *,\n      project_id: str,\n\
+  \      session_id: str,\n      seq: int,\n      project_dir: Path,\n      command:\
+  \ Optional[str],\n      resolved_argv: list,\n      cwd: str,\n      mode: str,\n\
+  \      network: str,\n      image_profile: str,\n      container_id: Optional[str],\n\
+  \      start_time: datetime,\n      finish_time: datetime,\n      exit_code: Optional[int],\n\
+  \      timed_out: bool,\n      stdout_file: str,\n      stderr_file: str,\n    \
+  \  stdout_bytes: int,\n      stderr_bytes: int,\n      policy_decision: str,\n \
+  \     error_code: Optional[str],\n  ) -> str:\nDocstring:\n  \"\"\"Write an immutable\
+  \ AuditRecord to the audit log.\n\n  Secret environment variable values must never\
+  \ be passed to this method.\n  Only environment variable names may appear in policy_decision\
+  \ summary.\n\n  Args:\n      project_dir: Used only for hashing; the hash is recorded,\
+  \ not the path.\n      ... (all other args map directly to AuditRecord fields)\n\
+  \n  Returns:\n      run_id (UUID4 string) of the written audit record.\n  \"\"\"\
+  \nImplementation:\n  run_id = str(uuid.uuid4())\n  path_hash = hashlib.sha256(str(project_dir).encode()).hexdigest()[:16]\n\
+  \  record: Dict[str, Any] = {\n      \"run_id\": run_id,\n      \"project_id\":\
+  \ project_id,\n      \"session_id\": session_id,\n      \"seq\": seq,\n      \"\
+  project_dir_hash\": path_hash,\n      \"command\": command,\n      \"resolved_argv\"\
+  : resolved_argv,\n      \"cwd\": cwd,\n      \"mode\": mode,\n      \"network\"\
+  : network,\n      \"image_profile\": image_profile,\n      \"container_id\": container_id,\n\
+  \      \"start_time\": start_time.isoformat(),\n      \"finish_time\": finish_time.isoformat(),\n\
+  \      \"duration_seconds\": (finish_time - start_time).total_seconds(),\n     \
+  \ \"exit_code\": exit_code,\n      \"timed_out\": timed_out,\n      \"stdout_file\"\
+  : stdout_file,\n      \"stderr_file\": stderr_file,\n      \"stdout_bytes\": stdout_bytes,\n\
+  \      \"stderr_bytes\": stderr_bytes,\n      \"policy_decision\": policy_decision,\n\
+  \      \"error_code\": error_code,\n  }\n  self._log_path.parent.mkdir(parents=True,\
+  \ exist_ok=True)\n  with self._log_path.open(\"a\", encoding=\"utf-8\") as fh:\n\
+  \      fh.write(json.dumps(record, ensure_ascii=False) + \"\\n\")\n  return run_id\n\
+  \n## Constraints\n- File must not exceed 100 lines. Line length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/audit_writer.py
+  expected: '`from mcp_terminal.services.audit_writer import AuditWriter` succeeds.'
+status: draft
