@@ -1,0 +1,35 @@
+step_id: G-005
+name: Configuration, TTL, and Audit
+status: frozen
+description: 'Covers the terminal-specific configuration layer and audit trail. Configuration
+  is a structured overlay on top of the adapter SimpleConfig: a generator extends
+  the adapter generator with terminal sections, a validator extends the adapter validator
+  with terminal-specific checks, and a CLI exposes generate/validate/help subcommands.
+  Key validated parameters include TTL, cleanup interval, output size limits, and
+  history limits. The TTL cleanup service deletes expired sessions and protects running
+  sessions. Every terminal_run invocation produces an immutable audit record regardless
+  of outcome, containing full execution context without secret values.'
+concepts:
+- C-012
+- C-013
+relations:
+- from_concept: C-013
+  to_concept: C-005
+  type: owns
+- from_concept: C-013
+  to_concept: C-010
+  type: owns
+- from_concept: C-009
+  to_concept: C-012
+  type: produces
+- from_concept: C-016
+  to_concept: C-013
+  type: uses
+source_ranges:
+- start: 782
+  end: 887
+depends_on:
+- G-001
+- G-003
+- G-004
+tactical_steps: []
