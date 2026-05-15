@@ -650,14 +650,6 @@ Returns queue status plus terminal-specific metadata for a command by `project_i
 
 The status response must include `job_id`, queue status, terminal status, `exit_code`, `timed_out`, file names, and output byte sizes.
 
-## 15. Execution Lifecycle
-
-### 14.7 `terminal_get_status`
-
-Returns queue status plus terminal-specific metadata for a command by `project_id`, `session_id`, and `seq`.
-
-The status response must include `job_id`, queue status, terminal status, `exit_code`, `timed_out`, file names, and output byte sizes.
-
 ### 14.8 `list`
 
 Returns the command history for one terminal session. This command is intentionally short because it is expected to be used frequently, similarly to `bash history`.
@@ -709,6 +701,17 @@ Request across projects:
 ```
 
 The command must report every deleted or skipped session path using logical project/session identifiers, not raw host paths.
+
+## 15. Execution Lifecycle
+
+MVP lifecycle for `terminal_run`:
+
+1. Validate request schema.
+2. Validate semantic constraints.
+3. Resolve `project_id` and `session_id`.
+4. Allocate the next session-local command sequence number.
+5. Create `NNNNNN.meta.json`, `NNNNNN.stdout.log`, and `NNNNNN.stderr.log`.
+6. Append the pending command record to `history.jsonl`.
 7. Add a terminal execution job to the queue.
 8. Return `job_id`, `seq`, and output file names.
 9. Worker starts the sandbox container.
@@ -717,17 +720,6 @@ The command must report every deleted or skipped session path using logical proj
 12. Worker stops and removes the container.
 
 No terminal command may execute a container synchronously in the request handler.
-
-## 16. Audit Requirements
-
-Every run must create an audit record containing:
-
-- `run_id`;
-- caller identity if available;
-- `project_id`;
-- resolved project root hash or redacted path;
-- full resolved project path in server-only logs if policy allows;
-- command argv;
 - `cwd`;
 - `mode`;
 - `network`;
