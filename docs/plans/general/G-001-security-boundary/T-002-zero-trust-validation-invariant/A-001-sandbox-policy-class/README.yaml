@@ -1,0 +1,170 @@
+step_id: A-001
+parent_tactical_step: T-002
+name: SandboxPolicy validation class
+target_file: mcp_terminal/services/sandbox_policy.py
+operation: modify_file
+priority: 1
+depends_on: []
+concepts:
+- C-003
+- C-015
+prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
+  \ modify_file\n\n## Current file content (after all prior atomic steps on this file)\n\
+  \n```python\n\"\"\"\nTrust classification schema and sandbox policy validation for\
+  \ mcp_terminal.\n\nEvery request from the model is treated as untrusted regardless\
+  \ of session\nhistory or prior successful requests (zero-trust invariant).\n\nAuthor:\
+  \ Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\nfrom __future__ import\
+  \ annotations\n\nfrom dataclasses import dataclass, field\nfrom enum import Enum,\
+  \ auto\nfrom typing import FrozenSet\n\n\nclass TrustCategory(Enum):\n    \"\"\"\
+  Categories of entities in the trust classification schema.\"\"\"\n\n    TRUSTED_COMPONENT\
+  \ = auto()\n    UNTRUSTED_INPUT = auto()\n    SENSITIVE_HOST_RESOURCE = auto()\n\
+  \n\n@dataclass(frozen=True)\nclass TrustBoundary:\n    \"\"\"Exhaustive, closed\
+  \ enumeration of trust categories for mcp_terminal.\n\n    The classification is\
+  \ closed: any input not listed in trusted_components\n    is treated as untrusted.\
+  \ This schema is consulted by SandboxPolicy on\n    every request validation.\n\
+  \    \"\"\"\n\n    trusted_components: FrozenSet[str]\n    \"\"\"Names of trusted\
+  \ system components.\"\"\"\n    untrusted_input_categories: FrozenSet[str]\n   \
+  \ \"\"\"Names of input categories that must never be trusted.\"\"\"\n    sensitive_host_resources:\
+  \ FrozenSet[str]\n    \"\"\"Host resource names that must never be exposed to the\
+  \ sandbox.\"\"\"\n\n\nTERMINAL_TRUST_BOUNDARY: TrustBoundary = TrustBoundary(\n\
+  \    trusted_components=frozenset({\n        \"service_code\",\n        \"project_registry\"\
+  ,\n        \"server_side_policy_config\",\n        \"container_image_allowlist\"\
+  ,\n    }),\n    untrusted_input_categories=frozenset({\n        \"command_arguments\"\
+  ,\n        \"cwd_values\",\n        \"environment_variable_requests\",\n       \
+  \ \"network_mode_requests\",\n        \"write_mode_requests\",\n        \"mounted_project_file_content\"\
+  ,\n    }),\n    sensitive_host_resources=frozenset({\n        \"host_root_filesystem\"\
+  ,\n        \"home_directories_outside_project\",\n        \"ssh_credentials\",\n\
+  \        \"cloud_credentials\",\n        \"docker_socket\",\n        \"host_etc_proc_sys_dev\"\
+  ,\n        \"parent_watch_directories\",\n        \"unrelated_project_directories\"\
+  ,\n    }),\n)\n```\n\n## What to add\n\nAppend the following to the file after the\
+  \ existing content.\n\n### Additional imports to add at the top of the file (merge\
+  \ with existing)\n  from typing import FrozenSet, Optional  # replace existing FrozenSet\
+  \ import\n\n### New dataclass: PolicyConfig\n\n```python\n@dataclass(frozen=True)\n\
+  class PolicyConfig:\n    \"\"\"Server-side policy configuration for SandboxPolicy.\n\
+  \n    All fields are immutable after construction. Sourced from ConfigOverlay\n\
+  \    (C-013) at server startup.\n    \"\"\"\n\n    allowed_modes: FrozenSet[str]\n\
+  \    \"\"\"Permitted mount modes: read_only, workspace_write, scratch_write.\"\"\
+  \"\n    allowed_network_modes: FrozenSet[str]\n    \"\"\"Permitted network modes\
+  \ in MVP: none, package_registry.\"\"\"\n    allowed_image_profiles: FrozenSet[str]\n\
+  \    \"\"\"Server-side image profile allowlist (e.g. python_dev_3_12).\"\"\"\n \
+  \   safe_path_prefixes: FrozenSet[str]\n    \"\"\"Executable path prefixes considered\
+  \ safe (used by command policy).\"\"\"\n```\n\n### Module-level constant: DEFAULT_POLICY_CONFIG\n\
+  \n```python\nDEFAULT_POLICY_CONFIG: PolicyConfig = PolicyConfig(\n    allowed_modes=frozenset({\"\
+  read_only\", \"workspace_write\", \"scratch_write\"}),\n    allowed_network_modes=frozenset({\"\
+  none\", \"package_registry\"}),\n    allowed_image_profiles=frozenset({\"python_dev_3_12\"\
+  , \"node_dev_20\", \"base_tools\"}),\n    safe_path_prefixes=frozenset({\"/usr/bin\"\
+  , \"/usr/local/bin\", \"/bin\", \"/usr/sbin\"}),\n)\n```\n\n### New dataclass: ValidationResult\n\
+  \n```python\n@dataclass(frozen=True)\nclass ValidationResult:\n    \"\"\"Outcome\
+  \ of a SandboxPolicy validation check.\n\n    permitted is True when all checks\
+  \ pass. When False, error_code contains\n    the stable ErrorContract (C-015) code\
+  \ and rejected_field identifies the\n    offending field.\n    \"\"\"\n\n    permitted:\
+  \ bool\n    \"\"\"True if the request passed all policy checks.\"\"\"\n    error_code:\
+  \ Optional[str] = None\n    \"\"\"Stable ErrorContract code (C-015) when permitted\
+  \ is False.\"\"\"\n    rejected_field: Optional[str] = None\n    \"\"\"Name of the\
+  \ request field that triggered the rejection.\"\"\"\n    detail: Optional[str] =\
+  \ None\n    \"\"\"Human-readable detail string; not stable across versions.\"\"\"\
+  \n```\n\n### New class: SandboxPolicy\n\n```python\nclass SandboxPolicy:\n    \"\
+  \"\"Zero-trust validator for every terminal execution request.\n\n    Every request\
+  \ is validated independently against the configured\n    PolicyConfig. No implicit\
+  \ trust accumulates across requests.\n    Rejects forbidden options unconditionally\
+  \ before any container\n    operation begins.\n\n    C-003 SandboxPolicy invariant:\
+  \ all model inputs are untrusted.\n    \"\"\"\n\n    # Forbidden runtime option\
+  \ strings; presence in any request field triggers\n    # immediate rejection regardless\
+  \ of context.\n    _FORBIDDEN_OPTIONS: FrozenSet[str] = frozenset({\n        \"\
+  --privileged\",\n        \"--pid=host\",\n        \"--pid host\",\n        \"--network=host\"\
+  ,\n        \"--network host\",\n        \"--ipc=host\",\n        \"--ipc host\"\
+  ,\n        \"--uts=host\",\n        \"--uts host\",\n        \"--cap-add=SYS_ADMIN\"\
+  ,\n        \"--cap-add SYS_ADMIN\",\n        \"/var/run/docker.sock\",\n    })\n\
+  \n    def __init__(self, config: PolicyConfig = DEFAULT_POLICY_CONFIG) -> None:\n\
+  \        \"\"\"Initialise SandboxPolicy with the given PolicyConfig.\n\n       \
+  \ Args:\n            config: Immutable policy configuration sourced from ConfigOverlay\n\
+  \                at server startup. Defaults to DEFAULT_POLICY_CONFIG.\n       \
+  \ \"\"\"\n        self._config = config\n\n    def validate(\n        self,\n  \
+  \      *,\n        project_id: Optional[str],\n        execution_kind: Optional[str],\n\
+  \        cwd: Optional[str],\n        mode: Optional[str],\n        network: Optional[str],\n\
+  \        image_profile: Optional[str],\n        command: Optional[str],\n      \
+  \  argv: Optional[list],\n    ) -> ValidationResult:\n        \"\"\"Validate a terminal_run\
+  \ request against all policy rules.\n\n        Checks are applied in order. The\
+  \ first failing check returns\n        immediately with the corresponding ErrorContract\
+  \ (C-015) code.\n        All checks pass only if the method returns ValidationResult(\n\
+  \        permitted=True).\n\n        Args:\n            project_id: Caller-supplied\
+  \ project identifier.\n            execution_kind: Must be \"shell\" or \"argv\"\
+  ; absence is rejected.\n            cwd: Working directory relative to /workspace;\
+  \ must be relative.\n            mode: Mount mode; must be in allowed_modes.\n \
+  \           network: Network mode; must be in allowed_network_modes.\n         \
+  \   image_profile: Image profile name; must be in allowed_image_profiles.\n    \
+  \        command: Shell command string (for shell kind); may be None for argv.\n\
+  \            argv: Argv list (for argv kind); may be None for shell.\n\n       \
+  \ Returns:\n            ValidationResult with permitted=True or permitted=False\
+  \ plus\n            a stable error_code and the rejected_field name.\n        \"\
+  \"\"\n        # Check 1: project_id must not be a host path\n        if project_id\
+  \ is None or project_id.strip() == \"\":\n            return ValidationResult(\n\
+  \                permitted=False,\n                error_code=\"INVALID_COMMAND\"\
+  ,\n                rejected_field=\"project_id\",\n                detail=\"project_id\
+  \ is required\",\n            )\n        if project_id.startswith(\"/\") or \"..\"\
+  \ in project_id:\n            return ValidationResult(\n                permitted=False,\n\
+  \                error_code=\"PROJECT_PATH_OUT_OF_SCOPE\",\n                rejected_field=\"\
+  project_id\",\n                detail=\"project_id must not be a host path\",\n\
+  \            )\n\n        # Check 2: execution_kind is mandatory\n        if execution_kind\
+  \ not in (\"shell\", \"argv\"):\n            return ValidationResult(\n        \
+  \        permitted=False,\n                error_code=\"INVALID_COMMAND\",\n   \
+  \             rejected_field=\"execution_kind\",\n                detail=f\"execution_kind\
+  \ must be 'shell' or 'argv', got {execution_kind!r}\",\n            )\n\n      \
+  \  # Check 3: command / argv consistency\n        if execution_kind == \"shell\"\
+  :\n            if not command or not command.strip():\n                return ValidationResult(\n\
+  \                    permitted=False,\n                    error_code=\"INVALID_COMMAND\"\
+  ,\n                    rejected_field=\"command\",\n                    detail=\"\
+  command is required for shell execution_kind\",\n                )\n           \
+  \ if \"\\x00\" in command:\n                return ValidationResult(\n         \
+  \           permitted=False,\n                    error_code=\"INVALID_COMMAND\"\
+  ,\n                    rejected_field=\"command\",\n                    detail=\"\
+  command must not contain NUL bytes\",\n                )\n        if execution_kind\
+  \ == \"argv\":\n            if not argv:\n                return ValidationResult(\n\
+  \                    permitted=False,\n                    error_code=\"INVALID_COMMAND\"\
+  ,\n                    rejected_field=\"argv\",\n                    detail=\"argv\
+  \ must be a non-empty list for argv execution_kind\",\n                )\n     \
+  \       for element in argv:\n                if not isinstance(element, str) or\
+  \ \"\\x00\" in element:\n                    return ValidationResult(\n        \
+  \                permitted=False,\n                        error_code=\"INVALID_COMMAND\"\
+  ,\n                        rejected_field=\"argv\",\n                        detail=\"\
+  argv elements must be non-null strings without NUL bytes\",\n                  \
+  \  )\n\n        # Check 4: cwd must be relative\n        if cwd is not None and\
+  \ (cwd.startswith(\"/\") or \"..\" in cwd):\n            return ValidationResult(\n\
+  \                permitted=False,\n                error_code=\"INVALID_CWD\",\n\
+  \                rejected_field=\"cwd\",\n                detail=\"cwd must be relative\
+  \ and must not contain ..\",\n            )\n\n        # Check 5: mode\n       \
+  \ if mode not in self._config.allowed_modes:\n            return ValidationResult(\n\
+  \                permitted=False,\n                error_code=\"MODE_NOT_ALLOWED\"\
+  ,\n                rejected_field=\"mode\",\n                detail=f\"mode {mode!r}\
+  \ is not allowed\",\n            )\n\n        # Check 6: network mode\n        if\
+  \ network not in self._config.allowed_network_modes:\n            return ValidationResult(\n\
+  \                permitted=False,\n                error_code=\"NETWORK_MODE_NOT_ALLOWED\"\
+  ,\n                rejected_field=\"network\",\n                detail=f\"network\
+  \ {network!r} is not allowed in MVP\",\n            )\n\n        # Check 7: image\
+  \ profile\n        if image_profile not in self._config.allowed_image_profiles:\n\
+  \            return ValidationResult(\n                permitted=False,\n      \
+  \          error_code=\"IMAGE_PROFILE_NOT_ALLOWED\",\n                rejected_field=\"\
+  image_profile\",\n                detail=f\"image_profile {image_profile!r} is not\
+  \ in the server allowlist\",\n            )\n\n        # Check 8: forbidden runtime\
+  \ options in command\n        if command:\n            for forbidden in self._FORBIDDEN_OPTIONS:\n\
+  \                if forbidden in command:\n                    return ValidationResult(\n\
+  \                        permitted=False,\n                        error_code=\"\
+  INVALID_COMMAND\",\n                        rejected_field=\"command\",\n      \
+  \                  detail=f\"command contains forbidden option: {forbidden}\",\n\
+  \                    )\n\n        return ValidationResult(permitted=True)\n```\n\
+  \n## Constraints\n- Merge the `Optional` import into the existing `from typing import\
+  \ FrozenSet` line:\n  `from typing import FrozenSet, Optional`\n- Do not remove\
+  \ or modify TrustCategory, TrustBoundary, or TERMINAL_TRUST_BOUNDARY.\n- All type\
+  \ annotations must be present on every method parameter and return value.\n- File\
+  \ must not exceed 350 lines total.\n- File must pass `flake8 mcp_terminal/services/sandbox_policy.py`\
+  \ with no errors\n  (line length limit 99).\n- No `from __future__ import annotations`\
+  \ removal.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/sandbox_policy.py
+  expected: '`from mcp_terminal.services.sandbox_policy import SandboxPolicy, ValidationResult,
+    PolicyConfig` succeeds. Calling SandboxPolicy().validate(project_id="abc", execution_kind=None,
+    cwd=None, mode="read_only", network="none", image_profile="python_dev_3_12", command=None,
+    argv=None) returns ValidationResult(permitted=False, error_code="INVALID_COMMAND").
+    Calling with valid inputs returns ValidationResult(permitted=True).'
+status: draft
