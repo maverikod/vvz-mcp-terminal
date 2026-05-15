@@ -1,0 +1,36 @@
+step_id: T-001
+parent_global_step: G-007
+name: Adapter Skeleton Extension Model
+status: draft
+description: 'Defines how AdapterSkeleton (C-016) is extended with terminal domain
+  modules without rewriting existing code. The existing server startup, config reader,
+  and process manager are preserved intact. Extension proceeds in phases: Phase 1
+  adds terminal command registration to the server startup via register_custom_commands_hook,
+  verifying that existing adapter built-in and queue commands remain visible in MCP
+  help. Phase 2 adds the ConfigOverlay (C-013) generator, validator, and CLI as overlays.
+  Phase 3 adds project registry, session store, command history, and TTL cleanup services.
+  Phase 4 adds the queue-only execution job. Phase 5 adds all reader and navigation
+  commands. Phase 6 adds container isolation enforcement. Each phase gate: existing
+  MCP help must not regress; new commands appear only after their schemas and validators
+  are complete. The internal execution job must never appear in MCP help. No intermediate
+  phase is published until it passes gate verification.'
+concepts:
+- C-016
+- C-013
+inputs:
+- name: existing_skeleton
+  type: existing codebase state
+  description: The preserved adapter-based server startup, config reader, and process
+    manager that form the extension base.
+- name: phase_gate_criteria
+  type: verification checklist
+  description: Per-phase gate criteria from source_spec section 23; each gate must
+    pass before the next phase begins.
+outputs:
+- name: extended_server
+  type: incremental codebase state
+  description: 'AdapterSkeleton extended with terminal domain modules phase by phase.
+    At each gate: MCP help shows expected commands and no regressions; terminal_execute
+    is not visible. Final state: all 12 terminal_* commands registered and all domain
+    services active.'
+atomic_steps: []
