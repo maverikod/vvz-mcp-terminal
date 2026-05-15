@@ -8,66 +8,73 @@ depends_on: []
 concepts:
 - C-001
 prompt: "Modify the file `mcp_terminal/services/project_registry.py`.\n\nOperation:\
-  \ modify_file\n\n## Current file content (after all prior atomic steps on this file)\n\
-  \nThe file currently contains (in order):\n- Module docstring\n- Imports: from __future__\
-  \ import annotations, json, re, uuid, logging,\n  dataclass, field, Path, Dict,\
-  \ FrozenSet, List, Optional\n- @dataclass(frozen=True) ProjectMarker\n- @dataclass(frozen=True)\
-  \ MarkerValidationError\n- _UUID4_RE constant and _is_uuid4() function\n- validate_marker_file()\
-  \ function\n- @dataclass RegistryEntry (not frozen)\n- class ProjectRegistry with\
-  \ __init__(), build(), known_project_ids property\n\n(Do not modify any of the above;\
-  \ only add new methods to ProjectRegistry.)\n\n## MRS concept excerpt\n\nC-001 ProjectRegistry:\n\
-  \  properties:\n    - Rejects symlink escapes, relative traversal, and paths outside\n\
-  \      projects.root_dir\n    - Resolution is read-only; registry is built from\
-  \ marker files only\n\nC-015 ErrorContract stable codes used in this step:\n  PROJECT_NOT_FOUND,\
-  \ PROJECT_DELETED, PROJECT_PAUSED, PROJECT_PATH_OUT_OF_SCOPE\n\n## What to add\n\
-  \nAdd the following methods to the ProjectRegistry class:\n\n### @dataclass(frozen=True)\
-  \ ResolutionResult  (module-level, before ProjectRegistry)\n\nActually insert this\
-  \ dataclass BEFORE the ProjectRegistry class definition.\n\nDocstring: \"\"\"Outcome\
-  \ of ProjectRegistry.resolve().\"\"\"\nFields:\n  success: bool\n  project_dir:\
-  \ Optional[Path] = None\n    docstring: \"Verified canonical host path; set only\
-  \ when success=True.\"\n  error_code: Optional[str] = None\n    docstring: \"Stable\
-  \ ErrorContract code (C-015); set only when success=False.\"\n  detail: Optional[str]\
-  \ = None\n    docstring: \"Human-readable detail; not stable across versions.\"\n\
-  \n### resolve() method on ProjectRegistry\n\nSignature:\n  def resolve(self, project_id:\
-  \ str) -> ResolutionResult:\n\nDocstring:\n  \"\"\"Resolve project_id to a verified\
-  \ canonical host path.\n\n  Performs all checks required before any mount operation:\n\
-  \  1. project_id must exist in the registry.\n  2. Entry must not be disabled (duplicate\
-  \ conflict).\n  3. Canonical path must still exist as a directory.\n  4. realpath(project_dir)\
-  \ must be a direct child of realpath(root_dir)\n     (unless allow_nested_projects\
-  \ is enabled).\n  5. Symlink escapes and relative traversal are rejected.\n\n  Args:\n\
-  \      project_id: Caller-supplied project identifier to resolve.\n\n  Returns:\n\
-  \      ResolutionResult with success=True and project_dir set, or\n      success=False\
-  \ with a stable error_code from ErrorContract (C-015).\n  \"\"\"\n\nImplementation:\n\
-  \  entry = self._entries.get(project_id)\n  if entry is None:\n      return ResolutionResult(\n\
-  \          success=False,\n          error_code=\"PROJECT_NOT_FOUND\",\n       \
-  \   detail=f\"project_id {project_id!r} not found in registry\",\n      )\n  if\
-  \ entry.disabled:\n      return ResolutionResult(\n          success=False,\n  \
-  \        error_code=\"PROJECT_NOT_FOUND\",\n          detail=entry.conflict_reason\
-  \ or \"project is disabled due to duplicate id\",\n      )\n  project_dir = entry.marker.project_dir\n\
-  \  if not project_dir.is_dir():\n      return ResolutionResult(\n          success=False,\n\
-  \          error_code=\"PROJECT_NOT_FOUND\",\n          detail=f\"project directory\
-  \ no longer exists: {project_dir}\",\n      )\n  # Canonical path containment check\n\
-  \  real_root = self._root_dir.resolve()\n  real_project = project_dir.resolve()\n\
-  \  try:\n      real_project.relative_to(real_root)\n  except ValueError:\n     \
-  \ self._logger.error(\n          \"Path containment violation: %s is outside %s\"\
-  ,\n          real_project, real_root,\n      )\n      return ResolutionResult(\n\
-  \          success=False,\n          error_code=\"PROJECT_PATH_OUT_OF_SCOPE\",\n\
-  \          detail=\"project path is outside the configured projects root\",\n  \
-  \    )\n  # Ensure it is a direct child unless allow_nested_projects\n  if not self._allow_nested_projects:\n\
-  \      if real_project.parent != real_root:\n          return ResolutionResult(\n\
-  \              success=False,\n              error_code=\"PROJECT_PATH_OUT_OF_SCOPE\"\
-  ,\n              detail=\"nested projects are not allowed\",\n          )\n  return\
-  \ ResolutionResult(success=True, project_dir=real_project)\n\n### refresh() method\
-  \ on ProjectRegistry\n\nSignature:\n  def refresh(self) -> None:\nDocstring:\n \
-  \ \"\"\"Re-scan projects.root_dir and rebuild the registry index.\n\n  Equivalent\
-  \ to calling build() again. Replaces all entries.\n  \"\"\"\nBody: self.build()\n\
-  \n## Constraints\n- Insert ResolutionResult dataclass before ProjectRegistry class\
-  \ in the file.\n- All type annotations required.\n- File must not exceed 400 lines\
-  \ after this step.\n- Line length limit 99. Must pass flake8.\n"
+  \ modify_file\n\n## Current file content (full, after G-002/T-001 and G-002/T-002)\n\
+  \nThe file currently ends with the ProjectRegistry class containing\n__init__(),\
+  \ build(), and known_project_ids property. The full class\nlist in the file is:\n\
+  \  - ProjectMarker (frozen dataclass)\n  - MarkerValidationError (frozen dataclass)\n\
+  \  - _UUID4_RE constant, _is_uuid4() function\n  - validate_marker_file() function\n\
+  \  - RegistryEntry (dataclass, not frozen)\n  - ProjectRegistry class with __init__(),\
+  \ build(), known_project_ids\n\nImports at top of file:\n  from __future__ import\
+  \ annotations\n  import json, import logging, import re\n  from dataclasses import\
+  \ dataclass, field\n  from pathlib import Path\n  from typing import Dict, FrozenSet,\
+  \ List, Optional\n\n## MRS concept excerpt\n\nC-001 ProjectRegistry:\n  properties:\n\
+  \    - Rejects symlink escapes, relative traversal, and paths outside\n      projects.root_dir\n\
+  \    - Resolution is read-only; registry is built from marker files only\n\nC-015\
+  \ ErrorContract stable codes used in this step:\n  PROJECT_NOT_FOUND, PROJECT_DELETED,\
+  \ PROJECT_PAUSED, PROJECT_PATH_OUT_OF_SCOPE\n  (These are stable string constants;\
+  \ return them verbatim as error_code values.)\n\n## What to add\n\n### 1. Add ResolutionResult\
+  \ dataclass BEFORE the ProjectRegistry class definition\n\n```python\n@dataclass(frozen=True)\n\
+  class ResolutionResult:\n    \"\"\"Outcome of ProjectRegistry.resolve().\"\"\"\n\
+  \n    success: bool\n    \"\"\"True when resolution succeeded.\"\"\"\n    project_dir:\
+  \ Optional[Path] = None\n    \"\"\"Verified canonical host path; set only when success=True.\"\
+  \"\"\n    error_code: Optional[str] = None\n    \"\"\"Stable ErrorContract code\
+  \ (C-015); set only when success=False.\"\"\"\n    detail: Optional[str] = None\n\
+  \    \"\"\"Human-readable detail; not stable across versions.\"\"\"\n```\n\n###\
+  \ 2. Add resolve() and refresh() methods to ProjectRegistry class\n\nAdd these methods\
+  \ after the known_project_ids property:\n\n```python\n    def resolve(self, project_id:\
+  \ str) -> ResolutionResult:\n        \"\"\"Resolve project_id to a verified canonical\
+  \ host path.\n\n        Performs all checks required before any mount operation:\n\
+  \        1. project_id must exist in the registry.\n        2. Entry must not be\
+  \ disabled (duplicate conflict).\n        3. Canonical path must still exist as\
+  \ a directory.\n        4. realpath(project_dir) must be a direct child of realpath(root_dir)\n\
+  \           (unless allow_nested_projects is enabled).\n        5. Symlink escapes\
+  \ and relative traversal are rejected.\n\n        Args:\n            project_id:\
+  \ Caller-supplied project identifier to resolve.\n\n        Returns:\n         \
+  \   ResolutionResult with success=True and project_dir set, or\n            success=False\
+  \ with a stable error_code from ErrorContract (C-015).\n        \"\"\"\n       \
+  \ entry = self._entries.get(project_id)\n        if entry is None:\n           \
+  \ return ResolutionResult(\n                success=False,\n                error_code=\"\
+  PROJECT_NOT_FOUND\",\n                detail=f\"project_id {project_id!r} not found\
+  \ in registry\",\n            )\n        if entry.disabled:\n            return\
+  \ ResolutionResult(\n                success=False,\n                error_code=\"\
+  PROJECT_NOT_FOUND\",\n                detail=entry.conflict_reason or \"project\
+  \ is disabled due to duplicate id\",\n            )\n        project_dir = entry.marker.project_dir\n\
+  \        if not project_dir.is_dir():\n            return ResolutionResult(\n  \
+  \              success=False,\n                error_code=\"PROJECT_NOT_FOUND\"\
+  ,\n                detail=f\"project directory no longer exists: {project_dir}\"\
+  ,\n            )\n        real_root = self._root_dir.resolve()\n        real_project\
+  \ = project_dir.resolve()\n        try:\n            real_project.relative_to(real_root)\n\
+  \        except ValueError:\n            self._logger.error(\n                \"\
+  Path containment violation: %s is outside %s\",\n                real_project, real_root,\n\
+  \            )\n            return ResolutionResult(\n                success=False,\n\
+  \                error_code=\"PROJECT_PATH_OUT_OF_SCOPE\",\n                detail=\"\
+  project path is outside the configured projects root\",\n            )\n       \
+  \ if not self._allow_nested_projects:\n            if real_project.parent != real_root:\n\
+  \                return ResolutionResult(\n                    success=False,\n\
+  \                    error_code=\"PROJECT_PATH_OUT_OF_SCOPE\",\n               \
+  \     detail=\"nested projects are not allowed\",\n                )\n        return\
+  \ ResolutionResult(success=True, project_dir=real_project)\n\n    def refresh(self)\
+  \ -> None:\n        \"\"\"Re-scan projects.root_dir and rebuild the registry index.\n\
+  \n        Equivalent to calling build() again. Replaces all entries.\n        \"\
+  \"\"\n        self.build()\n```\n\n## Constraints\n- Insert ResolutionResult dataclass\
+  \ immediately before the ProjectRegistry\n  class in the file (after RegistryEntry,\
+  \ before class ProjectRegistry).\n- Add resolve() and refresh() as methods of ProjectRegistry.\n\
+  - Do not modify any existing code.\n- All type annotations required.\n- File must\
+  \ not exceed 400 lines after this step.\n- Line length limit 99. Must pass flake8.\n"
 verification:
   type: import
   target: mcp_terminal/services/project_registry.py
   expected: '`from mcp_terminal.services.project_registry import ProjectRegistry,
-    ResolutionResult` succeeds. Calling resolve() on an empty registry returns ResolutionResult(success=False,
-    error_code="PROJECT_NOT_FOUND").'
+    ResolutionResult` succeeds. Calling ProjectRegistry(root_dir=Path("/tmp")).resolve("unknown-id")
+    returns ResolutionResult(success=False, error_code="PROJECT_NOT_FOUND").'
 status: draft
