@@ -1,0 +1,86 @@
+step_id: A-001
+parent_tactical_step: T-004
+name: OutputReader read/tail/search/stat
+target_file: mcp_terminal/services/output_reader.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-008
+prompt: "Create the file `mcp_terminal/services/output_reader.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nImplements OutputStore (C-008) read operations: read (offset+bytes),\n\
+  tail (last N lines), search by regex, and stat (sizes only).\n\n## MRS concept excerpt\n\
+  \nC-008 OutputStore:\n  - stdout and stderr stored in separate files; no combined\
+  \ output file\n  - Read supports offset and max_bytes limits\n  - Tail reads last\
+  \ N lines without loading full file\n  - Search enforces max_matches limit\n  -\
+  \ Rejects invalid stream names and path traversal via seq reference\n  - terminal_stat\
+  \ returns file sizes without reading full content\n\n## Module docstring\n\"\"\"\
+  \nOutput file read operations for mcp_terminal (C-008).\n\nProvides read, tail,\
+  \ search, and stat operations on per-command\nstdout/stderr output files. Enforces\
+  \ path containment and\nrejects invalid stream names.\n\nAuthor: Vasiliy Zdanovskiy\n\
+  Email: vasilyvz@gmail.com\n\"\"\"\n\n## Imports (exact)\nfrom __future__ import\
+  \ annotations\n\nimport re\nfrom dataclasses import dataclass\nfrom pathlib import\
+  \ Path\nfrom typing import List, Optional\n\nfrom mcp_terminal.services.command_history\
+  \ import CommandHistory\n\n## Constants\nVALID_STREAMS: frozenset = frozenset({\"\
+  stdout\", \"stderr\"})\nDEFAULT_MAX_BYTES: int = 65536\nDEFAULT_TAIL_LINES: int\
+  \ = 100\nDEFAULT_MAX_MATCHES: int = 50\n\n## Dataclasses\n\n### @dataclass(frozen=True)\
+  \ SearchMatch\nDocstring: \"\"\"One regex match from output search.\"\"\"\nFields:\n\
+  \  seq: int\n  stream: str\n  line_number: int\n  text: str  # full matched line\n\
+  \n### @dataclass(frozen=True) StatResult\nDocstring: \"\"\"Output file sizes for\
+  \ terminal_stat (no file content).\"\"\"\nFields:\n  seq: int\n  stdout_bytes: int\n\
+  \  stderr_bytes: int\n  stdout_file: str\n  stderr_file: str\n\n## class OutputReader\n\
+  Docstring:\n  \"\"\"Read operations on per-command output files (C-008).\n\n  All\
+  \ operations validate stream name and resolve file paths from seq\n  to prevent\
+  \ path traversal.\n  \"\"\"\n\n__init__:\n  def __init__(self, session_dir: Path)\
+  \ -> None:\n      self._session_dir = session_dir\n\n### _resolve_file() method\n\
+  Signature:\n  def _resolve_file(self, seq: int, stream: str) -> tuple[Optional[Path],\
+  \ Optional[str]]:\nDocstring:\n  \"\"\"Resolve and validate the output file path\
+  \ for seq and stream.\n\n  Returns:\n      (Path, None) on success, or (None, error_code)\
+  \ on rejection.\n  \"\"\"\nImplementation:\n  if stream not in VALID_STREAMS:\n\
+  \      return None, \"INVALID_STREAM\"\n  prefix = CommandHistory.seq_to_prefix(seq)\n\
+  \  path = self._session_dir / f\"{prefix}.{stream}.log\"\n  # Path containment check\n\
+  \  try:\n      path.resolve().relative_to(self._session_dir.resolve())\n  except\
+  \ ValueError:\n      return None, \"INVALID_CWD\"\n  return path, None\n\n### read()\
+  \ method\nSignature:\n  def read(\n      self,\n      seq: int,\n      stream: str,\n\
+  \      *,\n      offset: int = 0,\n      max_bytes: int = DEFAULT_MAX_BYTES,\n \
+  \ ) -> tuple[Optional[bytes], Optional[str]]:\nDocstring:\n  \"\"\"Read bytes from\
+  \ an output file starting at offset.\n\n  Returns:\n      (bytes, None) on success,\
+  \ or (None, error_code) on failure.\n  \"\"\"\nImplementation:\n  path, err = self._resolve_file(seq,\
+  \ stream)\n  if err:\n      return None, err\n  if not path.exists():\n      return\
+  \ b\"\", None\n  with path.open(\"rb\") as fh:\n      fh.seek(offset)\n      return\
+  \ fh.read(max_bytes), None\n\n### tail() method\nSignature:\n  def tail(\n     \
+  \ self,\n      seq: int,\n      stream: str,\n      *,\n      lines: int = DEFAULT_TAIL_LINES,\n\
+  \  ) -> tuple[Optional[List[str]], Optional[str]]:\nDocstring: \"\"\"Return the\
+  \ last N lines from an output file.\"\"\"\nImplementation:\n  path, err = self._resolve_file(seq,\
+  \ stream)\n  if err:\n      return None, err\n  if not path.exists():\n      return\
+  \ [], None\n  content = path.read_text(encoding=\"utf-8\", errors=\"replace\")\n\
+  \  all_lines = content.splitlines()\n  return all_lines[-lines:], None\n\n### search()\
+  \ method\nSignature:\n  def search(\n      self,\n      seq: int,\n      stream:\
+  \ str,\n      pattern: str,\n      *,\n      max_matches: int = DEFAULT_MAX_MATCHES,\n\
+  \  ) -> tuple[Optional[List[SearchMatch]], Optional[str]]:\nDocstring: \"\"\"Search\
+  \ an output file for lines matching the regex pattern.\"\"\"\nImplementation:\n\
+  \  path, err = self._resolve_file(seq, stream)\n  if err:\n      return None, err\n\
+  \  if not path.exists():\n      return [], None\n  try:\n      regex = re.compile(pattern)\n\
+  \  except re.error as exc:\n      return None, f\"INVALID_PATTERN: {exc}\"\n  matches:\
+  \ List[SearchMatch] = []\n  for line_no, line in enumerate(path.read_text(encoding=\"\
+  utf-8\", errors=\"replace\").splitlines(), 1):\n      if regex.search(line):\n \
+  \         matches.append(SearchMatch(seq=seq, stream=stream, line_number=line_no,\
+  \ text=line))\n          if len(matches) >= max_matches:\n              break\n\
+  \  return matches, None\n\n### stat() method\nSignature:\n  def stat(self, seq:\
+  \ int) -> StatResult:\nDocstring:\n  \"\"\"Return output file sizes for terminal_stat\
+  \ (no file content).\"\"\"\nImplementation:\n  prefix = CommandHistory.seq_to_prefix(seq)\n\
+  \  stdout_file = f\"{prefix}.stdout.log\"\n  stderr_file = f\"{prefix}.stderr.log\"\
+  \n  stdout_path = self._session_dir / stdout_file\n  stderr_path = self._session_dir\
+  \ / stderr_file\n  return StatResult(\n      seq=seq,\n      stdout_bytes=stdout_path.stat().st_size\
+  \ if stdout_path.exists() else 0,\n      stderr_bytes=stderr_path.stat().st_size\
+  \ if stderr_path.exists() else 0,\n      stdout_file=stdout_file,\n      stderr_file=stderr_file,\n\
+  \  )\n\n## Constraints\n- File must be valid Python, importable.\n- All type annotations\
+  \ required.\n- File must not exceed 220 lines.\n- Line length limit 99. Must pass\
+  \ flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/output_reader.py
+  expected: '`from mcp_terminal.services.output_reader import OutputReader, SearchMatch,
+    StatResult` succeeds. OutputReader._resolve_file with an invalid stream name returns
+    (None, ''INVALID_STREAM'').'
+status: draft
