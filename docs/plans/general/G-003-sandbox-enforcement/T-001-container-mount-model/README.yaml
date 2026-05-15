@@ -1,0 +1,36 @@
+step_id: T-001
+parent_global_step: G-003
+name: Container Mount Model
+status: draft
+description: 'Defines the container mount model enforced by ContainerRuntime (C-010).
+  The project root is always mounted at the fixed path /workspace; the caller cannot
+  choose the mount point. Three mount modes are defined: read_only mounts /workspace
+  as ro and provides /scratch as rw tmpfs; workspace_write mounts /workspace as rw
+  and provides /scratch as rw; scratch_write mounts /workspace as ro and /scratch
+  as rw. Default mode is read_only. workspace_write must be explicitly requested and
+  is recorded in the audit trail. The working directory inside the container must
+  be relative and must resolve inside /workspace; cwd values that escape /workspace
+  (absolute paths, .. traversal, symlink escapes) are rejected by SandboxPolicy (C-003)
+  before the container is created.'
+concepts:
+- C-003
+- C-010
+inputs:
+- name: verified_project_root
+  type: canonical host path
+  description: Resolved and verified project root path from C-001 resolution, used
+    as the /workspace mount source.
+- name: requested_mode
+  type: enumerated string
+  description: One of read_only, workspace_write, scratch_write as supplied in the
+    request.
+- name: requested_cwd
+  type: relative path string
+  description: Working directory relative to /workspace as supplied in the request.
+outputs:
+- name: mount_spec
+  type: container mount configuration
+  description: 'Complete mount specification for the container: /workspace source
+    path, mount mode (ro or rw), /scratch configuration, and validated absolute working
+    directory inside /workspace. Consumed by the runtime security profile step.'
+atomic_steps: []
