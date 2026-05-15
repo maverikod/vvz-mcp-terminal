@@ -19,8 +19,9 @@ concepts:
 inputs:
 - name: trust_classification_schema
   type: structured enumeration
-  description: Enumeration of trusted components, untrusted inputs, and forbidden
-    host resources produced by T-001.
+  description: Exhaustive named enumeration of trusted components, untrusted input
+    categories, and sensitive host resources that C-003 enforces. Derived from server-side
+    policy configuration at startup.
 - name: execution_request
   type: request object
   description: Inbound terminal_run or session management request from the model.
