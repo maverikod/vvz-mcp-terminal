@@ -9,71 +9,180 @@ concepts:
 - C-003
 - C-010
 prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
-  \ modify_file\n\n## Current file content (full, after G-001/T-001 and G-001/T-002\
-  \ steps)\n\nThe file currently has the following structure (top to bottom):\n\n\
-  1. Module docstring:\n   \"Trust classification schema and sandbox policy validation\
-  \ for mcp_terminal.\n   Every request from the model is treated as untrusted regardless\
-  \ of session\n   history or prior successful requests (zero-trust invariant).\"\n\
-  \n2. Imports:\n   from __future__ import annotations\n   from dataclasses import\
-  \ dataclass, field\n   from enum import Enum, auto\n   from typing import FrozenSet,\
-  \ Optional\n\n3. class TrustCategory(Enum) with members:\n   TRUSTED_COMPONENT,\
-  \ UNTRUSTED_INPUT, SENSITIVE_HOST_RESOURCE\n\n4. @dataclass(frozen=True) class TrustBoundary\
-  \ with fields:\n   trusted_components: FrozenSet[str]\n   untrusted_input_categories:\
-  \ FrozenSet[str]\n   sensitive_host_resources: FrozenSet[str]\n\n5. TERMINAL_TRUST_BOUNDARY:\
-  \ TrustBoundary constant\n\n6. @dataclass(frozen=True) class PolicyConfig with fields:\n\
-  \   allowed_modes: FrozenSet[str]\n   allowed_network_modes: FrozenSet[str]\n  \
-  \ allowed_image_profiles: FrozenSet[str]\n   safe_path_prefixes: FrozenSet[str]\n\
-  \n7. DEFAULT_POLICY_CONFIG: PolicyConfig constant\n\n8. @dataclass(frozen=True)\
-  \ class ValidationResult with fields:\n   permitted: bool\n   error_code: Optional[str]\
-  \ = None\n   rejected_field: Optional[str] = None\n   detail: Optional[str] = None\n\
-  \n9. class SandboxPolicy:\n   - class attribute _FORBIDDEN_OPTIONS: FrozenSet[str]\n\
-  \   - __init__(self, config: PolicyConfig = DEFAULT_POLICY_CONFIG) -> None\n   -\
-  \ validate(self, *, project_id, execution_kind, cwd, mode, network,\n     image_profile,\
-  \ command, argv) -> ValidationResult\n     (checks: project_id not host path, execution_kind\
-  \ in {shell,argv},\n      command/argv consistency and NUL bytes, cwd relative,\
-  \ mode in allowlist,\n      network in allowlist, image_profile in allowlist,\n\
-  \      forbidden options in command)\n\n## MRS concept excerpt\n\nC-003 SandboxPolicy\
-  \ / C-010 ContainerRuntime mount modes:\n  - cwd must be relative and resolve inside\
+  \ modify_file\n\n## Current file content (full, after G-001/T-001 and G-001/T-002)\n\
+  \n```python\n\"\"\"\nTrust classification schema and sandbox policy validation for\
+  \ mcp_terminal.\n\nEvery request from the model is treated as untrusted regardless\
+  \ of session\nhistory or prior successful requests (zero-trust invariant).\n\nAuthor:\
+  \ Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\nfrom __future__ import\
+  \ annotations\n\nfrom dataclasses import dataclass, field\nfrom enum import Enum,\
+  \ auto\nfrom pathlib import Path\nfrom typing import FrozenSet, Optional\n\n\nclass\
+  \ TrustCategory(Enum):\n    \"\"\"Categories of entities in the trust classification\
+  \ schema.\"\"\"\n\n    TRUSTED_COMPONENT = auto()\n    UNTRUSTED_INPUT = auto()\n\
+  \    SENSITIVE_HOST_RESOURCE = auto()\n\n\n@dataclass(frozen=True)\nclass TrustBoundary:\n\
+  \    \"\"\"Exhaustive, closed enumeration of trust categories for mcp_terminal.\n\
+  \n    The classification is closed: any input not listed in trusted_components\n\
+  \    is treated as untrusted. This schema is consulted by SandboxPolicy on\n   \
+  \ every request validation.\n    \"\"\"\n\n    trusted_components: FrozenSet[str]\
+  \ = field(default_factory=frozenset)\n    \"\"\"Names of trusted system components.\"\
+  \"\"\n    untrusted_input_categories: FrozenSet[str] = field(default_factory=frozenset)\n\
+  \    \"\"\"Names of input categories that must never be trusted.\"\"\"\n    sensitive_host_resources:\
+  \ FrozenSet[str] = field(default_factory=frozenset)\n    \"\"\"Host resource names\
+  \ that must never be exposed to the sandbox.\"\"\"\n\n\nTERMINAL_TRUST_BOUNDARY:\
+  \ TrustBoundary = TrustBoundary(\n    trusted_components=frozenset({\n        \"\
+  service_code\",\n        \"project_registry\",\n        \"server_side_policy_config\"\
+  ,\n        \"container_image_allowlist\",\n    }),\n    untrusted_input_categories=frozenset({\n\
+  \        \"command_arguments\",\n        \"cwd_values\",\n        \"environment_variable_requests\"\
+  ,\n        \"network_mode_requests\",\n        \"write_mode_requests\",\n      \
+  \  \"mounted_project_file_content\",\n    }),\n    sensitive_host_resources=frozenset({\n\
+  \        \"host_root_filesystem\",\n        \"home_directories_outside_project\"\
+  ,\n        \"ssh_credentials\",\n        \"cloud_credentials\",\n        \"docker_socket\"\
+  ,\n        \"host_etc_proc_sys_dev\",\n        \"parent_watch_directories\",\n \
+  \       \"unrelated_project_directories\",\n    }),\n)\n\n\n@dataclass(frozen=True)\n\
+  class PolicyConfig:\n    \"\"\"Server-side policy configuration for SandboxPolicy.\n\
+  \n    All fields are immutable after construction. Sourced from ConfigOverlay\n\
+  \    (C-013) at server startup.\n    \"\"\"\n\n    allowed_modes: FrozenSet[str]\n\
+  \    \"\"\"Permitted mount modes: read_only, workspace_write, scratch_write.\"\"\
+  \"\n    allowed_network_modes: FrozenSet[str]\n    \"\"\"Permitted network modes\
+  \ in MVP: none, package_registry.\"\"\"\n    allowed_image_profiles: FrozenSet[str]\n\
+  \    \"\"\"Server-side image profile allowlist (e.g. python_dev_3_12).\"\"\"\n \
+  \   safe_path_prefixes: FrozenSet[str]\n    \"\"\"Executable path prefixes considered\
+  \ safe (used by command policy).\"\"\"\n\n\nDEFAULT_POLICY_CONFIG: PolicyConfig\
+  \ = PolicyConfig(\n    allowed_modes=frozenset({\"read_only\", \"workspace_write\"\
+  , \"scratch_write\"}),\n    allowed_network_modes=frozenset({\"none\", \"package_registry\"\
+  }),\n    allowed_image_profiles=frozenset({\"python_dev_3_12\", \"node_dev_20\"\
+  , \"base_tools\"}),\n    safe_path_prefixes=frozenset({\"/usr/bin\", \"/usr/local/bin\"\
+  , \"/bin\", \"/usr/sbin\"}),\n)\n\n\n@dataclass(frozen=True)\nclass ValidationResult:\n\
+  \    \"\"\"Outcome of a SandboxPolicy validation check.\n\n    permitted is True\
+  \ when all checks pass. When False, error_code contains\n    the stable ErrorContract\
+  \ (C-015) code and rejected_field identifies the\n    offending field.\n    \"\"\
+  \"\n\n    permitted: bool\n    \"\"\"True if the request passed all policy checks.\"\
+  \"\"\n    error_code: Optional[str] = None\n    \"\"\"Stable ErrorContract code\
+  \ (C-015) when permitted is False.\"\"\"\n    rejected_field: Optional[str] = None\n\
+  \    \"\"\"Name of the request field that triggered the rejection.\"\"\"\n    detail:\
+  \ Optional[str] = None\n    \"\"\"Human-readable detail string; not stable across\
+  \ versions.\"\"\"\n\n\nclass SandboxPolicy:\n    \"\"\"Zero-trust validator for\
+  \ every terminal execution request.\n\n    Every request is validated independently\
+  \ against the configured\n    PolicyConfig. No implicit trust accumulates across\
+  \ requests.\n    Rejects forbidden options unconditionally before any container\n\
+  \    operation begins.\n\n    C-003 SandboxPolicy invariant: all model inputs are\
+  \ untrusted.\n    \"\"\"\n\n    _FORBIDDEN_OPTIONS: FrozenSet[str] = frozenset({\n\
+  \        \"--privileged\",\n        \"--pid=host\", \"--pid host\",\n        \"\
+  --network=host\", \"--network host\",\n        \"--ipc=host\", \"--ipc host\",\n\
+  \        \"--uts=host\", \"--uts host\",\n        \"--cap-add=SYS_ADMIN\", \"--cap-add\
+  \ SYS_ADMIN\",\n        \"/var/run/docker.sock\",\n    })\n\n    def __init__(self,\
+  \ config: PolicyConfig = DEFAULT_POLICY_CONFIG) -> None:\n        \"\"\"Initialise\
+  \ SandboxPolicy with the given PolicyConfig.\n\n        Args:\n            config:\
+  \ Immutable policy configuration sourced from ConfigOverlay\n                at\
+  \ server startup. Defaults to DEFAULT_POLICY_CONFIG.\n        \"\"\"\n        self._config\
+  \ = config\n\n    def validate(\n        self,\n        *,\n        project_id:\
+  \ Optional[str],\n        execution_kind: Optional[str],\n        cwd: Optional[str],\n\
+  \        mode: Optional[str],\n        network: Optional[str],\n        image_profile:\
+  \ Optional[str],\n        command: Optional[str],\n        argv: Optional[list],\n\
+  \    ) -> ValidationResult:\n        \"\"\"Validate a terminal_run request against\
+  \ all policy rules.\n\n        Checks are applied in order. The first failing check\
+  \ returns\n        immediately with the corresponding ErrorContract (C-015) code.\n\
+  \n        Args:\n            project_id: Caller-supplied project identifier.\n \
+  \           execution_kind: Must be 'shell' or 'argv'; absence is rejected.\n  \
+  \          cwd: Working directory relative to /workspace; must be relative.\n  \
+  \          mode: Mount mode; must be in allowed_modes.\n            network: Network\
+  \ mode; must be in allowed_network_modes.\n            image_profile: Image profile\
+  \ name; must be in allowed_image_profiles.\n            command: Shell command string\
+  \ (for shell kind); may be None for argv.\n            argv: Argv list (for argv\
+  \ kind); may be None for shell.\n\n        Returns:\n            ValidationResult\
+  \ with permitted=True or permitted=False plus\n            a stable error_code and\
+  \ the rejected_field name.\n        \"\"\"\n        if project_id is None or project_id.strip()\
+  \ == \"\":\n            return ValidationResult(\n                permitted=False,\n\
+  \                error_code=\"INVALID_COMMAND\",\n                rejected_field=\"\
+  project_id\",\n                detail=\"project_id is required\",\n            )\n\
+  \        if project_id.startswith(\"/\") or \"..\" in project_id:\n            return\
+  \ ValidationResult(\n                permitted=False,\n                error_code=\"\
+  PROJECT_PATH_OUT_OF_SCOPE\",\n                rejected_field=\"project_id\",\n \
+  \               detail=\"project_id must not be a host path\",\n            )\n\
+  \        if execution_kind not in (\"shell\", \"argv\"):\n            return ValidationResult(\n\
+  \                permitted=False,\n                error_code=\"INVALID_COMMAND\"\
+  ,\n                rejected_field=\"execution_kind\",\n                detail=f\"\
+  execution_kind must be 'shell' or 'argv', got {execution_kind!r}\",\n          \
+  \  )\n        if execution_kind == \"shell\":\n            if not command or not\
+  \ command.strip():\n                return ValidationResult(\n                 \
+  \   permitted=False,\n                    error_code=\"INVALID_COMMAND\",\n    \
+  \                rejected_field=\"command\",\n                    detail=\"command\
+  \ is required for shell execution_kind\",\n                )\n            if \"\\\
+  x00\" in command:\n                return ValidationResult(\n                  \
+  \  permitted=False,\n                    error_code=\"INVALID_COMMAND\",\n     \
+  \               rejected_field=\"command\",\n                    detail=\"command\
+  \ must not contain NUL bytes\",\n                )\n        if execution_kind ==\
+  \ \"argv\":\n            if not argv:\n                return ValidationResult(\n\
+  \                    permitted=False,\n                    error_code=\"INVALID_COMMAND\"\
+  ,\n                    rejected_field=\"argv\",\n                    detail=\"argv\
+  \ must be a non-empty list for argv execution_kind\",\n                )\n     \
+  \       for element in argv:\n                if not isinstance(element, str) or\
+  \ \"\\x00\" in element:\n                    return ValidationResult(\n        \
+  \                permitted=False,\n                        error_code=\"INVALID_COMMAND\"\
+  ,\n                        rejected_field=\"argv\",\n                        detail=\"\
+  argv elements must be non-null strings without NUL bytes\",\n                  \
+  \  )\n        if cwd is not None and (cwd.startswith(\"/\") or \"..\" in cwd):\n\
+  \            return ValidationResult(\n                permitted=False,\n      \
+  \          error_code=\"INVALID_CWD\",\n                rejected_field=\"cwd\",\n\
+  \                detail=\"cwd must be relative and must not contain ..\",\n    \
+  \        )\n        if mode not in self._config.allowed_modes:\n            return\
+  \ ValidationResult(\n                permitted=False,\n                error_code=\"\
+  MODE_NOT_ALLOWED\",\n                rejected_field=\"mode\",\n                detail=f\"\
+  mode {mode!r} is not allowed\",\n            )\n        if network not in self._config.allowed_network_modes:\n\
+  \            return ValidationResult(\n                permitted=False,\n      \
+  \          error_code=\"NETWORK_MODE_NOT_ALLOWED\",\n                rejected_field=\"\
+  network\",\n                detail=f\"network {network!r} is not allowed in MVP\"\
+  ,\n            )\n        if image_profile not in self._config.allowed_image_profiles:\n\
+  \            return ValidationResult(\n                permitted=False,\n      \
+  \          error_code=\"IMAGE_PROFILE_NOT_ALLOWED\",\n                rejected_field=\"\
+  image_profile\",\n                detail=f\"image_profile {image_profile!r} is not\
+  \ in the server allowlist\",\n            )\n        if command:\n            for\
+  \ forbidden in self._FORBIDDEN_OPTIONS:\n                if forbidden in command:\n\
+  \                    return ValidationResult(\n                        permitted=False,\n\
+  \                        error_code=\"INVALID_COMMAND\",\n                     \
+  \   rejected_field=\"command\",\n                        detail=f\"command contains\
+  \ forbidden option: {forbidden}\",\n                    )\n        return ValidationResult(permitted=True)\n\
+  ```\n\nNote: `from pathlib import Path` must be present in imports (needed by MountSpec).\n\
+  If not already there, add it.\n\n## MRS concept excerpt\n\nC-003 SandboxPolicy /\
+  \ C-010 ContainerRuntime mount modes:\n  - cwd must be relative and resolve inside\
   \ /workspace\n  - Supported modes: read_only (default), workspace_write, scratch_write\n\
   \  - /workspace is always the container mount point; caller cannot choose it\n \
   \ - Mount modes: read_only (ro), workspace_write (rw), scratch_write (ro+scratch\
-  \ rw)\n\n## What to add\n\nAdd the following after DEFAULT_POLICY_CONFIG and before\
-  \ ValidationResult.\nAlso add build_mount_spec() as a method of SandboxPolicy after\
-  \ validate().\n\n### @dataclass(frozen=True) MountSpec  (insert after DEFAULT_POLICY_CONFIG)\n\
-  \n```python\n@dataclass(frozen=True)\nclass MountSpec:\n    \"\"\"Validated container\
-  \ mount configuration produced by SandboxPolicy.\n\n    Consumed by ContainerRuntime\
-  \ (C-010) when creating the container.\n    /workspace is always the mount point;\
-  \ callers cannot choose it.\n    \"\"\"\n\n    workspace_source: Path\n    \"\"\"\
-  Verified canonical host path of the project root to mount at /workspace.\"\"\"\n\
-  \    workspace_readonly: bool\n    \"\"\"True for read_only and scratch_write modes;\
-  \ False for workspace_write.\"\"\"\n    scratch_enabled: bool\n    \"\"\"True for\
-  \ all modes (scratch tmpfs is always provided).\"\"\"\n    workdir: str\n    \"\"\
-  \"Absolute container path for working directory, e.g. /workspace/tests.\"\"\"\n\
-  \    mode: str\n    \"\"\"Validated mount mode string: read_only, workspace_write,\
-  \ or scratch_write.\"\"\"\n```\n\n### build_mount_spec() method on SandboxPolicy\n\
-  \nAdd after the validate() method:\n\n```python\n    def build_mount_spec(\n   \
-  \     self,\n        *,\n        workspace_source: Path,\n        mode: str,\n \
-  \       cwd: Optional[str],\n    ) -> tuple[Optional[MountSpec], Optional[ValidationResult]]:\n\
-  \        \"\"\"Build a MountSpec from a validated mode and cwd.\n\n        Args:\n\
-  \            workspace_source: Verified canonical host project root from\n     \
-  \           ProjectRegistry.resolve().\n            mode: Validated mode string\
-  \ (read_only, workspace_write, scratch_write).\n            cwd: Relative working\
-  \ directory within /workspace; None defaults to \".\".\n\n        Returns:\n   \
-  \         (MountSpec, None) on success, or (None, ValidationResult) on failure.\n\
-  \        \"\"\"\n        safe_cwd = (cwd or \".\").strip()\n        if safe_cwd.startswith(\"\
-  /\") or \"..\" in safe_cwd:\n            return None, ValidationResult(\n      \
-  \          permitted=False,\n                error_code=\"INVALID_CWD\",\n     \
-  \           rejected_field=\"cwd\",\n                detail=\"cwd must be relative\
-  \ and must not contain ..\",\n            )\n        workdir = f\"/workspace/{safe_cwd}\"\
-  .rstrip(\"/\") or \"/workspace\"\n        readonly = mode in (\"read_only\", \"\
-  scratch_write\")\n        return MountSpec(\n            workspace_source=workspace_source,\n\
-  \            workspace_readonly=readonly,\n            scratch_enabled=True,\n \
-  \           workdir=workdir,\n            mode=mode,\n        ), None\n```\n\nNote:\
-  \ MountSpec uses `Path` which is already imported.\n\n## Constraints\n- Do not remove\
-  \ or alter any existing code.\n- Insert MountSpec class between DEFAULT_POLICY_CONFIG\
-  \ and ValidationResult.\n- Add build_mount_spec() to SandboxPolicy class after validate().\n\
-  - All type annotations required.\n- File must not exceed 350 lines after this step.\n\
-  - Line length limit 99. Must pass flake8.\n"
+  \ rw)\n\n## What to add\n\nAdd MountSpec dataclass and build_mount_spec() method.\n\
+  \n### Insert @dataclass(frozen=True) MountSpec after DEFAULT_POLICY_CONFIG and before\
+  \ ValidationResult:\n\n```python\n@dataclass(frozen=True)\nclass MountSpec:\n  \
+  \  \"\"\"Validated container mount configuration produced by SandboxPolicy.\n\n\
+  \    Consumed by ContainerRuntime (C-010) when creating the container.\n    /workspace\
+  \ is always the mount point; callers cannot choose it.\n    \"\"\"\n\n    workspace_source:\
+  \ Path\n    \"\"\"Verified canonical host path of the project root to mount at /workspace.\"\
+  \"\"\n    workspace_readonly: bool\n    \"\"\"True for read_only and scratch_write\
+  \ modes; False for workspace_write.\"\"\"\n    scratch_enabled: bool\n    \"\"\"\
+  True for all modes (scratch tmpfs is always provided).\"\"\"\n    workdir: str\n\
+  \    \"\"\"Absolute container path for working directory, e.g. /workspace/tests.\"\
+  \"\"\n    mode: str\n    \"\"\"Validated mount mode string: read_only, workspace_write,\
+  \ or scratch_write.\"\"\"\n```\n\n### Add build_mount_spec() method to SandboxPolicy\
+  \ after validate():\n\n```python\n    def build_mount_spec(\n        self,\n   \
+  \     *,\n        workspace_source: Path,\n        mode: str,\n        cwd: Optional[str],\n\
+  \    ) -> tuple[Optional[MountSpec], Optional[ValidationResult]]:\n        \"\"\"\
+  Build a MountSpec from a validated mode and cwd.\n\n        Args:\n            workspace_source:\
+  \ Verified canonical host project root from\n                ProjectRegistry.resolve().\n\
+  \            mode: Validated mode string (read_only, workspace_write, scratch_write).\n\
+  \            cwd: Relative working directory within /workspace; None defaults to\
+  \ \".\".\n\n        Returns:\n            (MountSpec, None) on success, or (None,\
+  \ ValidationResult) on failure.\n        \"\"\"\n        safe_cwd = (cwd or \".\"\
+  ).strip()\n        if safe_cwd.startswith(\"/\") or \"..\" in safe_cwd:\n      \
+  \      return None, ValidationResult(\n                permitted=False,\n      \
+  \          error_code=\"INVALID_CWD\",\n                rejected_field=\"cwd\",\n\
+  \                detail=\"cwd must be relative and must not contain ..\",\n    \
+  \        )\n        workdir = f\"/workspace/{safe_cwd}\".rstrip(\"/\") or \"/workspace\"\
+  \n        readonly = mode in (\"read_only\", \"scratch_write\")\n        return\
+  \ MountSpec(\n            workspace_source=workspace_source,\n            workspace_readonly=readonly,\n\
+  \            scratch_enabled=True,\n            workdir=workdir,\n            mode=mode,\n\
+  \        ), None\n```\n\n## Constraints\n- Do not remove or alter any existing code\
+  \ shown above.\n- Insert MountSpec between DEFAULT_POLICY_CONFIG and ValidationResult.\n\
+  - Add build_mount_spec() to SandboxPolicy class after validate().\n- Ensure `from\
+  \ pathlib import Path` is in the imports.\n- All type annotations required.\n- File\
+  \ must not exceed 350 lines after this step.\n- Line length limit 99. Must pass\
+  \ flake8.\n"
 verification:
   type: import
   target: mcp_terminal/services/sandbox_policy.py
