@@ -1115,18 +1115,18 @@ runtime:
   cpus: 1.0
   pids_limit: 256
   max_concurrent_runs: 4
-  cleanup_always: true
-```
+## 24. Final Decisions
 
-## 24. Open Questions
+The following decisions are binding for decomposition and implementation:
 
-1. Which exact marker filename is final: `projectid` only, or configurable `projects.marker_file`?
-2. Should `terminal_list` require `project_id` and `session_id`? Current recommendation: yes.
-3. Should `terminal_session_create` be explicit, or should `terminal_run` create sessions when `session_id` is omitted? Current recommendation: explicit session creation.
-4. Should shell-style commands be the only public command format because pipelines are required?
-5. Should session TTL be based on session creation time, last command start time, or last command finish time? Current recommendation: last command timestamp, fallback to creation timestamp.
-6. Should expired sessions with failed or stopped jobs be deleted immediately after TTL?
-7. Should `terminal_delete` be allowed to remove sessions with running jobs? Current recommendation: no by default.
+1. The project marker filename is fixed: `projectid`. It is not configurable and must only be read by `mcp_terminal`.
+2. `terminal_run` supports both explicit execution kinds: `shell` and `argv`.
+3. `terminal_run` must not create sessions implicitly. It requires an existing UUID4 `session_id` and must validate it.
+4. Session TTL is based on `last_activity_at`. Activity includes session creation, command start, command finish, output read, output search, and explicit metadata access.
+5. Expired `completed`, `failed`, and `stopped` sessions may be deleted after TTL.
+6. Running sessions may be deleted only when the request contains an explicit force flag.
+7. `.terminals/<session_id>/` is stored inside the project directory. The service must ensure `.terminals/` is ignored by Git.
+8. `terminal_stat` is included in MVP as a lightweight metadata/statistics command.
 8. Should output files live inside project `.terminals` even in read-only mode? Current recommendation: yes, terminal metadata is service-managed project state.
 9. How should file ownership be mapped between container user and host user?
 10. Is rootless Docker/Podman required for deployment?
