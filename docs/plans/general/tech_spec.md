@@ -791,15 +791,16 @@ Every run must create an audit record containing:
 - finish time;
 - duration;
 - exit code;
-## 18. Error Model
-
-Errors must use stable codes.
+- timeout flag;
 - stdout/stderr file names and byte sizes;
 - policy decision summary;
 - error code if failed.
 
-Errors must use stable codes.
+Audit logs must avoid recording secret environment values.
 
+## 18. Error Model
+
+Errors must use stable codes.
 Recommended error codes:
 
 | Code | Meaning |
