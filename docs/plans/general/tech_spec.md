@@ -652,14 +652,63 @@ The status response must include `job_id`, queue status, terminal status, `exit_
 
 ## 15. Execution Lifecycle
 
-MVP lifecycle for `terminal_run`:
+### 14.7 `terminal_get_status`
 
-1. Validate request schema.
-2. Validate semantic constraints.
-3. Resolve `project_id` and `session_id`.
-4. Allocate the next session-local command sequence number.
-5. Create `NNNNNN.meta.json`, `NNNNNN.stdout.log`, and `NNNNNN.stderr.log`.
-6. Append the pending command record to `history.jsonl`.
+Returns queue status plus terminal-specific metadata for a command by `project_id`, `session_id`, and `seq`.
+
+The status response must include `job_id`, queue status, terminal status, `exit_code`, `timed_out`, file names, and output byte sizes.
+
+### 14.8 `list`
+
+Returns the command history for one terminal session. This command is intentionally short because it is expected to be used frequently, similarly to `bash history`.
+
+`session_id` is required. `project_id` is also required for unambiguous access because the same `session_id` value may theoretically exist in different projects.
+
+Request:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>",
+  "limit": 25
+}
+```
+
+Response columns:
+
+```text
+timestamp | seq | status | exit_code | command
+```
+
+Default output order is descending by command launch timestamp.
+
+### 14.9 `delete`
+
+Deletes terminal session directories and their command output files.
+
+`session_id` is required. `project_id` is optional:
+
+- when `project_id` is provided, delete only `.terminals/<session_id>/` inside that project;
+- when `project_id` is omitted, delete matching session directories across all known projects.
+
+Request with project scope:
+
+```json
+{
+  "project_id": "<uuid4>",
+  "session_id": "<uuid4>"
+}
+```
+
+Request across projects:
+
+```json
+{
+  "session_id": "<uuid4>"
+}
+```
+
+The command must report every deleted or skipped session path using logical project/session identifiers, not raw host paths.
 7. Add a terminal execution job to the queue.
 8. Return `job_id`, `seq`, and output file names.
 9. Worker starts the sandbox container.
