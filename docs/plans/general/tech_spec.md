@@ -130,6 +130,9 @@ The `projectid` marker file must be JSON. The minimum required shape is:
 The value of `id` is the project identifier accepted by the API as `project_id`. The directory name is not the project identity; it is only the host-side location under `projects.root_dir`.
 
 ### 6.2 Discovery rules
+
+On startup and on explicit refresh, the server scans `projects.root_dir` and builds a project registry from valid `projectid` marker files.
+
 Discovery must reject:
 
 - files directly inside `projects.root_dir`;
