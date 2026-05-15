@@ -857,6 +857,93 @@ Every run must create an audit record containing:
 Audit logs must avoid recording secret environment values.
 
 ## 18. Error Model
+
+Errors must use stable codes.
+Recommended error codes:
+
+| Code | Meaning |
+|------|---------|
+| `PROJECT_NOT_FOUND` | `project_id` is unknown. |
+| `PROJECT_DELETED` | Project is marked deleted. |
+| `PROJECT_PAUSED` | Execution blocked by project processing policy. |
+| `PROJECT_PATH_OUT_OF_SCOPE` | Canonical path is outside allowed roots. |
+| `INVALID_CWD` | `cwd` escapes `/workspace` or is invalid. |
+| `INVALID_COMMAND` | Command request is empty or contains invalid shell/argv execution fields. |
+| `INVALID_SESSION` | `session_id` is missing, not a UUID4, or does not exist. |
+| `IMAGE_PROFILE_NOT_ALLOWED` | Requested image profile is not allowlisted. |
+| `MODE_NOT_ALLOWED` | Requested mount/write mode is forbidden by policy. |
+| `NETWORK_MODE_NOT_ALLOWED` | Requested network mode is forbidden. |
+| `TIMEOUT_EXCEEDED` | Command exceeded timeout. |
+| `OUTPUT_LIMIT_EXCEEDED` | Output was truncated. |
+| `CONTAINER_CREATE_FAILED` | Runtime failed to create container. |
+| `CONTAINER_EXEC_FAILED` | Runtime failed to execute command. |
+| `CONTAINER_CLEANUP_FAILED` | Container cleanup failed after execution. |
+
+## 19. Safety Invariants
+
+The following invariants must be covered by tests:
+
+1. A model cannot provide a host path instead of `project_id`.
+2. A model cannot select arbitrary mount points.
+3. A model cannot mount parent watch directories.
+4. A model cannot escape `/workspace` via `cwd`.
+5. A model cannot escape via symlinks in `cwd`.
+6. A model cannot enable host networking.
+7. A model cannot add Linux capabilities.
+8. A model cannot run privileged containers.
+9. A model cannot access Docker socket.
+10. A model cannot access unrelated projects.
+11. Read-only mode prevents writes to `/workspace`.
+12. Scratch mode permits writes to `/scratch` but not `/workspace`.
+13. Write mode allows writes only in the mounted project.
+14. Timeout terminates long-running commands.
+15. Output limits truncate large output safely.
+16. Container cleanup happens after success, failure, and timeout.
+17. Audit record is created for success and failure.
+
+## 20. Queue Result Semantics
+
+Queue job completion and terminal command success are distinct states.
+
+A queue job reaches `completed` (progress=100) when the worker executed the full lifecycle and wrote metadata.
+This does not mean the terminal command succeeded.
+
+Terminal command success requires all of:
+
+- queue status is `completed`;
+- `exit_code == 0`;
+- `timed_out == false`.
+
+`terminal_get_status` must expose both the queue job status and the nested terminal command result.
+Callers must not treat `queue completed` as `command success` without inspecting `exit_code` and `timed_out`.
+
+## 21. MVP Acceptance Criteria
+
+The MVP is complete only when all items are true:
+
+- `terminal_run` appears in MCP `help`.
+- `terminal_run` rejects unknown `project_id`.
+- `terminal_run` rejects direct host path input.
+- `terminal_run` rejects missing or invalid `session_id`.
+- `terminal_run` queues a terminal command for an existing session and returns `job_id`, `seq`, and output file names.
+- `terminal_run` supports both `shell` and `argv` execution kinds.
+- Project is mounted only at `/workspace`.
+- Default mode is `read_only`.
+- Default network is `none`.
+- Attempts to write in `read_only` mode fail.
+- `workspace_write` mode can create a file inside the project when explicitly requested.
+- `cwd=..` or absolute host-like paths are rejected.
+- Container cannot access `/var/run/docker.sock`.
+- Container cannot access files outside the mounted project.
+- Timeout works and cleans up the container.
+- stdout/stderr are written to sequence-based files, not returned as large inline payloads.
+- Every run has an audit record.
+- Result can be verified through `terminal_get_status` plus `terminal_read` / `terminal_search_output`.
+
+## 22. Current Code State and Required Structural Refactor
+
+The current `mcp_terminal` codebase already contains a working server skeleton based on `mcp_proxy_adapter`, but it does not yet contain the terminal domain implementation.
+
 Existing code that must be preserved and extended:
 
 ```text
@@ -911,7 +998,7 @@ mcp_terminal/config/
 
 The actual container execution must be implemented as a queue job, not as a public direct command. Do not expose an internal `terminal_execute` command in MCP `help`.
 
-## 21. Implementation Phases
+## 23. Implementation Phases
 
 ### Phase 1: Preserve and extend the adapter skeleton
 
@@ -964,7 +1051,7 @@ The actual container execution must be implemented as a queue job, not as a publ
 - Enforce non-root user, no Docker socket, no privileged mode, resource limits, and network policy.
 - Ensure stdout/stderr redirection to files is the only output path for command execution.
 
-## 22. Testing Strategy
+## 24. Testing Strategy
 
 Tests must include both normal and hostile cases.
 
@@ -1015,7 +1102,7 @@ Tests must include both normal and hostile cases.
 - Attempt deleting a session outside `.terminals`.
 - Attempt reading output with path traversal instead of `seq`.
 
-## 23. Operational Defaults
+## 25. Operational Defaults
 
 Recommended initial defaults:
 
@@ -1052,7 +1139,7 @@ runtime:
   cleanup_always: true
 ```
 
-## 24. Final Decisions
+## 26. Final Decisions
 
 The following decisions are binding for decomposition and implementation:
 
@@ -1066,7 +1153,7 @@ The following decisions are binding for decomposition and implementation:
 8. `terminal_stat` is included in MVP as a lightweight metadata/statistics command.
 9. Rootless Docker or Podman is recommended for deployment hardening but is not required for MVP unless the target environment already mandates it.
 
-## 25. Initial Recommendation
+## 27. Initial Recommendation
 
 Implement the current adapter skeleton as a queue-only, session-scoped terminal service:
 
