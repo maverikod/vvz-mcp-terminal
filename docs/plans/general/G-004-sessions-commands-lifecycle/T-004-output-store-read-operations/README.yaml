@@ -1,0 +1,36 @@
+step_id: T-004
+parent_global_step: G-004
+name: Output Store Read Operations
+status: draft
+description: 'Defines OutputStore (C-008) read operations: terminal_read, terminal_tail,
+  terminal_search_output, and terminal_stat. terminal_read reads bytes from NNNNNN.stdout.log
+  or NNNNNN.stderr.log starting at a byte offset with a max_bytes limit sourced from
+  ConfigOverlay; the stream parameter must be exactly "stdout" or "stderr" — any other
+  value is rejected. terminal_tail returns the last N lines from NNNNNN.stdout.log
+  or NNNNNN.stderr.log without loading the full file; default and maximum line counts
+  are from ConfigOverlay. terminal_search_output searches stdout/stderr files by regex;
+  may be scoped to one seq+stream or across recent commands in the session; enforces
+  max_matches limit. terminal_stat returns metadata and byte sizes of NNNNNN.stdout.log
+  and NNNNNN.stderr.log without reading full content. All operations validate that
+  the seq resolves to an existing command in the session and that the requested stream
+  name is valid; path traversal via seq or stream is rejected unconditionally. All
+  read operations update last_activity_at on the session.'
+concepts:
+- C-008
+inputs:
+- name: output_read_request
+  type: request object
+  description: One of terminal_read, terminal_tail, terminal_search_output, or terminal_stat
+    request containing project_id, session_id, seq, stream, and operation-specific
+    parameters.
+- name: session_directory
+  type: filesystem path
+  description: Resolved .terminals/<session_id>/ directory path for the active session.
+outputs:
+- name: output_read_result
+  type: bytes, lines, matches, or size metadata
+  description: 'For terminal_read: byte slice of the requested stream file. For terminal_tail:
+    last N lines of the stream file. For terminal_search_output: list of regex matches
+    with seq, stream, line number, and matched text. For terminal_stat: file names,
+    byte sizes, and command metadata without file content.'
+atomic_steps: []
