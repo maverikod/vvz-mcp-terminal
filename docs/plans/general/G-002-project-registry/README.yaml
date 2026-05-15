@@ -1,0 +1,27 @@
+step_id: G-002
+name: Project Registry and Resolution
+status: frozen
+description: Covers the mechanism by which the server discovers projects and resolves
+  a caller-supplied project_id into a verified host path. The registry is built from
+  projectid marker files found under the configured projects root directory. Runtime
+  resolution enforces canonical path containment before any mount operation, rejecting
+  symlink escapes, missing projects, and paths outside the configured root.
+concepts:
+- C-001
+- C-002
+relations:
+- from_concept: C-001
+  to_concept: C-002
+  type: consumes
+- from_concept: C-004
+  to_concept: C-001
+  type: depends_on
+- from_concept: C-005
+  to_concept: C-001
+  type: uses
+source_ranges:
+- start: 83
+  end: 167
+depends_on:
+- G-001
+tactical_steps: []
