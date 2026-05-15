@@ -1131,7 +1131,8 @@ The following decisions are binding for decomposition and implementation:
 5. Expired `completed`, `failed`, and `stopped` sessions may be deleted after TTL.
 6. Running sessions may be deleted only when the request contains an explicit force flag.
 7. `.terminals/<session_id>/` is stored inside the project directory. The service must ensure `.terminals/` is ignored by Git.
-10. Is rootless Docker/Podman required for deployment?
+8. `terminal_stat` is included in MVP as a lightweight metadata/statistics command.
+9. Rootless Docker or Podman is recommended for deployment hardening but is not required for MVP unless the target environment already mandates it.
 
 ## 25. Initial Recommendation
 
