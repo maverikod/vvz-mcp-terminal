@@ -1,0 +1,65 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: Adapter skeleton extension smoke test
+target_file: tests/test_extension_model.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-016
+- C-013
+prompt: "Create the file `tests/test_extension_model.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nVerifies AdapterSkeleton (C-016) extension model: all terminal domain\n\
+  modules are importable, existing skeleton files are preserved, and\nterminal commands\
+  \ are registered (C-014). ConfigOverlay (C-013) generator\nproduces valid defaults.\n\
+  \n## MRS concept excerpts\n\nC-016 AdapterSkeleton:\n  - Must not be rewritten;\
+  \ only extended with terminal domain modules\n  - term_server.py must register terminal\
+  \ commands via register_custom_commands_hook\n  - Existing adapter built-in and\
+  \ queue commands must remain visible\n  - Internal terminal_execute must not be\
+  \ exposed as a public MCP command\n\nC-013 ConfigOverlay:\n  - terminal.sessions.ttl_seconds\
+  \ is required; rejected if missing or non-positive\n\n## Module docstring\n\"\"\"\
+  \nExtension model and import smoke tests for mcp_terminal (C-016, C-013).\n\"\"\"\
+  \n\n## Imports\nfrom __future__ import annotations\nimport pytest\n\n## Test cases\n\
+  \n### test_skeleton_imports_preserved\nDocstring: \"\"\"Existing skeleton modules\
+  \ must remain importable (C-016).\"\"\"\nBody:\n  import mcp_terminal.paths\n  import\
+  \ mcp_terminal.term_config\n  assert hasattr(mcp_terminal.paths, \"repo_root\")\n\
+  \  assert hasattr(mcp_terminal.term_config, \"load_validated_term_simple_config\"\
+  )\n\n### test_terminal_domain_modules_importable\nDocstring: \"\"\"All terminal\
+  \ domain modules must be importable without error.\"\"\"\nBody:\n  from mcp_terminal.services.sandbox_policy\
+  \ import SandboxPolicy, TERMINAL_TRUST_BOUNDARY\n  from mcp_terminal.services.project_registry\
+  \ import ProjectRegistry\n  from mcp_terminal.services.session_store import SessionStore\n\
+  \  from mcp_terminal.services.command_history import CommandHistory\n  from mcp_terminal.services.output_reader\
+  \ import OutputReader\n  from mcp_terminal.services.ttl_cleanup import TtlCleanupService\n\
+  \  from mcp_terminal.services.audit_writer import AuditWriter\n  from mcp_terminal.services.container_runner\
+  \ import ContainerRunner\n  from mcp_terminal.jobs.terminal_execution_job import\
+  \ TerminalExecutionJob\n  from mcp_terminal.errors import ErrorCode, ALL_ERROR_CODES\n\
+  \  from mcp_terminal.config.config_generator import generate_terminal_config\n \
+  \ from mcp_terminal.config.config_validator import validate_terminal_config\n  assert\
+  \ SandboxPolicy is not None\n  assert len(ALL_ERROR_CODES) == 15\n\n### test_command_modules_importable\n\
+  Docstring: \"\"\"All terminal command modules must be importable (C-014).\"\"\"\n\
+  Body:\n  from mcp_terminal.commands.terminal_list_command import TerminalListCommand\n\
+  \  from mcp_terminal.commands.terminal_get_command import TerminalGetCommand\n \
+  \ from mcp_terminal.commands.terminal_sessions_command import TerminalSessionsCommand\n\
+  \  from mcp_terminal.commands.terminal_search_commands_command import TerminalSearchCommandsCommand\n\
+  \  from mcp_terminal.commands.terminal_get_status_command import TerminalGetStatusCommand\n\
+  \  assert TerminalListCommand.name == \"terminal_list\"\n  assert TerminalGetStatusCommand.name\
+  \ == \"terminal_get_status\"\n\n### test_config_overlay_generates_defaults\nDocstring:\
+  \ \"\"\"ConfigOverlay generator produces valid terminal config defaults (C-013).\"\
+  \"\"\nBody:\n  from mcp_terminal.config.config_generator import generate_terminal_config\n\
+  \  from mcp_terminal.config.config_validator import validate_terminal_config\n \
+  \ config = generate_terminal_config({})\n  assert \"terminal\" in config\n  assert\
+  \ config[\"terminal\"][\"sessions\"][\"ttl_seconds\"] == 86400\n  errors = validate_terminal_config(config)\n\
+  \  assert errors == [], f\"Unexpected validation errors: {errors}\"\n\n### test_error_codes_stable\n\
+  Docstring: \"\"\"All 15 ErrorContract codes must be defined (C-015).\"\"\"\nBody:\n\
+  \  from mcp_terminal.errors import ErrorCode, ALL_ERROR_CODES\n  assert \"PROJECT_NOT_FOUND\"\
+  \ in ALL_ERROR_CODES\n  assert \"INVALID_SESSION\" in ALL_ERROR_CODES\n  assert\
+  \ \"CONTAINER_CLEANUP_FAILED\" in ALL_ERROR_CODES\n  assert len(ALL_ERROR_CODES)\
+  \ == 15\n\n## Constraints\n- File must not exceed 100 lines. Line length limit 99.\n\
+  - No external dependencies beyond pytest and the mcp_terminal package.\n"
+verification:
+  type: pytest
+  target: tests/test_extension_model.py
+  expected: All 5 test functions pass. pytest reports 0 failures and 0 errors. This
+    confirms the AdapterSkeleton extension model is intact (C-016) and all domain
+    modules are importable.
+status: draft
