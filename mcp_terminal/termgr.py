@@ -1,5 +1,5 @@
 """
-CLI: `termgr start|stop|status` — manage minimal HTTPS term server process.
+CLI: `termgr start|stop|restart|status` — manage minimal HTTPS term server process.
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -120,6 +120,13 @@ def cmd_stop(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_restart(_args: argparse.Namespace) -> int:
+    """Stop the term_server if running, then start it again."""
+    cmd_stop(_args)
+    time.sleep(0.3)
+    return cmd_start(_args)
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     pid_file = _pid_path()
     cfg_path = default_config_path()
@@ -152,12 +159,19 @@ def cmd_status(_args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    from mcp_terminal.repo_venv import ensure_repo_venv_interpreter
+
+    ensure_repo_venv_interpreter()
     parser = argparse.ArgumentParser(prog="termgr", description="Terminal adapter process manager")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("start", help="Ensure config, start term_server in background").set_defaults(
         func=cmd_start
     )
     sub.add_parser("stop", help="SIGTERM term_server from pid file").set_defaults(func=cmd_stop)
+    sub.add_parser(
+        "restart",
+        help="Stop term_server if running, then start it again",
+    ).set_defaults(func=cmd_restart)
     sub.add_parser("status", help="Show pid and probe HTTPS /health").set_defaults(func=cmd_status)
     ns = parser.parse_args()
     code: int = ns.func(ns)

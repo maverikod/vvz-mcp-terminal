@@ -98,4 +98,5 @@ docker/data/
 
 # --- Generated local term server SimpleConfig ---
 configs/term_server.json
-configs/*.pre_proxy_registration.bak
+configs/*.pre_proxy_registration.bak/.terminals/
+old_code/

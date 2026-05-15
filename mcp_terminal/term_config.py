@@ -38,8 +38,8 @@ _SSL_PATH_KEYS = ("cert", "key", "ca", "crl")
 
 def normalize_tls_paths_in_term_config(config_path: Path) -> None:
     """
-    If ``server`` / ``client`` / ``registration`` / ``server_validation`` contain
-    relative ``ssl`` paths, rewrite them to absolute paths using ``config_path``'s
+    If ``server`` / ``client`` / ``registration`` / ``server_validation`` / ``code_analysis``
+    contain relative ``ssl`` paths, rewrite them to absolute paths using ``config_path``'s
     directory as the base (same base ``SimpleConfigValidator`` uses).
     """
     config_path = config_path.resolve()
@@ -66,7 +66,7 @@ def normalize_tls_paths_in_term_config(config_path: Path) -> None:
                 ssl[key] = new_s
                 changed = True
 
-    for section in ("server", "client", "registration", "server_validation"):
+    for section in ("server", "client", "registration", "server_validation", "code_analysis"):
         block = data.get(section)
         if isinstance(block, dict):
             rewrite_ssl(block.get("ssl"))
@@ -136,7 +136,7 @@ def ensure_term_server_config(
     ``server.ssl`` overrides, then validate.
 
     Always validates the file at the end (same idea as ``code_analysis`` loading +
-    ``CodeAnalysisConfigValidator`` / ``SimpleConfigValidator``).
+    ``SimpleConfigValidator``).
     """
     root = repo_root()
     ensure_code_analysis_mtls_layout_symlinks(root)

@@ -95,5 +95,26 @@
     "stale_snapshot_behavior": "keep",
     "mutex_lock_timeout": 5.0,
     "static_servers": []
+  },
+  "watch_dirs": {
+    "directories": [],
+    "refresh_interval_seconds": 60
+  },
+  "code_analysis": {
+    "enabled": false,
+    "protocol": "https",
+    "host": "127.0.0.1",
+    "port": 15000,
+    "jsonrpc_path": "/api/jsonrpc",
+    "timeout_seconds": 30,
+    "watch_dir_index": 0,
+    "ssl": {
+      "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
+      "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
+      "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    }
   }
 }
