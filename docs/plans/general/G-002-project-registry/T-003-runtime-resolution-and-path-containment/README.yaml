@@ -4,17 +4,16 @@ name: Runtime Resolution and Path Containment
 status: draft
 description: 'Defines how ProjectRegistry (C-001) resolves a caller-supplied project_id
   to a verified host path at request time. Looks up project_id in the project_registry
-  index. Rejects: unknown project_id (PROJECT_NOT_FOUND), project marked deleted (PROJECT_DELETED),
-  project disabled due to duplicate conflict, project paused by policy (PROJECT_PAUSED).
-  For a found and active project, performs canonical path check: computes realpath
-  of projects.root_dir and realpath of the project directory; verifies the project
-  realpath is a direct child of the root realpath (unless allow_nested_projects is
-  enabled). Rejects symlink escapes, relative path traversal, and project roots that
-  are files instead of directories (PROJECT_PATH_OUT_OF_SCOPE). Returns the verified
-  canonical project root path for use as the /workspace mount source.'
+  index. Rejects: unknown project_id, project marked deleted, project disabled due
+  to duplicate conflict, project paused by policy. For a found and active project,
+  performs canonical path check: computes realpath of projects.root_dir and realpath
+  of the project directory; verifies the project realpath is a direct child of the
+  root realpath (unless allow_nested_projects is enabled). Rejects symlink escapes,
+  relative path traversal, and project roots that are files instead of directories.
+  Returns the verified canonical project root path for use as the /workspace mount
+  source, or a structured rejection reason with a stable error code.'
 concepts:
 - C-001
-- C-015
 inputs:
 - name: project_id
   type: UUID4 string
@@ -25,9 +24,9 @@ inputs:
     to host path and status.
 outputs:
 - name: resolution_result
-  type: resolved path or ErrorContract code
+  type: resolved canonical path or structured rejection
   description: 'On success: the verified canonical host path of the project root,
-    safe to use as /workspace mount source. On failure: an ErrorContract (C-015) code
-    (PROJECT_NOT_FOUND, PROJECT_DELETED, PROJECT_PAUSED, PROJECT_PATH_OUT_OF_SCOPE)
-    with a reason string.'
+    safe to use as /workspace mount source. On failure: a structured rejection containing
+    a stable error code (one of PROJECT_NOT_FOUND, PROJECT_DELETED, PROJECT_PAUSED,
+    PROJECT_PATH_OUT_OF_SCOPE as defined in C-015) and a reason string.'
 atomic_steps: []
