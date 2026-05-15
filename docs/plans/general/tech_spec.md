@@ -275,28 +275,18 @@ Network mode must be part of the request and audit record.
 
 ## 10. Command Execution Model
 
-The MVP should support atomic, non-interactive command execution.
+`terminal_run` supports two explicit execution kinds:
 
-The command must be represented as an argv array by default:
+| Kind | Description | Use case |
+|------|-------------|----------|
+| `argv` | Executes a command as an argv array without a shell. | Simple commands: `pytest -q`, `black .`, `mypy .` |
+| `shell` | Runs the command string through an allowlisted shell (`bash -lc`) inside the sandbox. | Pipelines and shell composition: `grep "text" file.txt \| more` |
 
-```json
-{
-  "cmd": ["pytest", "-q"]
-}
-```
+`session_id` is required in every `terminal_run` request. It must be a UUID4 and must refer to an existing session. `terminal_run` must not create a session implicitly.
 
-The default mode must not use a shell.
+If `execution_kind` is omitted, the server must reject the request with `INVALID_COMMAND`.
 
-Shell execution is riskier and must be a separate explicit mode if added later:
-
-```json
-{
-  "shell": true,
-  "command": "pytest -q"
-}
-```
-
-For MVP, shell mode should be disabled.
+`shell` execution is required for pipelines and shell composition. `argv` is preferred for simple commands because it avoids shell injection risk. Both modes are audited.
 
 ## 11. Working Directory Policy
 
