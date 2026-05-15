@@ -1149,6 +1149,3 @@ Implement the current adapter skeleton as a queue-only, session-scoped terminal 
 - enforce TTL cleanup from config;
 - keep actual container execution inside queue jobs only;
 - validate completion through MCP calls, queue status, and read-back of generated files.
-- enforce TTL cleanup from config;
-- keep actual container execution inside queue jobs only;
-- validate completion through MCP calls, queue status, and read-back of generated files.
