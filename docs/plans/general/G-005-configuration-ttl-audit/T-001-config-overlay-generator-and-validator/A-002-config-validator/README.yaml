@@ -1,0 +1,69 @@
+step_id: A-002
+parent_tactical_step: T-001
+name: Config overlay validator
+target_file: mcp_terminal/config/config_validator.py
+operation: create_file
+priority: 2
+depends_on: []
+concepts:
+- C-013
+prompt: "Create the file `mcp_terminal/config/config_validator.py`.\n\nOperation:\
+  \ create_file\n\n## Purpose\n\nImplements ConfigOverlay (C-013) validator: extends\
+  \ adapter\nSimpleConfigValidator with terminal-specific checks.\n\n## MRS concept\
+  \ excerpt\n\nC-013 ConfigOverlay:\n  - terminal.sessions.ttl_seconds is required;\
+  \ rejected if missing or non-positive\n  - default_history_limit must not exceed\
+  \ max_history_limit\n  - max_sessions_per_project must be >= 1 and max_commands_per_session\
+  \ must be >= 1\n\n## Module docstring\n\"\"\"\nConfig validator overlay for mcp_terminal\
+  \ (C-013).\n\nExtends adapter SimpleConfigValidator with terminal-specific checks.\n\
+  Must call adapter validation first, then terminal-specific layer.\n\nAuthor: Vasiliy\
+  \ Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\nfrom __future__ import\
+  \ annotations\nfrom dataclasses import dataclass\nfrom typing import Any, Dict,\
+  \ List\n\n## @dataclass ValidationError\nDocstring: \"\"\"Single terminal config\
+  \ validation error.\"\"\"\nFields:\n  field: str   # dot-separated config path e.g.\
+  \ \"terminal.sessions.ttl_seconds\"\n  message: str # human-readable reason\n\n\
+  ## Function: validate_terminal_config\nSignature:\n  def validate_terminal_config(\n\
+  \      config: Dict[str, Any],\n  ) -> List[ValidationError]:\nDocstring:\n  \"\"\
+  \"Validate terminal-specific config sections.\n\n  Must be called AFTER adapter\
+  \ SimpleConfigValidator.validate().\n  Checks all terminal-specific invariants.\n\
+  \n  Args:\n      config: Config dict that has already passed adapter validation.\n\
+  \n  Returns:\n      List of ValidationError; empty list means valid.\n  \"\"\"\n\
+  Implementation:\n  errors: List[ValidationError] = []\n  terminal = config.get(\"\
+  terminal\", {})\n  sessions = terminal.get(\"sessions\", {})\n  # ttl_seconds required\
+  \ and positive\n  ttl = sessions.get(\"ttl_seconds\")\n  if ttl is None:\n     \
+  \ errors.append(ValidationError(\n          field=\"terminal.sessions.ttl_seconds\"\
+  ,\n          message=\"terminal.sessions.ttl_seconds is required\",\n      ))\n\
+  \  elif not isinstance(ttl, (int, float)) or ttl <= 0:\n      errors.append(ValidationError(\n\
+  \          field=\"terminal.sessions.ttl_seconds\",\n          message=\"terminal.sessions.ttl_seconds\
+  \ must be a positive number\",\n      ))\n  # cleanup_interval positive\n  interval\
+  \ = sessions.get(\"cleanup_interval_seconds\")\n  if interval is not None and (not\
+  \ isinstance(interval, (int, float)) or interval <= 0):\n      errors.append(ValidationError(\n\
+  \          field=\"terminal.sessions.cleanup_interval_seconds\",\n          message=\"\
+  cleanup_interval_seconds must be positive\",\n      ))\n  # max_sessions >= 1\n\
+  \  max_sessions = sessions.get(\"max_sessions_per_project\")\n  if max_sessions\
+  \ is not None and (not isinstance(max_sessions, int) or max_sessions < 1):\n   \
+  \   errors.append(ValidationError(\n          field=\"terminal.sessions.max_sessions_per_project\"\
+  ,\n          message=\"max_sessions_per_project must be >= 1\",\n      ))\n  # max_commands\
+  \ >= 1\n  max_cmds = sessions.get(\"max_commands_per_session\")\n  if max_cmds is\
+  \ not None and (not isinstance(max_cmds, int) or max_cmds < 1):\n      errors.append(ValidationError(\n\
+  \          field=\"terminal.sessions.max_commands_per_session\",\n          message=\"\
+  max_commands_per_session must be >= 1\",\n      ))\n  # output limits positive\n\
+  \  output = terminal.get(\"output\", {})\n  for key in (\"max_stdout_file_bytes\"\
+  , \"max_stderr_file_bytes\",\n              \"default_read_bytes\", \"max_read_bytes\"\
+  ):\n      val = output.get(key)\n      if val is not None and (not isinstance(val,\
+  \ int) or val <= 0):\n          errors.append(ValidationError(\n              field=f\"\
+  terminal.output.{key}\",\n              message=f\"{key} must be a positive integer\"\
+  ,\n          ))\n  # history limit consistency\n  commands = terminal.get(\"commands\"\
+  , {})\n  default_limit = commands.get(\"default_history_limit\")\n  max_limit =\
+  \ commands.get(\"max_history_limit\")\n  if default_limit is not None and max_limit\
+  \ is not None:\n      if default_limit > max_limit:\n          errors.append(ValidationError(\n\
+  \              field=\"terminal.commands.default_history_limit\",\n            \
+  \  message=\"default_history_limit must not exceed max_history_limit\",\n      \
+  \    ))\n  return errors\n\n## Constraints\n- File must not exceed 120 lines. Line\
+  \ length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/config/config_validator.py
+  expected: '`from mcp_terminal.config.config_validator import validate_terminal_config,
+    ValidationError` succeeds. validate_terminal_config({}) returns a list containing
+    a ValidationError with field=''terminal.sessions.ttl_seconds''.'
+status: draft
