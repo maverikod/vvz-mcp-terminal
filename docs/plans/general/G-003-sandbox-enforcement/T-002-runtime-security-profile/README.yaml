@@ -1,0 +1,34 @@
+step_id: T-002
+parent_global_step: G-003
+name: Runtime Security Profile
+status: draft
+description: 'Defines the mandatory security settings applied to every container by
+  ContainerRuntime (C-010). Required settings: non-root user and group, --workdir
+  /workspace, --cap-drop ALL, --security-opt no-new-privileges, --read-only root filesystem,
+  --tmpfs /tmp, pids-limit from ConfigOverlay (C-013), memory limit from ConfigOverlay,
+  cpus limit from ConfigOverlay, network as specified by network policy. Forbidden
+  unconditionally regardless of request content: --privileged, --pid host, --network
+  host, --ipc host, --uts host, --cap-add SYS_ADMIN, host root filesystem volume,
+  Docker socket volume mount. SandboxPolicy (C-003) validates the absence of all forbidden
+  options before container creation. ContainerRuntime also supports optional seccomp
+  and AppArmor/SELinux profile configuration where available. Resource limits are
+  sourced from ConfigOverlay at startup; they cannot be overridden per-request.'
+concepts:
+- C-003
+- C-010
+inputs:
+- name: mount_spec
+  type: container mount configuration
+  description: Validated mount configuration including /workspace source, mode, /scratch,
+    and workdir.
+- name: resource_limits
+  type: configuration values
+  description: memory, cpus, pids_limit, and timeout values from ConfigOverlay (C-013).
+outputs:
+- name: container_runtime_spec
+  type: container creation parameters
+  description: 'Complete set of security-hardened container creation parameters: user,
+    cap-drop, security options, read-only flag, tmpfs, resource limits, network placeholder
+    (filled by network policy step), and mount spec. Consumed by the execution job
+    when starting the container.'
+atomic_steps: []
