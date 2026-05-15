@@ -112,13 +112,16 @@ Only direct subdirectories of `projects.root_dir` are candidates by default.
 A candidate directory is considered a project only when it contains the standard code-project marker file named `projectid`.
 
 `projectid` is a fixed project standard. It must not be renamed, made configurable, migrated, rewritten, or otherwise modified by `mcp_terminal`. The server may only read it.
-
 The `projectid` marker file must be JSON. The minimum required shape is:
 
 ```json
+{
+  "id": "<uuid4>",
+  "description": "<human-readable project description>"
+}
+```
 
 The value of `id` is the project identifier accepted by the API as `project_id`. The directory name is not the project identity; it is only the host-side location under `projects.root_dir`.
-
 ### 6.2 Discovery rules
 
 On startup and on explicit refresh, the server scans `projects.root_dir` and builds a project registry from valid marker files.
