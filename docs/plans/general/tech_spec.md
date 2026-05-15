@@ -493,7 +493,9 @@ The command sequence number is session-local and monotonically increasing. File 
 
 `stdout` and `stderr` must be stored in separate files. A separate combined output file is not required for MVP.
 
-`history.jsonl` contains one JSON object per command:
+`history.jsonl` contains one JSON object per command.
+
+Shell execution example:
 
 ```json
 {
@@ -502,8 +504,10 @@ The command sequence number is session-local and monotonically increasing. File 
   "project_id": "...",
   "session_id": "<uuid4>",
   "timestamp": "2026-05-15T12:34:56Z",
-  "cmd_display": "grep \"some text\" file.txt | more",
-  "cmd": ["bash", "-lc", "grep \"some text\" file.txt | more"],
+  "execution_kind": "shell",
+  "command": "grep \"some text\" file.txt | more",
+  "argv": null,
+  "resolved_argv": ["bash", "-lc", "grep \"some text\" file.txt | more"],
   "cwd": ".",
   "mode": "read_only",
   "network": "none",
@@ -514,6 +518,32 @@ The command sequence number is session-local and monotonically increasing. File 
   "stdout_file": "000001.stdout.log",
   "stderr_file": "000001.stderr.log"
 }
+```
+
+Argv execution example:
+
+```json
+{
+  "seq": 2,
+  "job_id": "terminal_...",
+  "project_id": "...",
+  "session_id": "<uuid4>",
+  "timestamp": "2026-05-15T12:35:10Z",
+  "execution_kind": "argv",
+  "command": null,
+  "argv": ["pytest", "-q"],
+  "resolved_argv": ["pytest", "-q"],
+  "cwd": ".",
+  "mode": "read_only",
+  "network": "none",
+  "image_profile": "python_dev_3_12",
+  "status": "completed",
+  "exit_code": 0,
+  "timed_out": false,
+  "stdout_file": "000002.stdout.log",
+  "stderr_file": "000002.stderr.log"
+}
+```
 ```
 
 ### 14.2 `terminal_session_create`
