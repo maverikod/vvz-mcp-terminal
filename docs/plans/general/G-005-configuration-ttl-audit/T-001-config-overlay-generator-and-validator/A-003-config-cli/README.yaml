@@ -1,0 +1,43 @@
+step_id: A-003
+parent_tactical_step: T-001
+name: Config CLI
+target_file: mcp_terminal/config/config_cli.py
+operation: create_file
+priority: 3
+depends_on: []
+concepts:
+- C-013
+prompt: "Create the file `mcp_terminal/config/config_cli.py`.\n\nOperation: create_file\n\
+  \n## Purpose\n\nImplements CLI with generate, validate, and help subcommands for\n\
+  ConfigOverlay (C-013).\n\n## Module docstring\n\"\"\"\nConfig CLI for mcp_terminal\
+  \ (C-013).\n\nExposes generate, validate, and help subcommands.\n\nAuthor: Vasiliy\
+  \ Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports\nfrom __future__ import\
+  \ annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\n\
+  from mcp_terminal.config.config_generator import generate_terminal_config\nfrom\
+  \ mcp_terminal.config.config_validator import validate_terminal_config\n\n## Functions\n\
+  \n### cmd_generate(args: argparse.Namespace) -> None\nDocstring:\n  \"\"\"Generate\
+  \ a default terminal config and write to output path.\"\"\"\nImplementation:\n \
+  \ config = generate_terminal_config({})\n  output = Path(args.output) if args.output\
+  \ else None\n  text = json.dumps(config, indent=2)\n  if output:\n      output.write_text(text,\
+  \ encoding=\"utf-8\")\n      print(f\"Generated config written to {output}\")\n\
+  \  else:\n      print(text)\n\n### cmd_validate(args: argparse.Namespace) -> None\n\
+  Docstring:\n  \"\"\"Validate a terminal config file and report errors.\"\"\"\nImplementation:\n\
+  \  path = Path(args.config)\n  config = json.loads(path.read_text(encoding=\"utf-8\"\
+  ))\n  errors = validate_terminal_config(config)\n  if errors:\n      for err in\
+  \ errors:\n          print(f\"ERROR [{err.field}]: {err.message}\", file=sys.stderr)\n\
+  \      raise SystemExit(1)\n  print(\"Config is valid.\")\n\n### main() -> None\n\
+  Docstring:\n  \"\"\"Entry point for the mcp_terminal config CLI.\"\"\"\nImplementation:\n\
+  \  parser = argparse.ArgumentParser(\n      prog=\"mcp-terminal-config\",\n    \
+  \  description=\"mcp_terminal configuration tool (C-013)\",\n  )\n  subparsers =\
+  \ parser.add_subparsers(dest=\"command\", required=True)\n  gen = subparsers.add_parser(\"\
+  generate\", help=\"Generate default config\")\n  gen.add_argument(\"--output\",\
+  \ type=str, default=None, help=\"Output file path\")\n  gen.set_defaults(func=cmd_generate)\n\
+  \  val = subparsers.add_parser(\"validate\", help=\"Validate config file\")\n  val.add_argument(\"\
+  config\", type=str, help=\"Path to config file\")\n  val.set_defaults(func=cmd_validate)\n\
+  \  args = parser.parse_args()\n  args.func(args)\n\n## Constraints\n- File must\
+  \ not exceed 80 lines. Line length limit 99.\n"
+verification:
+  type: import
+  target: mcp_terminal/config/config_cli.py
+  expected: '`from mcp_terminal.config.config_cli import main` succeeds.'
+status: draft
