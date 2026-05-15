@@ -1,0 +1,43 @@
+step_id: T-002
+parent_global_step: G-004
+name: Command Record and Sequence Allocation
+status: draft
+description: 'Defines CommandSequence (C-007) and CommandRecord (C-006) creation during
+  terminal_run request handling. CommandSequence allocates the next seq for the session:
+  reads the current maximum seq from history.jsonl (or 0 if empty), increments by
+  1, zero-pads to 6 digits to form the NNNNNN prefix. Allocation is atomic within
+  a session and happens before the queue job is created. Using the allocated seq,
+  OutputStore pre-creates three empty files: NNNNNN.meta.json, NNNNNN.stdout.log,
+  NNNNNN.stderr.log. CommandRecord assembles the initial history.jsonl entry: seq,
+  job_id (not yet known; placeholder), project_id, session_id, timestamp, execution_kind
+  (shell or argv; mandatory), command (non-null for shell, null for argv), argv (non-null
+  for argv, null for shell), resolved_argv, cwd, mode, network, image_profile, status=pending,
+  exit_code=null, timed_out=null, stdout_file, stderr_file. The entry is appended
+  to history.jsonl. job_id is backfilled once the queue job is created. The NNNNNN
+  prefix is the stable, session-local, external reference for this command.'
+concepts:
+- C-006
+- C-007
+inputs:
+- name: terminal_run_request
+  type: request object
+  description: Validated terminal_run request with project_id, session_id, execution_kind,
+    command or argv, cwd, mode, network, image_profile, timeout_seconds.
+- name: session_record
+  type: TerminalSession metadata
+  description: Active session record used to locate history.jsonl and determine current
+    max seq.
+outputs:
+- name: command_record_pending
+  type: CommandRecord in pending status
+  description: Appended history.jsonl entry with allocated seq, NNNNNN prefix, all
+    request fields, status=pending. The seq and file name prefix are the stable reference
+    returned to the caller.
+- name: seq
+  type: integer
+  description: Allocated session-local command sequence number for this execution.
+- name: output_file_names
+  type: set of file name strings
+  description: NNNNNN.stdout.log, NNNNNN.stderr.log, NNNNNN.meta.json pre-created
+    in the session directory.
+atomic_steps: []
