@@ -1,0 +1,86 @@
+step_id: A-001
+parent_tactical_step: T-006
+name: Register terminal commands via hook
+target_file: mcp_terminal/term_server.py
+operation: modify_file
+priority: 1
+depends_on: []
+concepts:
+- C-014
+- C-016
+prompt: "Modify the file `mcp_terminal/term_server.py`.\n\nOperation: modify_file\n\
+  \n## Current file content (full, 99 lines)\n\n```python\n\"\"\"\nMinimal MCP Proxy\
+  \ Adapter HTTP server (built-in commands only, HTTPS).\n\nAuthor: Vasiliy Zdanovskiy\n\
+  Email: vasilyvz@gmail.com\n\"\"\"\n\nfrom __future__ import annotations\n\nimport\
+  \ argparse\nimport json\nimport sys\nfrom pathlib import Path\n\nfrom mcp_proxy_adapter.api.app\
+  \ import create_app\nfrom mcp_proxy_adapter.config import get_config\nfrom mcp_proxy_adapter.core.app_factory.ssl_config\
+  \ import build_server_ssl_config\nfrom mcp_proxy_adapter.core.server_engine import\
+  \ ServerEngineFactory\nfrom mcp_terminal.paths import repo_root\nfrom mcp_terminal.term_config\
+  \ import (\n    DEFAULT_TERM_SERVER_LISTEN_PORT,\n    load_validated_term_simple_config,\n\
+  )\n\n\ndef _die(msg: str, code: int = 1) -> None:\n    print(msg, file=sys.stderr)\n\
+  \    raise SystemExit(code)\n\n\ndef main() -> None:\n    \"\"\"Load SimpleConfig,\
+  \ validate, create FastAPI app, run Hypercorn (HTTPS if configured).\"\"\"\n   \
+  \ parser = argparse.ArgumentParser(description=\"MCP terminal minimal HTTPS server\"\
+  )\n    parser.add_argument(\n        \"--config\",\n        type=str,\n        default=str(repo_root()\
+  \ / \"configs\" / \"term_server.json\"),\n        help=\"Path to SimpleConfig JSON\
+  \ (see mcp_terminal/term_server.defaults.json)\",\n    )\n    args = parser.parse_args()\n\
+  \n    cfg_path = Path(args.config).resolve()\n    if not cfg_path.is_file():\n \
+  \       _die(f\"Configuration file not found: {cfg_path}\")\n\n    try:\n      \
+  \  app_config: dict = json.loads(cfg_path.read_text(encoding=\"utf-8\"))\n    except\
+  \ Exception as exc:  # noqa: BLE001\n        _die(f\"Failed to read configuration:\
+  \ {exc}\")\n\n    try:\n        simple_config, model = load_validated_term_simple_config(cfg_path)\n\
+  \    except ValueError as exc:\n        _die(str(exc))\n    for section, value in\
+  \ simple_config.to_dict().items():\n        app_config[section] = value\n\n    app_config.setdefault(\"\
+  server\", {})\n    app_config[\"server\"].setdefault(\"debug\", False)\n    app_config[\"\
+  server\"].setdefault(\"log_level\", \"INFO\")\n\n    cfg = get_config()\n    cfg.config_path\
+  \ = str(cfg_path)\n    setattr(cfg, \"model\", model)\n    cfg.config_data = app_config\n\
+  \    if hasattr(cfg, \"feature_manager\"):\n        cfg.feature_manager.config_data\
+  \ = cfg.config_data\n\n    app = create_app(\n        title=\"MCP Terminal (minimal)\"\
+  ,\n        description=\"HTTPS JSON-RPC adapter with built-in commands only.\",\n\
+  \        version=\"0.1.0\",\n        app_config=app_config,\n        config_path=str(cfg_path),\n\
+  \    )\n\n    host = str(app_config.get(\"server\", {}).get(\"host\", \"127.0.0.1\"\
+  ))\n    port = int(app_config.get(\"server\", {}).get(\"port\", DEFAULT_TERM_SERVER_LISTEN_PORT))\n\
+  \n    server_config: dict = {\n        \"host\": host,\n        \"port\": port,\n\
+  \        \"log_level\": \"info\",\n        \"reload\": False,\n    }\n    try:\n\
+  \        ssl_engine = build_server_ssl_config(app_config)\n        if ssl_engine:\n\
+  \            server_config.update(ssl_engine)\n    except ValueError as exc:\n \
+  \       _die(f\"SSL configuration invalid: {exc}\")\n\n    engine = ServerEngineFactory.get_engine(\"\
+  hypercorn\")\n    assert engine is not None, \"Hypercorn engine not available\"\n\
+  \    engine.run_server(app, server_config)\n\n\nif __name__ == \"__main__\":\n \
+  \   main()\n```\n\n## What to change\n\nAdd terminal command registration using\
+  \ the adapter hook mechanism (C-016/C-014).\n\n### 1. Add imports after existing\
+  \ imports block\n\nAdd these lines after `from mcp_terminal.term_config import (...)`\
+  \ block:\n\n```python\nfrom mcp_proxy_adapter.commands.hooks import register_custom_commands_hook\n\
+  from mcp_terminal.commands.terminal_list_command import TerminalListCommand\nfrom\
+  \ mcp_terminal.commands.terminal_get_command import TerminalGetCommand\nfrom mcp_terminal.commands.terminal_sessions_command\
+  \ import TerminalSessionsCommand\nfrom mcp_terminal.commands.terminal_search_commands_command\
+  \ import TerminalSearchCommandsCommand\nfrom mcp_terminal.commands.terminal_get_status_command\
+  \ import TerminalGetStatusCommand\nfrom mcp_terminal.services.session_store import\
+  \ SessionStore\n```\n\n### 2. Add module-level objects after imports\n\n```python\n\
+  _SESSION_STORE = SessionStore()\n\n_TERMINAL_COMMANDS = [\n    TerminalListCommand(),\n\
+  \    TerminalGetCommand(),\n    TerminalSessionsCommand(),\n    TerminalSearchCommandsCommand(),\n\
+  \    TerminalGetStatusCommand(),\n]\n```\n\n### 3. Add registration function before\
+  \ main()\n\n```python\ndef _register_terminal_commands(registry: object) -> None:\n\
+  \    \"\"\"Register all terminal_* commands via the adapter hook mechanism.\n\n\
+  \    Called by register_custom_commands_hook at adapter startup.\n    No internal\
+  \ execution commands are exposed; only the terminal_* prefix\n    commands are registered\
+  \ (C-014).\n\n    Args:\n        registry: The adapter command registry instance.\n\
+  \    \"\"\"\n    for cmd in _TERMINAL_COMMANDS:\n        registry.register_custom(cmd)\n\
+  \n\nregister_custom_commands_hook(_register_terminal_commands)\n```\n\n### 4. Update\
+  \ module docstring\n\nReplace the opening docstring with:\n```python\n\"\"\"\nMCP\
+  \ Proxy Adapter HTTP server for mcp_terminal (HTTPS).\n\nRegisters terminal_* MCP\
+  \ commands via the adapter hook mechanism (C-014, C-016).\nExisting adapter built-in\
+  \ and queue commands remain visible in MCP help.\n\nAuthor: Vasiliy Zdanovskiy\n\
+  Email: vasilyvz@gmail.com\n\"\"\"\n```\n\n## Constraints\n- Do not remove or alter\
+  \ the main() function body.\n- The register_custom_commands_hook call must be at\
+  \ module level (not inside main()).\n- _SESSION_STORE and _TERMINAL_COMMANDS must\
+  \ be module-level.\n- File must not exceed 160 lines total after the change.\n-\
+  \ All type annotations required on new functions.\n- Line length limit 99. Must\
+  \ pass flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/term_server.py
+  expected: '`import mcp_terminal.term_server` succeeds (or raises ImportError only
+    if adapter is not installed, not due to syntax errors). The file contains the
+    string ''register_custom_commands_hook''. The file contains ''TerminalListCommand''.'
+status: draft
