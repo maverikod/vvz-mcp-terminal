@@ -1,0 +1,84 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: Mount model validation in SandboxPolicy
+target_file: mcp_terminal/services/sandbox_policy.py
+operation: modify_file
+priority: 2
+depends_on: []
+concepts:
+- C-003
+- C-010
+prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
+  \ modify_file\n\n## Current file content (full, after G-001/T-001 and G-001/T-002\
+  \ steps)\n\nThe file currently has the following structure (top to bottom):\n\n\
+  1. Module docstring:\n   \"Trust classification schema and sandbox policy validation\
+  \ for mcp_terminal.\n   Every request from the model is treated as untrusted regardless\
+  \ of session\n   history or prior successful requests (zero-trust invariant).\"\n\
+  \n2. Imports:\n   from __future__ import annotations\n   from dataclasses import\
+  \ dataclass, field\n   from enum import Enum, auto\n   from typing import FrozenSet,\
+  \ Optional\n\n3. class TrustCategory(Enum) with members:\n   TRUSTED_COMPONENT,\
+  \ UNTRUSTED_INPUT, SENSITIVE_HOST_RESOURCE\n\n4. @dataclass(frozen=True) class TrustBoundary\
+  \ with fields:\n   trusted_components: FrozenSet[str]\n   untrusted_input_categories:\
+  \ FrozenSet[str]\n   sensitive_host_resources: FrozenSet[str]\n\n5. TERMINAL_TRUST_BOUNDARY:\
+  \ TrustBoundary constant\n\n6. @dataclass(frozen=True) class PolicyConfig with fields:\n\
+  \   allowed_modes: FrozenSet[str]\n   allowed_network_modes: FrozenSet[str]\n  \
+  \ allowed_image_profiles: FrozenSet[str]\n   safe_path_prefixes: FrozenSet[str]\n\
+  \n7. DEFAULT_POLICY_CONFIG: PolicyConfig constant\n\n8. @dataclass(frozen=True)\
+  \ class ValidationResult with fields:\n   permitted: bool\n   error_code: Optional[str]\
+  \ = None\n   rejected_field: Optional[str] = None\n   detail: Optional[str] = None\n\
+  \n9. class SandboxPolicy:\n   - class attribute _FORBIDDEN_OPTIONS: FrozenSet[str]\n\
+  \   - __init__(self, config: PolicyConfig = DEFAULT_POLICY_CONFIG) -> None\n   -\
+  \ validate(self, *, project_id, execution_kind, cwd, mode, network,\n     image_profile,\
+  \ command, argv) -> ValidationResult\n     (checks: project_id not host path, execution_kind\
+  \ in {shell,argv},\n      command/argv consistency and NUL bytes, cwd relative,\
+  \ mode in allowlist,\n      network in allowlist, image_profile in allowlist,\n\
+  \      forbidden options in command)\n\n## MRS concept excerpt\n\nC-003 SandboxPolicy\
+  \ / C-010 ContainerRuntime mount modes:\n  - cwd must be relative and resolve inside\
+  \ /workspace\n  - Supported modes: read_only (default), workspace_write, scratch_write\n\
+  \  - /workspace is always the container mount point; caller cannot choose it\n \
+  \ - Mount modes: read_only (ro), workspace_write (rw), scratch_write (ro+scratch\
+  \ rw)\n\n## What to add\n\nAdd the following after DEFAULT_POLICY_CONFIG and before\
+  \ ValidationResult.\nAlso add build_mount_spec() as a method of SandboxPolicy after\
+  \ validate().\n\n### @dataclass(frozen=True) MountSpec  (insert after DEFAULT_POLICY_CONFIG)\n\
+  \n```python\n@dataclass(frozen=True)\nclass MountSpec:\n    \"\"\"Validated container\
+  \ mount configuration produced by SandboxPolicy.\n\n    Consumed by ContainerRuntime\
+  \ (C-010) when creating the container.\n    /workspace is always the mount point;\
+  \ callers cannot choose it.\n    \"\"\"\n\n    workspace_source: Path\n    \"\"\"\
+  Verified canonical host path of the project root to mount at /workspace.\"\"\"\n\
+  \    workspace_readonly: bool\n    \"\"\"True for read_only and scratch_write modes;\
+  \ False for workspace_write.\"\"\"\n    scratch_enabled: bool\n    \"\"\"True for\
+  \ all modes (scratch tmpfs is always provided).\"\"\"\n    workdir: str\n    \"\"\
+  \"Absolute container path for working directory, e.g. /workspace/tests.\"\"\"\n\
+  \    mode: str\n    \"\"\"Validated mount mode string: read_only, workspace_write,\
+  \ or scratch_write.\"\"\"\n```\n\n### build_mount_spec() method on SandboxPolicy\n\
+  \nAdd after the validate() method:\n\n```python\n    def build_mount_spec(\n   \
+  \     self,\n        *,\n        workspace_source: Path,\n        mode: str,\n \
+  \       cwd: Optional[str],\n    ) -> tuple[Optional[MountSpec], Optional[ValidationResult]]:\n\
+  \        \"\"\"Build a MountSpec from a validated mode and cwd.\n\n        Args:\n\
+  \            workspace_source: Verified canonical host project root from\n     \
+  \           ProjectRegistry.resolve().\n            mode: Validated mode string\
+  \ (read_only, workspace_write, scratch_write).\n            cwd: Relative working\
+  \ directory within /workspace; None defaults to \".\".\n\n        Returns:\n   \
+  \         (MountSpec, None) on success, or (None, ValidationResult) on failure.\n\
+  \        \"\"\"\n        safe_cwd = (cwd or \".\").strip()\n        if safe_cwd.startswith(\"\
+  /\") or \"..\" in safe_cwd:\n            return None, ValidationResult(\n      \
+  \          permitted=False,\n                error_code=\"INVALID_CWD\",\n     \
+  \           rejected_field=\"cwd\",\n                detail=\"cwd must be relative\
+  \ and must not contain ..\",\n            )\n        workdir = f\"/workspace/{safe_cwd}\"\
+  .rstrip(\"/\") or \"/workspace\"\n        readonly = mode in (\"read_only\", \"\
+  scratch_write\")\n        return MountSpec(\n            workspace_source=workspace_source,\n\
+  \            workspace_readonly=readonly,\n            scratch_enabled=True,\n \
+  \           workdir=workdir,\n            mode=mode,\n        ), None\n```\n\nNote:\
+  \ MountSpec uses `Path` which is already imported.\n\n## Constraints\n- Do not remove\
+  \ or alter any existing code.\n- Insert MountSpec class between DEFAULT_POLICY_CONFIG\
+  \ and ValidationResult.\n- Add build_mount_spec() to SandboxPolicy class after validate().\n\
+  - All type annotations required.\n- File must not exceed 350 lines after this step.\n\
+  - Line length limit 99. Must pass flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/sandbox_policy.py
+  expected: '`from mcp_terminal.services.sandbox_policy import MountSpec, SandboxPolicy`
+    succeeds. Calling SandboxPolicy().build_mount_spec( workspace_source=Path("/tmp/proj"),
+    mode="read_only", cwd="tests") returns a MountSpec with workdir="/workspace/tests"
+    and workspace_readonly=True.'
+status: draft

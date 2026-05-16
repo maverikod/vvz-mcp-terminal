@@ -23,6 +23,7 @@ from mcp_proxy_adapter.commands.hooks import register_custom_commands_hook
 from mcp_proxy_adapter.config import get_config
 from mcp_proxy_adapter.core.app_factory.ssl_config import build_server_ssl_config
 from mcp_proxy_adapter.core.server_engine import ServerEngineFactory
+from mcp_terminal.commands.registry_metadata_patch import apply_registry_metadata_patch
 from mcp_terminal.commands.terminal_delete_command import TerminalDeleteCommand
 from mcp_terminal.commands.terminal_get_command import TerminalGetCommand
 from mcp_terminal.commands.terminal_get_session_bootstrap_command import (
@@ -106,6 +107,7 @@ def _register_terminal_commands(registry: object) -> None:
         reg.register(cast(Any, cmd_cls), "custom")
 
 
+apply_registry_metadata_patch()
 register_custom_commands_hook(_register_terminal_commands)
 
 

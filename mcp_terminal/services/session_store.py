@@ -17,6 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from mcp_terminal.services.shell_state import ShellState, write_shell_state
+from mcp_terminal.services.session_container import stop_session_container
+
 SessionKey = Tuple[str, str]
 
 
@@ -117,6 +120,7 @@ class SessionStore:
             workspace_write=workspace_write,
         )
         self._write_session_json(record)
+        write_shell_state(session_dir, ShellState())
         self._logger.info(
             "Created session %s for project %s (workspace_write=%s)",
             session_id,
@@ -273,6 +277,7 @@ class SessionStore:
             return False
         if record.workspace_write:
             self._release_writer(project_id, session_id)
+        stop_session_container(project_id, session_id)
         if record.session_dir.exists():
             import shutil
 

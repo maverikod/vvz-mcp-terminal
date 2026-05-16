@@ -1,0 +1,32 @@
+step_id: T-002
+parent_global_step: G-001
+name: Zero-Trust Validation Invariant
+status: draft
+description: 'Defines the zero-trust validation invariant of SandboxPolicy (C-003):
+  every request arriving from the model is treated as untrusted regardless of session
+  history, caller identity, or prior successful requests. No implicit trust accumulates.
+  SandboxPolicy validates the complete set of request fields on every call: project_id
+  presence (not a host path), execution_kind, cwd relative containment, mode against
+  allowlist, network mode against allowlist, image_profile against allowlist, and
+  command policy (no empty argv, no NUL bytes, no absolute executables outside safe
+  PATH). On any violation SandboxPolicy produces an ErrorContract (C-015) code and
+  rejects the request before any container operation begins. The server must not function
+  as a general-purpose remote shell: requests that attempt to escape the project sandbox
+  are rejected unconditionally, not logged and warned.'
+concepts:
+- C-003
+- C-015
+inputs:
+- name: trust_classification_schema
+  type: structured enumeration
+  description: Enumeration of trusted components, untrusted inputs, and forbidden
+    host resources produced by T-001.
+- name: execution_request
+  type: request object
+  description: Inbound terminal_run or session management request from the model.
+outputs:
+- name: validation_decision
+  type: binary decision with error code
+  description: Either "permitted" (all fields pass every check) or "rejected" with
+    a specific ErrorContract (C-015) code identifying the violated constraint.
+atomic_steps: []

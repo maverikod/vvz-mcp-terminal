@@ -12,6 +12,9 @@ from typing import Any, ClassVar, Dict, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_get_status_metadata import (
+    get_terminal_get_status_metadata,
+)
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.output_reader import OutputReader
@@ -88,3 +91,7 @@ class TerminalGetStatusCommand(Command):
                 "stderr_bytes": stat.stderr_bytes,
             },
         )
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_get_status_metadata(cls)

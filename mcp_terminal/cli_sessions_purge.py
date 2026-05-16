@@ -22,6 +22,7 @@ from mcp_terminal.services.project_roots import merged_project_anchor_dirs
 from mcp_terminal.services.session_store import SessionStore
 
 _MCP_TERMINAL_IMAGE_PREFIX = "mcp-terminal:pid-"
+_SESSION_CONTAINER_PREFIX = "mcp-term-"
 
 
 @dataclass
@@ -103,6 +104,52 @@ def kill_mcp_terminal_sandbox_containers(*, dry_run: bool = False) -> int:
     return killed
 
 
+def kill_session_containers(*, dry_run: bool = False) -> int:
+    """Remove session idle containers (``mcp-term-*`` names or session label)."""
+    try:
+        fmt = "{{.ID}}\t{{.Names}}\t{{.Label \"mcp.terminal.session\"}}"
+        out = subprocess.check_output(
+            ["docker", "ps", "-a", "--format", fmt],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=60,
+        )
+    except FileNotFoundError:
+        return 0
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return 0
+
+    removed = 0
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or "\t" not in line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        cid = parts[0]
+        names = parts[1]
+        label = parts[2] if len(parts) > 2 else ""
+        if label != "true" and not any(
+            n.startswith(_SESSION_CONTAINER_PREFIX) for n in names.split(",")
+        ):
+            continue
+        if dry_run:
+            removed += 1
+            continue
+        try:
+            subprocess.run(
+                ["docker", "rm", "-f", cid],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            removed += 1
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+    return removed
+
+
 def purge_all_terminal_sessions(
     config_path: Path,
     *,
@@ -114,6 +161,7 @@ def purge_all_terminal_sessions(
     report = PurgeReport()
     if kill_docker:
         report.containers_killed = kill_mcp_terminal_sandbox_containers(dry_run=dry_run)
+        report.containers_killed += kill_session_containers(dry_run=dry_run)
 
     try:
         terminals_dirs = discover_terminals_dirs(config_path)

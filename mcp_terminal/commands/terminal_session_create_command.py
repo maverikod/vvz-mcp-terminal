@@ -19,13 +19,16 @@ from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
 from mcp_terminal.jobs.session_bootstrap_job import SessionBootstrapJob, SessionBootstrapJobParams
 from mcp_terminal.runtime_context import registry_resolve_project, get_session_store
 from mcp_terminal.services.session_bootstrap import write_bootstrap_pending
+from mcp_terminal.commands.terminal_session_create_metadata import (
+    get_terminal_session_create_metadata,
+)
 from mcp_terminal.services.session_ids import validate_uuid4_field
 
 _SESSION_CREATE_PYTHON_REMINDER = (
-    "To run project Python, activate .venv in the same shell line as your command "
-    "(e.g. . .venv/bin/activate && python …) or invoke /workspace/.venv/bin/python "
-    "directly. Each terminal_run is a separate process; activation does not persist "
-    "across runs."
+    "terminal_run persists cwd in .terminals/<session_id>/shell_state.json. "
+    "Use keep_container:true for multi-step work. "
+    "For Python prefer /workspace/.venv/bin/python or "
+    "'source .venv/bin/activate && …' in one shell command."
 )
 
 
@@ -150,3 +153,7 @@ class TerminalSessionCreateCommand(Command):
                 "job_id": bootstrap_job_id,
             }
         return CommandResult(success=True, data=data)
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_session_create_metadata(cls)

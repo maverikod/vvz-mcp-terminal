@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Dict, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_delete_metadata import get_terminal_delete_metadata
 from mcp_terminal.runtime_context import get_session_store
 
 
@@ -67,3 +68,7 @@ class TerminalDeleteCommand(Command):
             success=True,
             data={"deleted": True, "session_id": session_id, "project_id": project_id},
         )
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_delete_metadata(cls)

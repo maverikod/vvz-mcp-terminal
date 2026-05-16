@@ -28,6 +28,8 @@ from mcp_terminal.services.command_history import CommandHistory, CommandRecord
 from mcp_terminal.services.container_runner import ContainerSpec, workspace_bind_mount_user
 from mcp_terminal.services.project_runtime_image import resolve_execution_image
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
+from mcp_terminal.commands.terminal_run_metadata import get_terminal_run_metadata
+from mcp_terminal.services.shell_state import resolve_cwd
 
 _DEFAULT_TIMEOUT_S: int = 600
 
@@ -38,13 +40,9 @@ class TerminalRunCommand(Command):
     name: ClassVar[str] = "terminal_run"
     version: ClassVar[str] = "1.0.0"
     descr: ClassVar[str] = (
-        "Run a shell command or argv inside the sandbox for an existing session. "
-        "Always enqueues work on the server queue and returns immediately with "
-        "job_id, seq, and output file names (no wait for pip, tests, or the "
-        "container to finish). Poll terminal_get_status with the same project_id, "
-        "session_id, and seq; stream output via terminal_tail or terminal_read. "
-        "Uses per-project image from .mcp_terminal/runtime/ when prepared on "
-        "terminal_session_create (requirements.txt); otherwise the stock profile image."
+        "Run a command in a session sandbox: start container, load shell_state.json "
+        "(cwd), exec, save cwd, stop container unless keep_container is true. "
+        "Returns job_id and seq immediately; poll terminal_get_status."
     )
     category: ClassVar[str] = "custom"
     author: ClassVar[str] = "Vasiliy Zdanovskiy"
@@ -93,6 +91,15 @@ class TerminalRunCommand(Command):
                     "minimum": 1,
                     "maximum": 86400,
                 },
+                "keep_container": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": (
+                        "When true, leave the session container running after the command "
+                        "(for long multi-step work). When false (default), stop the container "
+                        "after saving shell_state."
+                    ),
+                },
             },
             "required": ["project_id", "session_id", "execution_kind"],
             "additionalProperties": False,
@@ -106,6 +113,7 @@ class TerminalRunCommand(Command):
         command = kwargs.get("command")
         argv = kwargs.get("argv")
         cwd = kwargs.get("cwd")
+        keep_container = bool(kwargs.get("keep_container", False))
         mode = str(kwargs.get("mode", "read_only"))
         network = str(kwargs.get("network", "none"))
         image_profile = str(kwargs.get("image_profile", "python_dev_3_12"))
@@ -135,11 +143,15 @@ class TerminalRunCommand(Command):
         if mode == "workspace_write" and not srec.workspace_write:
             return CommandResult(success=False, error="WORKSPACE_WRITE_NOT_ALLOWED")
 
+        effective_cwd, cwd_err = resolve_cwd(srec.session_dir, cwd)
+        if cwd_err is not None or effective_cwd is None:
+            return CommandResult(success=False, error=cwd_err or "INVALID_CWD")
+
         policy = SandboxPolicy()
         check = policy.validate(
             project_id=project_id,
             execution_kind=execution_kind,
-            cwd=cwd,
+            cwd=effective_cwd,
             mode=mode,
             network=network,
             image_profile=image_profile,
@@ -152,7 +164,7 @@ class TerminalRunCommand(Command):
         mount, m_err = policy.build_mount_spec(
             workspace_source=resolved.project_dir,
             mode=mode,
-            cwd=str(cwd) if cwd is not None else None,
+            cwd=effective_cwd,
         )
         if m_err is not None or mount is None:
             return CommandResult(success=False, error=m_err.error_code if m_err else "INVALID_CWD")
@@ -204,7 +216,7 @@ class TerminalRunCommand(Command):
             command=cmd_str if execution_kind == "shell" else None,
             argv=argv_list if execution_kind == "argv" else None,
             resolved_argv=list(img_cmd.resolved_argv),
-            cwd=str(cwd or "."),
+            cwd=effective_cwd,
             mode=mode,
             network=network,
             image_profile=image_profile,
@@ -234,6 +246,11 @@ class TerminalRunCommand(Command):
             session_dir=srec.session_dir,
             container_spec=container_spec,
             timeout_seconds=timeout_seconds,
+            keep_container=keep_container,
+            effective_cwd=effective_cwd,
+            execution_kind=execution_kind,
+            command=cmd_str if execution_kind == "shell" else None,
+            argv=argv_list if execution_kind == "argv" else None,
         )
         job = TerminalExecutionJob(job_params)
 
@@ -252,5 +269,11 @@ class TerminalRunCommand(Command):
                 "stdout_file": stdout_file,
                 "stderr_file": stderr_file,
                 "meta_file": meta_file,
+                "cwd": effective_cwd,
+                "keep_container": keep_container,
             },
         )
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_run_metadata(cls)

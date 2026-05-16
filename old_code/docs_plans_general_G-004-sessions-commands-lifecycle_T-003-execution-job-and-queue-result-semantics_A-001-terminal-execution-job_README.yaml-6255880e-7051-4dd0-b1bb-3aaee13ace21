@@ -1,0 +1,85 @@
+step_id: A-001
+parent_tactical_step: T-003
+name: TerminalExecutionJob queue job
+target_file: mcp_terminal/jobs/terminal_execution_job.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-009
+- C-011
+prompt: "Create the file `mcp_terminal/jobs/terminal_execution_job.py`.\n\nOperation:\
+  \ create_file\n\nAlso create `mcp_terminal/jobs/__init__.py` as an empty file with\
+  \ only a\nmodule docstring:\n  \"\"\"\n  Queue job implementations for mcp_terminal.\n\
+  \n  Author: Vasiliy Zdanovskiy\n  Email: vasilyvz@gmail.com\n  \"\"\"\n\nNOTE: The\
+  \ one-file rule applies to the primary target file\n`terminal_execution_job.py`.\
+  \ The __init__.py is a required companion\nthat must be created in the same atomic\
+  \ step because the package cannot\nbe imported without it. Both files must be created.\n\
+  \n## Purpose\n\nImplements TerminalExecutionJob (C-009): a queue job that starts\
+  \ a\nsandbox container, redirects stdout/stderr to output files, and updates\nCommandRecord\
+  \ and queue state on completion.\n\n## MRS concept excerpts\n\nC-009 TerminalExecutionJob:\n\
+  \  - Never runs synchronously in the request handler\n  - Writes stdout to NNNNNN.stdout.log\
+  \ and stderr to NNNNNN.stderr.log only\n  - Updates NNNNNN.meta.json and history.jsonl\
+  \ entry on completion\n  - Updates queue job status to completed, failed, or stopped\n\
+  \  - Stops and removes container regardless of outcome (cleanup_always)\n  - Not\
+  \ exposed as a public MCP command\n\nC-011 QueueResultSemantics:\n  - queue completed\
+  \ does not imply terminal success\n  - Terminal success requires exit_code==0 AND\
+  \ timed_out==false\n\n## Module docstring for terminal_execution_job.py\n\"\"\"\n\
+  TerminalExecutionJob: queue job for sandbox container execution (C-009).\n\nExecutes\
+  \ commands inside isolated containers and writes stdout/stderr\nexclusively to per-command\
+  \ output files. Never runs synchronously.\n\nAuthor: Vasiliy Zdanovskiy\nEmail:\
+  \ vasilyvz@gmail.com\n\"\"\"\n\n## Imports for terminal_execution_job.py (exact)\n\
+  from __future__ import annotations\n\nimport json\nimport logging\nimport subprocess\n\
+  import threading\nfrom dataclasses import dataclass\nfrom pathlib import Path\n\
+  from typing import List, Optional\n\nfrom mcp_terminal.services.command_history\
+  \ import CommandHistory\nfrom mcp_terminal.services.container_runner import ContainerRunner,\
+  \ ContainerSpec\n\n## Classes\n\n### @dataclass(frozen=True) JobParams\nDocstring:\n\
+  \  \"\"\"Immutable parameters for one TerminalExecutionJob invocation.\"\"\"\nFields:\n\
+  \  project_id: str\n  session_id: str\n  seq: int\n  session_dir: Path\n  container_spec:\
+  \ ContainerSpec\n  timeout_seconds: int\n\n### class TerminalExecutionJob\nDocstring:\n\
+  \  \"\"\"Queue job that performs sandbox container execution (C-009).\n\n  The run()\
+  \ method is called by the adapter queue worker in a background\n  thread. It must\
+  \ never be called directly from request handlers.\n  QueueResultSemantics (C-011):\
+  \ a completed job does not imply the\n  terminal command succeeded; callers must\
+  \ check exit_code and timed_out.\n  \"\"\"\n\n__init__:\n  def __init__(self, params:\
+  \ JobParams, runner: Optional[ContainerRunner] = None) -> None:\n      self._params\
+  \ = params\n      self._runner = runner or ContainerRunner()\n      self._logger\
+  \ = logging.getLogger(__name__)\n\n### run() method\nSignature: def run(self) ->\
+  \ dict:\nDocstring:\n  \"\"\"Execute the container job and write output files.\n\
+  \n  Starts the container, redirects stdout to NNNNNN.stdout.log and stderr\n  to\
+  \ NNNNNN.stderr.log, waits for completion or timeout, then updates\n  NNNNNN.meta.json\
+  \ and history.jsonl. Stops and removes the container\n  regardless of outcome (cleanup_always).\n\
+  \n  Returns:\n      dict with keys: exit_code (int or None), timed_out (bool),\n\
+  \      status (str: completed | failed | stopped).\n  \"\"\"\nImplementation:\n\
+  \  p = self._params\n  prefix = CommandHistory.seq_to_prefix(p.seq)\n  stdout_path\
+  \ = p.session_dir / f\"{prefix}.stdout.log\"\n  stderr_path = p.session_dir / f\"\
+  {prefix}.stderr.log\"\n  meta_path = p.session_dir / f\"{prefix}.meta.json\"\n\n\
+  \  cmd = self._runner.build_cmd(p.container_spec)\n  self._logger.info(\"Starting\
+  \ container for seq=%d: %s\", p.seq, cmd[:3])\n\n  exit_code: Optional[int] = None\n\
+  \  timed_out = False\n  status = \"failed\"\n\n  try:\n      with stdout_path.open(\"\
+  wb\") as out, stderr_path.open(\"wb\") as err:\n          proc = subprocess.Popen(\
+  \  # noqa: S603\n              cmd,\n              stdout=out,\n              stderr=err,\n\
+  \          )\n          try:\n              proc.wait(timeout=p.timeout_seconds)\n\
+  \              exit_code = proc.returncode\n              status = \"completed\"\
+  \n          except subprocess.TimeoutExpired:\n              proc.kill()\n     \
+  \         proc.wait()\n              timed_out = True\n              exit_code =\
+  \ None\n              status = \"completed\"  # job lifecycle completed; command\
+  \ timed out\n  except Exception as exc:  # noqa: BLE001\n      self._logger.error(\"\
+  Container run failed for seq=%d: %s\", p.seq, exc)\n      status = \"failed\"\n\n\
+  \  # Update meta.json\n  meta = {\n      \"seq\": p.seq,\n      \"status\": status,\n\
+  \      \"exit_code\": exit_code,\n      \"timed_out\": timed_out,\n  }\n  meta_path.write_text(json.dumps(meta,\
+  \ indent=2), encoding=\"utf-8\")\n\n  # Update history.jsonl\n  history = CommandHistory(p.session_dir)\n\
+  \  history.update_record(\n      p.seq,\n      status=status,\n      exit_code=exit_code,\n\
+  \      timed_out=timed_out,\n  )\n\n  self._logger.info(\n      \"Job complete seq=%d\
+  \ status=%s exit_code=%s timed_out=%s\",\n      p.seq, status, exit_code, timed_out,\n\
+  \  )\n  return {\"exit_code\": exit_code, \"timed_out\": timed_out, \"status\":\
+  \ status}\n\n## Constraints\n- File must be valid Python.\n- The __init__.py companion\
+  \ file must be created (empty module with docstring).\n- All type annotations required.\n\
+  - terminal_execution_job.py must not exceed 200 lines.\n- Line length limit 99.\
+  \ Must pass flake8.\n- Do NOT import from any mcp_terminal.commands module.\n"
+verification:
+  type: import
+  target: mcp_terminal/jobs/terminal_execution_job.py
+  expected: '`from mcp_terminal.jobs.terminal_execution_job import TerminalExecutionJob,
+    JobParams` succeeds without error.'
+status: draft

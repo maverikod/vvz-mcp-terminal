@@ -1,0 +1,99 @@
+step_id: A-001
+parent_tactical_step: T-002
+name: ProjectRegistry build and duplicate handling
+target_file: mcp_terminal/services/project_registry.py
+operation: modify_file
+priority: 1
+depends_on: []
+concepts:
+- C-001
+- C-002
+prompt: "Modify the file `mcp_terminal/services/project_registry.py`.\n\nOperation:\
+  \ modify_file\n\n## Current file content (after all prior atomic steps on this file)\n\
+  \nThe file currently contains:\n- Module docstring\n- Imports: from __future__ import\
+  \ annotations, json, re, uuid, dataclass,\n  Path, Optional\n- @dataclass(frozen=True)\
+  \ ProjectMarker with fields: project_id, description,\n  marker_path, project_dir\n\
+  - @dataclass(frozen=True) MarkerValidationError with fields: path, reason, code\n\
+  - _UUID4_RE: re.Pattern[str] constant\n- _is_uuid4(value: str) -> bool function\n\
+  - validate_marker_file(candidate, *, require_uuid4_id=True) ->\n  tuple[Optional[ProjectMarker],\
+  \ Optional[MarkerValidationError]] function\n\n(Do not repeat or modify any of the\
+  \ above; only append new content.)\n\n## MRS concept excerpt\n\nC-001 ProjectRegistry:\n\
+  \  definition: Scans projects.root_dir on startup and explicit refresh.\n    Builds\
+  \ a registry of valid projects from projectid marker files.\n    Resolves project_id\
+  \ to a canonical project root path.\n  properties:\n    - Rejects duplicates; all\
+  \ conflicting projects disabled until operator\n      fixes conflict\n    - Rejects\
+  \ symlink escapes, relative traversal, and paths outside\n      projects.root_dir\n\
+  \    - Resolution is read-only; registry is built from marker files only\n    -\
+  \ require_uuid4_id config flag enforces UUID4 format on marker id field\n    - allow_nested_projects=false\
+  \ (default) rejects nested project markers\n\n## What to add\n\n### Additional imports\
+  \ to merge at top of file\n  from typing import Dict, FrozenSet, List, Optional\
+  \  # extend existing Optional import\n  from dataclasses import dataclass, field\
+  \  # extend existing dataclass import\n  import logging\n\n### @dataclass class\
+  \ RegistryEntry\n(NOT frozen — status field mutates)\nDocstring:\n  \"\"\"Single\
+  \ entry in the ProjectRegistry index.\"\"\"\nFields:\n  marker: ProjectMarker\n\
+  \    docstring: \"Validated marker data for this project.\"\n  disabled: bool =\
+  \ False\n    docstring: \"True when the entry is disabled due to a duplicate id\
+  \ conflict.\"\n  conflict_reason: Optional[str] = None\n    docstring: \"Human-readable\
+  \ reason for disabling, set when disabled=True.\"\n\n### class ProjectRegistry\n\
+  Docstring:\n  \"\"\"In-memory registry of valid mcp_terminal projects (C-001).\n\
+  \n  Built from projectid marker files found under projects.root_dir.\n  Provides\
+  \ project_id -> canonical host path resolution with path\n  containment enforcement.\n\
+  \  \"\"\"\n\nClass attributes:\n  MARKER_FILENAME: str = \"projectid\"  # fixed;\
+  \ never configurable\n\n__init__ signature:\n  def __init__(\n      self,\n    \
+  \  root_dir: Path,\n      *,\n      require_uuid4_id: bool = True,\n      allow_nested_projects:\
+  \ bool = False,\n  ) -> None:\n\n__init__ docstring:\n  \"\"\"Initialise registry\
+  \ without scanning.\n\n  Args:\n      root_dir: Host directory containing candidate\
+  \ project subdirectories.\n      require_uuid4_id: Enforce UUID4 format on marker\
+  \ id field.\n      allow_nested_projects: When False, reject markers inside\n  \
+  \        subdirectories of other project directories.\n  \"\"\"\n\n__init__ body:\n\
+  \  self._root_dir: Path = root_dir.resolve()\n  self._require_uuid4_id: bool = require_uuid4_id\n\
+  \  self._allow_nested_projects: bool = allow_nested_projects\n  self._entries: Dict[str,\
+  \ RegistryEntry] = {}\n  self._logger: logging.Logger = logging.getLogger(__name__)\n\
+  \n### build() method\nSignature:\n  def build(self) -> None:\nDocstring:\n  \"\"\
+  \"Scan projects.root_dir and build the in-memory project index.\n\n  Scans only\
+  \ direct subdirectories of root_dir. For each candidate,\n  attempts to read and\
+  \ validate the projectid marker file. Rejects:\n  - files directly inside root_dir\
+  \ (not subdirectories)\n  - directories without the marker file\n  - invalid markers\
+  \ (invalid JSON, missing fields, UUID4 violations)\n  - directories that resolve\
+  \ outside root_dir\n  - nested project markers when allow_nested_projects is False\n\
+  \  On duplicate id detection, disables all conflicting entries.\n  \"\"\"\nImplementation:\n\
+  \  self._entries.clear()\n  # Accumulate all valid markers first, then check duplicates\n\
+  \  candidates: List[tuple[Path, ProjectMarker]] = []\n  for subdir in self._root_dir.iterdir():\n\
+  \      if not subdir.is_dir():\n          continue  # files directly inside root_dir\
+  \ are rejected\n      marker_path = subdir / self.MARKER_FILENAME\n      marker,\
+  \ err = validate_marker_file(\n          marker_path, require_uuid4_id=self._require_uuid4_id\n\
+  \      )\n      if err:\n          self._logger.debug(\"Skipping %s: %s\", marker_path,\
+  \ err.reason)\n          continue\n      # Check path containment\n      real_root\
+  \ = self._root_dir\n      real_project = marker.project_dir.resolve()\n      try:\n\
+  \          real_project.relative_to(real_root)\n      except ValueError:\n     \
+  \     self._logger.warning(\n              \"Rejecting %s: project path outside\
+  \ root\", real_project\n          )\n          continue\n      # Reject nested markers\
+  \ unless allow_nested_projects\n      if not self._allow_nested_projects:\n    \
+  \      for existing_path, _ in candidates:\n              try:\n               \
+  \   real_project.relative_to(existing_path)\n                  self._logger.warning(\n\
+  \                      \"Rejecting nested project %s inside %s\",\n            \
+  \          real_project, existing_path,\n                  )\n                 \
+  \ break\n              except ValueError:\n                  pass\n          else:\n\
+  \              candidates.append((real_project, marker))\n      else:\n        \
+  \  candidates.append((real_project, marker))\n\n  # Detect duplicates\n  seen: Dict[str,\
+  \ list] = {}\n  for _, marker in candidates:\n      seen.setdefault(marker.project_id,\
+  \ []).append(marker)\n  for project_id, markers in seen.items():\n      if len(markers)\
+  \ == 1:\n          self._entries[project_id] = RegistryEntry(marker=markers[0])\n\
+  \      else:\n          conflict_reason = (\n              f\"Duplicate project_id\
+  \ {project_id!r} found in \"\n              f\"{[str(m.project_dir) for m in markers]}\"\
+  \n          )\n          self._logger.error(conflict_reason)\n          for marker\
+  \ in markers:\n              self._entries[project_id] = RegistryEntry(\n      \
+  \            marker=marker,\n                  disabled=True,\n                \
+  \  conflict_reason=conflict_reason,\n              )\n\n### known_project_ids()\
+  \ property\nSignature:\n  @property\n  def known_project_ids(self) -> FrozenSet[str]:\n\
+  Docstring: \"\"\"All project ids in the registry, including disabled entries.\"\"\
+  \"\nBody: return frozenset(self._entries.keys())\n\n## Constraints\n- Do not modify\
+  \ any existing code in the file.\n- All type annotations required.\n- File must\
+  \ not exceed 350 lines after this step.\n- Line length limit 99. Must pass flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/project_registry.py
+  expected: '`from mcp_terminal.services.project_registry import ProjectRegistry`
+    succeeds. Instantiating ProjectRegistry(root_dir=Path("/tmp")) and calling build()
+    completes without error. known_project_ids returns a frozenset.'
+status: draft

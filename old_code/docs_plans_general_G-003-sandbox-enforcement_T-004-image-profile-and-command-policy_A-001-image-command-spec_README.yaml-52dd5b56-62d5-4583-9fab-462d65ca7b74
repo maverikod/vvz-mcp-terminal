@@ -1,0 +1,97 @@
+step_id: A-001
+parent_tactical_step: T-004
+name: Image profile allowlist and command policy in SandboxPolicy
+target_file: mcp_terminal/services/sandbox_policy.py
+operation: modify_file
+priority: 4
+depends_on: []
+concepts:
+- C-003
+- C-010
+prompt: "Modify the file `mcp_terminal/services/sandbox_policy.py`.\n\nOperation:\
+  \ modify_file\n\n## Current file content structure (after all prior steps on this\
+  \ file)\n\nAfter G-001/T-001, G-001/T-002, G-003/T-001, G-003/T-003, the file has\n\
+  this order of definitions (top to bottom):\n1. Module docstring\n2. Imports: from\
+  \ __future__ import annotations; from dataclasses import\n   dataclass, field; from\
+  \ enum import Enum, auto; from pathlib import Path;\n   from typing import Dict,\
+  \ FrozenSet, Optional\n   (Note: add `Dict` to typing import if not already present,\
+  \ needed for\n   ImageAndCommandSpec.environment: dict and IMAGE_PROFILE_MAP: Dict[str,\
+  \ str])\n3. class TrustCategory(Enum)\n4. @dataclass(frozen=True) TrustBoundary\n\
+  5. TERMINAL_TRUST_BOUNDARY: TrustBoundary\n6. @dataclass(frozen=True) PolicyConfig\n\
+  7. DEFAULT_POLICY_CONFIG: PolicyConfig\n8. @dataclass(frozen=True) MountSpec\n9.\
+  \ @dataclass(frozen=True) NetworkSpec\n10. DEFAULT_NETWORK_SPEC: NetworkSpec\n11.\
+  \ PACKAGE_REGISTRY_NETWORK_SPEC: NetworkSpec\n12. @dataclass(frozen=True) ValidationResult\n\
+  13. class SandboxPolicy:\n    - _FORBIDDEN_OPTIONS class attribute\n    - __init__(self,\
+  \ config: PolicyConfig = DEFAULT_POLICY_CONFIG) -> None\n    - validate(self, *,\
+  \ project_id, execution_kind, cwd, mode, network,\n      image_profile, command,\
+  \ argv) -> ValidationResult\n    - build_mount_spec(self, *, workspace_source, mode,\
+  \ cwd) ->\n      tuple[Optional[MountSpec], Optional[ValidationResult]]\n    - build_network_spec(self,\
+  \ network: str) ->\n      tuple[Optional[NetworkSpec], Optional[ValidationResult]]\n\
+  \n## MRS concept excerpt\n\nC-003 SandboxPolicy:\n  - Image profile must be from\
+  \ server-side allowlist; caller cannot provide\n    image names\n  - Command policy\
+  \ denies empty argv, NUL bytes, absolute executables outside\n    safe PATH\n\n\
+  ## What to add\n\n### @dataclass(frozen=True) ImageAndCommandSpec  (insert after\
+  \ PACKAGE_REGISTRY_NETWORK_SPEC, before ValidationResult)\n\n```python\n@dataclass(frozen=True)\n\
+  class ImageAndCommandSpec:\n    \"\"\"Validated image reference and resolved command\
+  \ configuration (C-003/C-010).\n\n    Produced by SandboxPolicy.build_image_and_command_spec().\n\
+  \    Consumed by ContainerRunner.build_cmd().\n    \"\"\"\n\n    image_reference:\
+  \ str\n    \"\"\"Concrete server-side image reference resolved from image_profile.\"\
+  \"\"\n    execution_kind: str\n    \"\"\"Validated execution kind: 'shell' or 'argv'.\"\
+  \"\"\n    resolved_argv: list\n    \"\"\"Actual argv passed to container entrypoint.\"\
+  \"\"\n    environment: dict\n    \"\"\"Safe minimal environment variables; no host\
+  \ secrets.\"\"\"\n    resolved_executable: Optional[str]\n    \"\"\"First element\
+  \ of resolved_argv for audit logging; may be None for shell.\"\"\"\n```\n\n### Module-level\
+  \ constant IMAGE_PROFILE_MAP (insert after ImageAndCommandSpec, before ValidationResult)\n\
+  \n```python\nIMAGE_PROFILE_MAP: Dict[str, str] = {\n    \"python_dev_3_12\": \"\
+  ghcr.io/mcp-terminal/python-dev:3.12\",\n    \"node_dev_20\": \"ghcr.io/mcp-terminal/node-dev:20\"\
+  ,\n    \"base_tools\": \"ghcr.io/mcp-terminal/base-tools:latest\",\n}\n```\n\nNote:\
+  \ `Dict` must be imported from typing. Add it to the existing typing\nimport line:\
+  \ `from typing import Dict, FrozenSet, Optional`.\n\n### build_image_and_command_spec()\
+  \ method on SandboxPolicy\n\nAdd after build_network_spec() as the last method of\
+  \ the class:\n\n```python\n    def build_image_and_command_spec(\n        self,\n\
+  \        *,\n        image_profile: str,\n        execution_kind: str,\n       \
+  \ command: Optional[str],\n        argv: Optional[list],\n    ) -> tuple[Optional[ImageAndCommandSpec],\
+  \ Optional[ValidationResult]]:\n        \"\"\"Validate image profile and build resolved\
+  \ command specification.\n\n        Maps image_profile to a concrete server-side\
+  \ image reference.\n        Resolves execution_kind and command/argv into the final\
+  \ resolved_argv.\n        Records the resolved executable for audit logging.\n\n\
+  \        Args:\n            image_profile: Caller-supplied profile name; must be\
+  \ in the\n                server allowlist.\n            execution_kind: 'shell'\
+  \ or 'argv'.\n            command: Shell command string; required for shell kind.\n\
+  \            argv: Argv list; required for argv kind.\n\n        Returns:\n    \
+  \        (ImageAndCommandSpec, None) on success, or (None, ValidationResult)\n \
+  \           with error_code='IMAGE_PROFILE_NOT_ALLOWED' or 'INVALID_COMMAND'.\n\
+  \        \"\"\"\n        image_ref = IMAGE_PROFILE_MAP.get(image_profile)\n    \
+  \    if image_ref is None:\n            return None, ValidationResult(\n       \
+  \         permitted=False,\n                error_code=\"IMAGE_PROFILE_NOT_ALLOWED\"\
+  ,\n                rejected_field=\"image_profile\",\n                detail=f\"\
+  image_profile {image_profile!r} is not in the server allowlist\",\n            )\n\
+  \        safe_env: dict = {\n            \"HOME\": \"/tmp/home\",\n            \"\
+  TMPDIR\": \"/tmp\",\n            \"PATH\": \"/usr/local/bin:/usr/bin:/bin\",\n \
+  \       }\n        resolved_exe: Optional[str]\n        if execution_kind == \"\
+  shell\":\n            resolved = [\"bash\", \"-lc\", command or \"\"]\n        \
+  \    resolved_exe = None\n        else:\n            resolved = list(argv or [])\n\
+  \            resolved_exe = resolved[0] if resolved else None\n            if resolved_exe\
+  \ and resolved_exe.startswith(\"/\"):\n                safe = any(\n           \
+  \         resolved_exe.startswith(p)\n                    for p in self._config.safe_path_prefixes\n\
+  \                )\n                if not safe:\n                    return None,\
+  \ ValidationResult(\n                        permitted=False,\n                \
+  \        error_code=\"INVALID_COMMAND\",\n                        rejected_field=\"\
+  argv\",\n                        detail=f\"absolute executable {resolved_exe!r}\
+  \ outside safe PATH\",\n                    )\n        return ImageAndCommandSpec(\n\
+  \            image_reference=image_ref,\n            execution_kind=execution_kind,\n\
+  \            resolved_argv=resolved,\n            environment=safe_env,\n      \
+  \      resolved_executable=resolved_exe,\n        ), None\n```\n\n## Constraints\n\
+  - Insert ImageAndCommandSpec and IMAGE_PROFILE_MAP before ValidationResult.\n- Add\
+  \ build_image_and_command_spec() as last method of SandboxPolicy.\n- Add `Dict`\
+  \ to the `from typing import` line if not present.\n- Do not remove or alter any\
+  \ existing code.\n- File must not exceed 400 lines total after this step.\n- Line\
+  \ length limit 99. Must pass flake8.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/sandbox_policy.py
+  expected: '`from mcp_terminal.services.sandbox_policy import ImageAndCommandSpec,
+    SandboxPolicy` succeeds. SandboxPolicy().build_image_and_command_spec( image_profile="python_dev_3_12",
+    execution_kind="argv", command=None, argv=["pytest", "-q"]) returns (ImageAndCommandSpec(image_reference="ghcr.io/mcp-terminal/python-dev:3.12",
+    resolved_argv=["pytest", "-q"], resolved_executable="pytest"), None).'
+status: draft
