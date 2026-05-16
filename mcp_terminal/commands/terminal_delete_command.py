@@ -11,6 +11,7 @@ from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
+from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import get_session_store
 
 
@@ -20,8 +21,7 @@ class TerminalDeleteCommand(Command):
     name: ClassVar[str] = "terminal_delete"
     version: ClassVar[str] = "1.0.0"
     descr: ClassVar[str] = (
-        "Delete a terminal session. Requires session_id; project_id, when set, "
-        "must match the session's project."
+        "Delete a terminal session for the (project_id, session_id) composite key."
     )
     category: ClassVar[str] = "custom"
     author: ClassVar[str] = "Vasiliy Zdanovskiy"
@@ -33,33 +33,37 @@ class TerminalDeleteCommand(Command):
         return {
             "type": "object",
             "properties": {
-                "session_id": {"type": "string", "description": "Session UUID4 to delete."},
-                "project_id": {
-                    "type": "string",
-                    "description": "Optional; when provided, must match the session's project.",
-                },
+                "project_id": {"type": "string", "description": "Project UUID4."},
+                "session_id": {"type": "string", "description": "Session UUID4."},
                 "force": {
                     "type": "boolean",
                     "default": False,
                     "description": "When true, delete even if the session is running.",
                 },
             },
-            "required": ["session_id"],
+            "required": ["project_id", "session_id"],
             "additionalProperties": False,
         }
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)
-        session_id = str(kwargs.get("session_id", "")).strip()
-        project_id_opt = kwargs.get("project_id")
+        project_id = str(kwargs.get("project_id", ""))
+        session_id = str(kwargs.get("session_id", ""))
         force = bool(kwargs.get("force", False))
+        record, err = resolve_session(project_id, session_id)
+        if err == "INVALID_SESSION":
+            return CommandResult(
+                success=True,
+                data={"deleted": True, "session_id": session_id, "project_id": project_id},
+            )
+        if err is not None:
+            return CommandResult(success=False, error=err)
+        assert record is not None
         session_store = get_session_store()
-        record = session_store.get_session(session_id)
-        if record is None:
-            return CommandResult(success=True, data={"deleted": True, "session_id": session_id})
-        if project_id_opt is not None and str(project_id_opt).strip() != record.project_id:
-            return CommandResult(success=False, error="INVALID_SESSION")
-        ok = session_store.delete_session(session_id, force=force)
+        ok = session_store.delete_session(record.project_id, record.session_id, force=force)
         if not ok:
             return CommandResult(success=False, error="SESSION_RUNNING")
-        return CommandResult(success=True, data={"deleted": True, "session_id": session_id})
+        return CommandResult(
+            success=True,
+            data={"deleted": True, "session_id": session_id, "project_id": project_id},
+        )

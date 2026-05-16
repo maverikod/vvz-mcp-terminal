@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
+from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.running_terminal_jobs import kill as kill_running
@@ -64,12 +65,11 @@ class TerminalKillCommand(Command):
         if seq < 1:
             return CommandResult(success=False, error="INVALID_SEQ")
 
+        srec, err = resolve_session(project_id, session_id)
+        if err is not None:
+            return CommandResult(success=False, error=err)
         session_store = get_session_store()
-        srec = session_store.get_session(session_id)
-        if srec is None or srec.project_id != project_id:
-            return CommandResult(success=False, error="INVALID_SESSION")
-
-        session_store.touch_activity(session_id)
+        session_store.touch_activity(srec.project_id, srec.session_id)
         history = CommandHistory(srec.session_dir)
         all_records = history.list_records(limit=10000)
         cmd_record = next((r for r in all_records if r.seq == seq), None)

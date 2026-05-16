@@ -58,6 +58,7 @@ class TerminalSessionsCommand(Command):
                 "created_at": r.created_at.isoformat(),
                 "last_activity_at": r.last_activity_at.isoformat(),
                 "status": r.status,
+                "workspace_write": r.workspace_write,
             }
             for r in sessions[:limit]
         ]

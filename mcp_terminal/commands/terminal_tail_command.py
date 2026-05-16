@@ -11,6 +11,7 @@ from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
+from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.output_reader import DEFAULT_TAIL_LINES, OutputReader
 
@@ -54,11 +55,11 @@ class TerminalTailCommand(Command):
         seq = int(kwargs.get("seq", 0))
         stream = str(kwargs.get("stream", "stdout"))
         lines = int(kwargs.get("lines", DEFAULT_TAIL_LINES))
+        record, err = resolve_session(project_id, session_id)
+        if err is not None:
+            return CommandResult(success=False, error=err)
         session_store = get_session_store()
-        record = session_store.get_session(session_id)
-        if record is None or record.project_id != project_id:
-            return CommandResult(success=False, error="INVALID_SESSION")
-        session_store.touch_activity(session_id)
+        session_store.touch_activity(record.project_id, record.session_id)
         reader = OutputReader(record.session_dir)
         tail_lines, err = reader.tail(seq, stream, lines=lines)
         if err is not None:

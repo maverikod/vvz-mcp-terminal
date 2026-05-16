@@ -19,6 +19,7 @@ import urllib.request
 import ssl
 from pathlib import Path
 
+from mcp_terminal.cli_sessions_purge import add_purge_sessions_parser
 from mcp_terminal.paths import repo_root
 from mcp_terminal.term_config import (
     DEFAULT_TERM_SERVER_LISTEN_PORT,
@@ -173,6 +174,7 @@ def main() -> None:
         help="Stop term_server if running, then start it again",
     ).set_defaults(func=cmd_restart)
     sub.add_parser("status", help="Show pid and probe HTTPS /health").set_defaults(func=cmd_status)
+    add_purge_sessions_parser(sub)
     ns = parser.parse_args()
     code: int = ns.func(ns)
     raise SystemExit(code)

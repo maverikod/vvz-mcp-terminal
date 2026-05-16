@@ -25,6 +25,9 @@ from mcp_proxy_adapter.core.app_factory.ssl_config import build_server_ssl_confi
 from mcp_proxy_adapter.core.server_engine import ServerEngineFactory
 from mcp_terminal.commands.terminal_delete_command import TerminalDeleteCommand
 from mcp_terminal.commands.terminal_get_command import TerminalGetCommand
+from mcp_terminal.commands.terminal_get_session_bootstrap_command import (
+    TerminalGetSessionBootstrapCommand,
+)
 from mcp_terminal.commands.terminal_get_status_command import TerminalGetStatusCommand
 from mcp_terminal.commands.terminal_kill_command import TerminalKillCommand
 from mcp_terminal.commands.terminal_list_command import TerminalListCommand
@@ -72,6 +75,7 @@ _install_project_registry({}, None)
 _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
     TerminalSessionsCommand,
     TerminalSessionCreateCommand,
+    TerminalGetSessionBootstrapCommand,
     TerminalRunCommand,
     TerminalListCommand,
     TerminalListWatchCommand,

@@ -11,6 +11,7 @@ from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
+from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.output_reader import DEFAULT_MAX_BYTES, OutputReader
 
@@ -65,11 +66,11 @@ class TerminalReadCommand(Command):
         stream = str(kwargs.get("stream", "stdout"))
         offset = int(kwargs.get("offset", 0))
         max_bytes = int(kwargs.get("max_bytes", DEFAULT_MAX_BYTES))
+        record, err = resolve_session(project_id, session_id)
+        if err is not None:
+            return CommandResult(success=False, error=err)
         session_store = get_session_store()
-        record = session_store.get_session(session_id)
-        if record is None or record.project_id != project_id:
-            return CommandResult(success=False, error="INVALID_SESSION")
-        session_store.touch_activity(session_id)
+        session_store.touch_activity(record.project_id, record.session_id)
         reader = OutputReader(record.session_dir)
         raw, err = reader.read(seq, stream, offset=offset, max_bytes=max_bytes)
         if err is not None:

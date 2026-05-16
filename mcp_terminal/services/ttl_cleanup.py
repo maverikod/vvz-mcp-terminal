@@ -82,7 +82,11 @@ class TtlCleanupService:
             if record.status == "running" and not self._delete_running:
                 self._logger.debug("Skipping running session %s", record.session_id)
                 continue
-            deleted = self._store.delete_session(record.session_id, force=self._delete_running)
+            deleted = self._store.delete_session(
+                record.project_id,
+                record.session_id,
+                force=self._delete_running,
+            )
             if deleted:
                 self._logger.info(
                     "TTL deleted session %s (age=%.0fs)",

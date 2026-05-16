@@ -37,7 +37,7 @@ def test_terminal_domain_modules_importable() -> None:
     from mcp_terminal.config.config_validator import validate_terminal_config  # noqa: F401
 
     assert SandboxPolicy is not None
-    assert len(ALL_ERROR_CODES) == 15
+    assert len(ALL_ERROR_CODES) == 20
 
 
 def test_command_modules_importable() -> None:
@@ -60,9 +60,13 @@ def test_command_modules_importable() -> None:
     from mcp_terminal.commands.terminal_search_output_command import (
         TerminalSearchOutputCommand,
     )
+    from mcp_terminal.commands.terminal_get_session_bootstrap_command import (
+        TerminalGetSessionBootstrapCommand,
+    )
     from mcp_terminal.commands.terminal_session_create_command import (
         TerminalSessionCreateCommand,
     )
+    from mcp_terminal.jobs.session_bootstrap_job import SessionBootstrapJob  # noqa: F401
     from mcp_terminal.commands.terminal_sessions_command import (  # noqa: F401
         TerminalSessionsCommand,
     )
@@ -72,6 +76,7 @@ def test_command_modules_importable() -> None:
     assert TerminalGetStatusCommand.name == "terminal_get_status"
     assert TerminalRunCommand.name == "terminal_run"
     assert TerminalSessionCreateCommand.name == "terminal_session_create"
+    assert TerminalGetSessionBootstrapCommand.name == "terminal_get_session_bootstrap"
     assert TerminalReadCommand.name == "terminal_read"
     assert TerminalTailCommand.name == "terminal_tail"
     assert TerminalStatCommand.name == "terminal_stat"
@@ -104,4 +109,4 @@ def test_error_codes_stable() -> None:
     assert "PROJECT_NOT_FOUND" in ALL_ERROR_CODES
     assert "INVALID_SESSION" in ALL_ERROR_CODES
     assert "CONTAINER_CLEANUP_FAILED" in ALL_ERROR_CODES
-    assert len(ALL_ERROR_CODES) == 15
+    assert len(ALL_ERROR_CODES) == 20

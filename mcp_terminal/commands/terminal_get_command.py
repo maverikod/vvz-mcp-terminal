@@ -11,6 +11,7 @@ from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
+from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
 
@@ -49,11 +50,11 @@ class TerminalGetCommand(Command):
         project_id = str(kwargs.get("project_id", ""))
         session_id = str(kwargs.get("session_id", ""))
         seq = int(kwargs.get("seq", 0))
+        record, err = resolve_session(project_id, session_id)
+        if err is not None:
+            return CommandResult(success=False, error=err)
         session_store = get_session_store()
-        record = session_store.get_session(session_id)
-        if record is None or record.project_id != project_id:
-            return CommandResult(success=False, error="INVALID_SESSION")
-        session_store.touch_activity(session_id)
+        session_store.touch_activity(record.project_id, record.session_id)
         history = CommandHistory(record.session_dir)
         all_records = history.list_records(limit=10000)
         for r in all_records:

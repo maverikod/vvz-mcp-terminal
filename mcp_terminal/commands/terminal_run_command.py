@@ -14,6 +14,7 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Dict, List, Optional, Type
 
@@ -21,6 +22,7 @@ from mcp_proxy_adapter.commands.base import Command, CommandResult
 from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
 
 from mcp_terminal.jobs.terminal_execution_job import JobParams, TerminalExecutionJob
+from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import registry_resolve_project, get_session_store
 from mcp_terminal.services.command_history import CommandHistory, CommandRecord
 from mcp_terminal.services.container_runner import ContainerSpec, workspace_bind_mount_user
@@ -125,10 +127,13 @@ class TerminalRunCommand(Command):
                 error=resolved.error_code or "PROJECT_NOT_FOUND",
             )
 
+        srec, sess_err = resolve_session(project_id, session_id)
+        if sess_err is not None or srec is None:
+            return CommandResult(success=False, error=sess_err or "INVALID_SESSION")
         session_store = get_session_store()
-        srec = session_store.get_session(session_id)
-        if srec is None or srec.project_id != project_id:
-            return CommandResult(success=False, error="INVALID_SESSION")
+
+        if mode == "workspace_write" and not srec.workspace_write:
+            return CommandResult(success=False, error="WORKSPACE_WRITE_NOT_ALLOWED")
 
         policy = SandboxPolicy()
         check = policy.validate(
@@ -151,6 +156,8 @@ class TerminalRunCommand(Command):
         )
         if m_err is not None or mount is None:
             return CommandResult(success=False, error=m_err.error_code if m_err else "INVALID_CWD")
+        if not srec.workspace_write:
+            mount = replace(mount, workspace_readonly=True)
 
         net, n_err = policy.build_network_spec(network)
         if n_err is not None or net is None:
@@ -182,7 +189,7 @@ class TerminalRunCommand(Command):
         if img_err:
             return CommandResult(success=False, error=img_err)
 
-        session_store.touch_activity(session_id)
+        session_store.touch_activity(project_id, session_id)
         history = CommandHistory(srec.session_dir)
         seq = history.allocate_seq()
         stdout_file, stderr_file, meta_file = history.pre_create_output_files(seq)

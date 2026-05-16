@@ -14,9 +14,37 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from mcp_terminal.services.project_runtime_image import ensure_project_runtime_image
+
+_BOOTSTRAP_JSON = "bootstrap.json"
+
+
+def write_bootstrap_pending(session_dir: Path, *, job_id: str) -> None:
+    """Write ``bootstrap.json`` while the adapter queue job is pending."""
+    payload: Dict[str, Any] = {
+        "runtime_image": {
+            "status": "pending",
+            "job_id": job_id,
+        }
+    }
+    (session_dir / _BOOTSTRAP_JSON).write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
+
+
+def read_bootstrap_state(session_dir: Path) -> Optional[Dict[str, Any]]:
+    """Return parsed ``bootstrap.json`` or None if missing."""
+    path = session_dir / _BOOTSTRAP_JSON
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 @dataclass(frozen=True)
@@ -51,6 +79,7 @@ def run_session_runtime_bootstrap(
     )
     payload: Dict[str, Any] = {
         "runtime_image": {
+            "status": "completed" if ok else "failed",
             "success": ok,
             "skipped_build": skipped,
             "exit_code": code,
