@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,9 +19,7 @@ from typing import Any, List, Set
 
 from mcp_terminal.services.project_roots import merged_project_anchor_dirs
 from mcp_terminal.services.session_store import SessionStore
-
-_MCP_TERMINAL_IMAGE_PREFIX = "mcp-terminal:pid-"
-_SESSION_CONTAINER_PREFIX = "mcp-term-"
+from mcp_terminal.services.terminal_container_purge import remove_all_terminal_containers
 
 
 @dataclass
@@ -66,90 +63,6 @@ def discover_terminals_dirs(config_path: Path) -> List[Path]:
     return sorted(found)
 
 
-def kill_mcp_terminal_sandbox_containers(*, dry_run: bool = False) -> int:
-    """SIGKILL running containers whose image tag starts with ``mcp-terminal:pid-``."""
-    try:
-        out = subprocess.check_output(
-            ["docker", "ps", "--format", "{{.ID}}\t{{.Image}}"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=60,
-        )
-    except FileNotFoundError:
-        return 0
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return 0
-
-    killed = 0
-    for line in out.splitlines():
-        line = line.strip()
-        if not line or "\t" not in line:
-            continue
-        cid, image = line.split("\t", 1)
-        if not image.startswith(_MCP_TERMINAL_IMAGE_PREFIX):
-            continue
-        if dry_run:
-            killed += 1
-            continue
-        try:
-            subprocess.run(
-                ["docker", "kill", "-9", cid],
-                capture_output=True,
-                timeout=30,
-                check=False,
-            )
-            killed += 1
-        except (subprocess.TimeoutExpired, OSError):
-            pass
-    return killed
-
-
-def kill_session_containers(*, dry_run: bool = False) -> int:
-    """Remove session idle containers (``mcp-term-*`` names or session label)."""
-    try:
-        fmt = "{{.ID}}\t{{.Names}}\t{{.Label \"mcp.terminal.session\"}}"
-        out = subprocess.check_output(
-            ["docker", "ps", "-a", "--format", fmt],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=60,
-        )
-    except FileNotFoundError:
-        return 0
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return 0
-
-    removed = 0
-    for line in out.splitlines():
-        line = line.strip()
-        if not line or "\t" not in line:
-            continue
-        parts = line.split("\t")
-        if len(parts) < 2:
-            continue
-        cid = parts[0]
-        names = parts[1]
-        label = parts[2] if len(parts) > 2 else ""
-        if label != "true" and not any(
-            n.startswith(_SESSION_CONTAINER_PREFIX) for n in names.split(",")
-        ):
-            continue
-        if dry_run:
-            removed += 1
-            continue
-        try:
-            subprocess.run(
-                ["docker", "rm", "-f", cid],
-                capture_output=True,
-                timeout=30,
-                check=False,
-            )
-            removed += 1
-        except (subprocess.TimeoutExpired, OSError):
-            pass
-    return removed
-
-
 def purge_all_terminal_sessions(
     config_path: Path,
     *,
@@ -160,8 +73,7 @@ def purge_all_terminal_sessions(
     """Remove every ``.terminals/<session_id>/`` tree; optionally kill Docker sandboxes."""
     report = PurgeReport()
     if kill_docker:
-        report.containers_killed = kill_mcp_terminal_sandbox_containers(dry_run=dry_run)
-        report.containers_killed += kill_session_containers(dry_run=dry_run)
+        report.containers_killed = remove_all_terminal_containers(dry_run=dry_run)
 
     try:
         terminals_dirs = discover_terminals_dirs(config_path)
@@ -216,7 +128,7 @@ def add_purge_sessions_parser(sub: Any) -> None:
     """Register ``purge-sessions`` on a ``termgr`` subparser group."""
     p = sub.add_parser(
         "purge-sessions",
-        help="SIGKILL mcp-terminal sandbox containers and delete all .terminals/ session dirs",
+        help="Remove all terminal sandbox containers and delete .terminals/ session dirs",
     )
     p.add_argument(
         "--config",
@@ -232,7 +144,7 @@ def add_purge_sessions_parser(sub: Any) -> None:
     p.add_argument(
         "--no-kill-docker",
         action="store_true",
-        help="Skip docker kill for containers using mcp-terminal:pid-* images",
+        help="Skip docker rm for terminal sandbox containers (mcp-term-*, ghcr.io/mcp-terminal/*, …)",
     )
     p.add_argument(
         "--remove-runtime",

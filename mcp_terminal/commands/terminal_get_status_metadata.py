@@ -15,11 +15,13 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "email": cls.email,
         "detailed_description": (
             "Polls adapter queue status and terminal command completion for one "
-            "``terminal_run`` seq. **Queue completed ≠ command succeeded** — always "
+            "``terminal_run`` or ``terminal_run_host`` seq. **Queue completed ≠ command "
+            "succeeded** — always "
             "check ``exit_code`` and ``timed_out`` in the terminal section when status "
             "is completed.\n\n"
-            "Use the same project_id and session_id as terminal_run. Typical loop: "
-            "terminal_run → terminal_get_status (repeat) → terminal_tail."
+            "Use the same project_id and session_id as the run command. Typical loop: "
+            "terminal_run (or terminal_run_host) → terminal_get_status (repeat) → "
+            "terminal_tail."
         ),
         "parameters": {
             "project_id": {"description": "Project UUID4.", "type": "string", "required": True},

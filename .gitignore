@@ -100,3 +100,4 @@ docker/data/
 configs/term_server.json
 configs/*.pre_proxy_registration.bak/.terminals/
 old_code//.mcp_terminal/
+.mcp_terminal/

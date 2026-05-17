@@ -38,6 +38,12 @@
     "heartbeat_interval": 30,
     "server_id": "mcp-terminal",
     "server_name": "MCP Terminal",
+    "metadata": {
+      "server_id": "mcp-terminal",
+      "server_name": "MCP Terminal",
+      "description": "Sandboxed terminal sessions per project: Docker session containers, shell_state.json (persistent cwd), keep_container for multi-step work, terminal_* commands.",
+      "version": "0.1.0"
+    },
     "instance_uuid": "00000000-0000-4000-8000-000000000001",
     "auto_on_startup": true,
     "auto_on_shutdown": true,

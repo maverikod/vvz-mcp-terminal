@@ -17,7 +17,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from mcp_terminal.services.shell_state import ShellState, write_shell_state
+from mcp_terminal.services.shell_state import (
+    ShellState,
+    initial_shell_state_for_project,
+    write_shell_state,
+)
+from mcp_terminal.services.pid_namespace import (
+    PID_NAMESPACE_CONTAINER,
+    normalize_pid_namespace,
+)
+from mcp_terminal.services.terminal_defaults import (
+    resolve_default_pid_namespace,
+    resolve_default_use_venv,
+    resolve_default_workspace_write,
+)
 from mcp_terminal.services.session_container import stop_session_container
 
 SessionKey = Tuple[str, str]
@@ -36,6 +49,8 @@ class SessionRecord:
     status: str = "idle"
     workspace_write: bool = False
     """When True, this session may mount /workspace read-write for its project."""
+    pid_namespace: str = PID_NAMESPACE_CONTAINER
+    """Docker PID mode: ``container`` (default) or ``host`` (``--pid=host``)."""
 
 
 class SessionStore:
@@ -62,6 +77,9 @@ class SessionStore:
         project_id: str,
         session_id: str,
         project_dir: Path,
+        use_venv: Optional[bool] = None,
+        pid_namespace: Optional[str] = None,
+        workspace_write: Optional[bool] = None,
     ) -> Tuple[Optional[SessionRecord], bool, Optional[str]]:
         """Create or adopt a session. Returns (record, created, error_code)."""
         key = self._key(project_id, session_id)
@@ -86,13 +104,18 @@ class SessionStore:
             self._sessions[key] = rec
             return rec, False, None
 
-        rec = self._create_new(
+        rec, create_err = self._create_new(
             project_id=project_id,
             session_id=session_id,
             project_dir=project_dir,
             session_dir=session_dir,
             terminals_root=terminals_root,
+            use_venv=use_venv,
+            pid_namespace=pid_namespace,
+            workspace_write=workspace_write,
         )
+        if create_err is not None:
+            return None, False, create_err
         self._sessions[key] = rec
         return rec, True, None
 
@@ -104,12 +127,36 @@ class SessionStore:
         project_dir: Path,
         session_dir: Path,
         terminals_root: Path,
-    ) -> SessionRecord:
+        use_venv: Optional[bool] = None,
+        pid_namespace: Optional[str] = None,
+        workspace_write: Optional[bool] = None,
+    ) -> Tuple[Optional[SessionRecord], Optional[str]]:
         terminals_root.mkdir(parents=True, exist_ok=True)
         session_dir.mkdir(parents=True, exist_ok=True)
         self._ensure_gitignore(project_dir)
         now = datetime.now(timezone.utc)
-        workspace_write = self._workspace_write_for(project_id, session_id)
+
+        wants_write = (
+            workspace_write
+            if workspace_write is not None
+            else resolve_default_workspace_write()
+        )
+        if wants_write:
+            current = self._project_writer.get(project_id)
+            if current is not None and current != session_id:
+                return None, "WORKSPACE_WRITE_NOT_ALLOWED"
+            self._project_writer[project_id] = session_id
+            ws_on_disk = True
+        else:
+            ws_on_disk = False
+
+        if pid_namespace is None:
+            pid_ns = normalize_pid_namespace(None, default=resolve_default_pid_namespace())
+        else:
+            pid_ns = normalize_pid_namespace(pid_namespace)
+
+        venv_on = use_venv if use_venv is not None else resolve_default_use_venv()
+
         record = SessionRecord(
             session_id=session_id,
             project_id=project_id,
@@ -117,17 +164,23 @@ class SessionStore:
             session_dir=session_dir,
             created_at=now,
             last_activity_at=now,
-            workspace_write=workspace_write,
+            workspace_write=ws_on_disk,
+            pid_namespace=pid_ns,
         )
         self._write_session_json(record)
-        write_shell_state(session_dir, ShellState())
+        write_shell_state(
+            session_dir,
+            initial_shell_state_for_project(project_dir, use_venv=venv_on),
+        )
         self._logger.info(
-            "Created session %s for project %s (workspace_write=%s)",
+            "Created session %s for project %s (workspace_write=%s use_venv=%s pid_namespace=%s)",
             session_id,
             project_id,
-            workspace_write,
+            ws_on_disk,
+            venv_on,
+            pid_ns,
         )
-        return record
+        return record, None
 
     def _adopt_from_disk(
         self,
@@ -159,7 +212,18 @@ class SessionStore:
             created_at = None
         if created_at is None:
             created_at = datetime.now(timezone.utc)
-        workspace_write = self._workspace_write_for(project_id, session_id)
+        ws_raw = meta.get("workspace_write")
+        if isinstance(ws_raw, bool):
+            workspace_write = ws_raw
+        else:
+            workspace_write = False
+        if workspace_write:
+            self._project_writer[project_id] = session_id
+        stored_pid_ns = meta.get("pid_namespace")
+        if stored_pid_ns is None:
+            pid_ns = normalize_pid_namespace(None, default=resolve_default_pid_namespace())
+        else:
+            pid_ns = normalize_pid_namespace(stored_pid_ns)
         record = SessionRecord(
             session_id=session_id,
             project_id=project_id,
@@ -169,6 +233,7 @@ class SessionStore:
             last_activity_at=datetime.now(timezone.utc),
             status=str(meta.get("status", "idle")),
             workspace_write=workspace_write,
+            pid_namespace=pid_ns,
         )
         self._write_session_json(record)
         self._logger.info(
@@ -236,6 +301,7 @@ class SessionStore:
             "last_activity_at": record.last_activity_at.isoformat(),
             "status": record.status,
             "workspace_write": record.workspace_write,
+            "pid_namespace": record.pid_namespace,
         }
         (record.session_dir / "session.json").write_text(
             json.dumps(meta, indent=2),
@@ -251,6 +317,12 @@ class SessionStore:
                 if gi_line.strip() not in existing:
                     fh.write(gi_line)
                     existing += gi_line
+
+    def persist_session_record(self, record: SessionRecord) -> None:
+        """Rewrite ``session.json`` and refresh in-memory entry."""
+        key = self._key(record.project_id, record.session_id)
+        self._sessions[key] = record
+        self._write_session_json(record)
 
     def touch_activity(self, project_id: str, session_id: str) -> None:
         record = self.get_session(project_id, session_id)

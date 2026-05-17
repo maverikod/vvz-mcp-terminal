@@ -20,6 +20,7 @@ def test_ensure_session_composite_key_and_single_writer(tmp_path: Path) -> None:
         project_id=project_id,
         session_id=session_a,
         project_dir=tmp_path,
+        workspace_write=True,
     )
     assert err_a is None and created_a is True
     assert rec_a is not None and rec_a.workspace_write is True
@@ -28,6 +29,7 @@ def test_ensure_session_composite_key_and_single_writer(tmp_path: Path) -> None:
         project_id=project_id,
         session_id=session_b,
         project_dir=tmp_path,
+        workspace_write=False,
     )
     assert err_b is None and created_b is True
     assert rec_b is not None and rec_b.workspace_write is False

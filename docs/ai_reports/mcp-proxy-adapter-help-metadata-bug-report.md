@@ -1,23 +1,45 @@
 # Bug report: `mcp-proxy-adapter` — `Command.metadata()` not exposed in `help`
 
-**Consumer project:** `mcp_terminal` (server `mcp-terminal`, custom commands via `register_custom_commands_hook`)  
-**Adapter package:** `mcp_proxy_adapter` (installed from venv / `site-packages`)  
-**Date:** 2026-05-16  
+**Status:** **Fixed in `mcp-proxy-adapter` 8.10.13** (2026-05-16)  
+**Consumer project:** `mcp_terminal` (server `mcp-terminal`)  
+**Affected versions:** `8.10.12` and earlier (simple `get_command_info` path ignored `metadata()`)  
+**Fixed version:** **`>= 8.10.13`** — see `mcp_proxy_adapter/commands/command_help_info.py`  
 **Reporter:** Vasiliy Zdanovskiy — vasilyvz@gmail.com  
 
 ---
 
-## Summary
+## Resolution (8.10.13)
 
-Downstream servers implement extended AI documentation via a class method `metadata()` (contract aligned with consumer `docs/metadatastd.md`). The adapter’s `help` command with `cmdname` **does not call** `metadata()` and returns only `descr` as `metadata.summary` plus `get_schema()`. MCP clients and the proxy therefore never receive `detailed_description`, usage examples, error cases, or best practices—the reason `metadata()` exists.
+Adapter now builds help via `build_command_help_payload()` / `merge_command_metadata_into_help_payload()`:
+
+- Calls `command_class.metadata()` when present.
+- Merges `detailed_description`, `parameters`, `return_value`, `usage_examples`, `error_cases`, `best_practices`, etc. into `metadata`.
+- Sets top-level `ai_metadata` to the full `metadata()` dict.
+- Sets `parameters_docs` alias when `parameters` is present (same as the former consumer patch).
+
+`mcp_terminal` depends on **`mcp-proxy-adapter>=8.10.13,<9`** (`pyproject.toml`). The local monkey-patch `registry_metadata_patch.py` was **removed** as redundant.
+
+**Verify:**
+
+```text
+call_server(mcp-terminal, help, { "cmdname": "terminal_run" })
+```
+
+Expect `metadata.detailed_description` and `ai_metadata` without any consumer-side registry patch.
+
+---
+
+## Original summary (8.10.12)
+
+Downstream servers implement extended AI documentation via `metadata()` (`docs/metadatastd.md`). In **8.10.12**, `help` + `cmdname` returned only `descr` as `metadata.summary` plus `get_schema()`. MCP clients did not receive `detailed_description`, usage examples, error cases, or best practices.
 
 ---
 
 ## Expected behavior
 
-1. If a registered command class defines a callable `@classmethod metadata() -> dict`, `CommandRegistry.get_command_info()` and `HelpCommand` should include that content in the response (full dict or a stable field subset).
-2. No consumer-side monkey-patch should be required.
-3. The MCP proxy `help` tool should not strip fields already present in the server JSON-RPC response (see **Proxy** below).
+1. Callable `@classmethod metadata() -> dict` on a command class is merged into `help` + `cmdname`.
+2. No consumer monkey-patch required (**met in 8.10.13**).
+3. MCP proxy `help` should forward full server payload (separate proxy ticket if still schema-only).
 
 Target shape for `help` + `cmdname`:
 
@@ -34,145 +56,76 @@ Target shape for `help` + `cmdname`:
     "error_cases": {},
     "best_practices": []
   },
-  "schema": {}
+  "schema": {},
+  "ai_metadata": {}
 }
 ```
 
-Optional duplicate top-level `ai_metadata` is acceptable if all fields are merged into `metadata`.
-
 ---
 
-## Actual behavior
+## Actual behavior in 8.10.12 (historical)
 
-### 1. `CommandRegistry.get_command_info()` (`_info is None` branch)
+### `CommandRegistry.get_command_info()` (`_info is None`)
 
-File: `mcp_proxy_adapter/commands/command_registry.py` (approx. lines 513–529).
+Returned only:
 
 ```python
-descr = getattr(command_class, "descr", "")
-return {
-    "metadata": {
-        "name": command_name,
-        "summary": descr,
-        "type": command_type,
-    },
+{
+    "metadata": {"name": ..., "summary": descr, "type": ...},
     "schema": schema,
 }
 ```
 
-`metadata()` is never checked or invoked.
+### Other gaps (8.10.12)
 
-### 2. `CommandInfo.get_command_info()` (`_info is not None` branch)
-
-File: `mcp_proxy_adapter/commands/registry/command_info.py`.
-
-Returns `name`, `type`, `class`, `module`, `schema`, class attributes—**no** `metadata()`.
-
-### 3. Base `Command` in the adapter
-
-`mcp_proxy_adapter/commands/base.py` does not declare `metadata()`. The contract exists only in consumer documentation; the adapter does not implement it.
-
-### 4. MCP Proxy `help` tool (external)
-
-MCP Proxy `help` with `server_id` + `command: terminal_run` returns mainly **JSON Schema** (`parameters`), without `detailed_description`.
-
-Direct server call `help` + `params: { "cmdname": "terminal_run" }` returns full text only after the consumer workaround (see below); stock adapter returns `metadata.summary` + `schema` only.
+- `CommandInfo.get_command_info()` did not call `metadata()`.
+- Base `Command` had no `metadata()` hook in the adapter.
+- MCP Proxy `help` tool often exposed schema only (proxy layer).
 
 ---
 
-## Steps to reproduce
+## Steps to reproduce (8.10.12 only)
 
-1. Register a custom command with `metadata()`:
-
-```python
-class MyCommand(Command):
-    name = "my_command"
-    descr = "Short one line."
-
-    @classmethod
-    def metadata(cls) -> dict:
-        return {
-            "name": cls.name,
-            "detailed_description": "Long AI-facing text...",
-            "usage_examples": [],
-            "error_cases": {},
-            "best_practices": [],
-        }
-
-    @classmethod
-    def get_schema(cls) -> dict:
-        return {"type": "object", "properties": {}, "additionalProperties": False}
-```
-
-2. JSON-RPC: `help` with `cmdname: "my_command"`.
-3. **Observe:** response contains only `metadata.summary == descr`; no `detailed_description` or other metadata fields.
-
-**Reference in `mcp_terminal`:** `terminal_run` — `mcp_terminal/commands/terminal_run_metadata.py`; stock adapter does not surface it.
+1. Install `mcp-proxy-adapter==8.10.12`.
+2. Register a command with `metadata()` returning `detailed_description`, etc.
+3. `help` + `cmdname` → no `detailed_description` in response.
 
 ---
 
-## Impact
+## Impact (before fix)
 
 | Stakeholder | Effect |
 |-------------|--------|
-| AI agents (Cursor, MCP) | See one-line `descr` and schema only; miss lifecycle, flags, safety notes |
-| Downstream servers | Must patch `CommandRegistry` at startup or duplicate prose in `descr` / schema descriptions |
-| Metadata standard | `metadata()` is dead code for `help`/OpenAPI if the adapter ignores it |
+| AI agents | One-line `descr` + schema only |
+| Downstream servers | Required registry monkey-patch or duplicated prose |
+| Metadata standard | `metadata()` unused for `help` |
 
 ---
 
-## Consumer workaround (temporary)
+## Former consumer workaround (removed)
 
-`mcp_terminal/term_server.py` calls `apply_registry_metadata_patch()` on startup (`mcp_terminal/commands/registry_metadata_patch.py`), which wraps `CommandRegistry.get_command_info` and adds:
-
-- `ai_metadata` — full `command_class.metadata()` result
-- `metadata.detailed_description`, `usage_examples`, `error_cases`, `best_practices`, `parameters_docs`, `return_value`
-
-Fragile: import order, registry API changes, not reusable by other servers without copy-paste.
+`mcp_terminal` previously called `apply_registry_metadata_patch()` at startup (`commands/registry_metadata_patch.py`), duplicating logic now in adapter `command_help_info.py`. **Removed** after pinning `>=8.10.13`.
 
 ---
 
-## Suggested fix (adapter)
+## Suggested fix (implemented in 8.10.13)
 
-1. In **`CommandRegistry.get_command_info()`** (both simple and `CommandInfo` paths), after building the base dict:
+Adapter module: `mcp_proxy_adapter/commands/command_help_info.py`
 
-```python
-if hasattr(command_class, "metadata") and callable(command_class.metadata):
-    try:
-        ai = command_class.metadata()
-        if isinstance(ai, dict) and ai:
-            info["ai_metadata"] = ai
-            for key in (
-                "detailed_description",
-                "parameters",
-                "return_value",
-                "usage_examples",
-                "error_cases",
-                "best_practices",
-                "description",
-                "version",
-                "category",
-            ):
-                if key in ai:
-                    info["metadata"][key] = ai[key]
-    except Exception as e:
-        self.logger.warning("metadata() failed for %s: %s", command_name, e)
-```
+- `build_command_help_payload()` — schema + summary + merge.
+- `merge_command_metadata_into_help_payload()` — `metadata()`, `ai_metadata`, `_METADATA_MERGE_KEYS`.
 
-2. **Optional:** declare `@classmethod metadata() -> dict` on base `Command` defaulting to `{}`.
-
-3. **Document** that `help` + `cmdname` is the AI documentation channel; `descr` is the one-line list summary.
-
-4. **MCP Proxy (separate repo, if applicable):** ensure proxied `help` forwards `metadata` / `ai_metadata`, not schema-only `help_info`.
+`get_command_info` and `get_all_commands_info` (simple path) both use `build_command_help_payload`.
 
 ---
 
 ## Acceptance criteria
 
-- [ ] `help` + `cmdname` for a command with `metadata()` returns `detailed_description` and `usage_examples` without consumer monkey-patch.
-- [ ] Commands without `metadata()` behave as today (`summary` + `schema`).
-- [ ] Exceptions in `metadata()` are logged; `help` does not fail (partial info returned).
-- [ ] Regression test in `mcp-proxy-adapter`: mock command with `metadata()` → assert fields in `get_command_info`.
+- [x] `help` + `cmdname` returns `detailed_description` without consumer patch (**8.10.13**).
+- [x] Commands without `metadata()` unchanged (**8.10.13**).
+- [x] `metadata()` exceptions logged, `help` does not fail (**8.10.13**).
+- [ ] Regression test in `mcp-proxy-adapter` (recommended upstream).
+- [ ] MCP Proxy forwards full `metadata` / `ai_metadata` (if still open).
 
 ---
 
@@ -180,18 +133,7 @@ if hasattr(command_class, "metadata") and callable(command_class.metadata):
 
 | Item | Path |
 |------|------|
-| Workaround patch | `mcp_terminal/commands/registry_metadata_patch.py` |
-| Patch applied at startup | `mcp_terminal/term_server.py` |
-| Example metadata | `mcp_terminal/commands/terminal_run_metadata.py`, `terminal_session_create_metadata.py`, … |
+| Metadata modules | `mcp_terminal/commands/terminal_run_metadata.py`, `terminal_session_create_metadata.py`, … |
+| Dependency pin | `pyproject.toml` → `mcp-proxy-adapter>=8.10.13,<9` |
 | Metadata standard | `docs/metadatastd.md` |
-| Startup log line | `CommandRegistry.get_command_info patched for ai_metadata` |
-
----
-
-## Verification after fix
-
-```text
-call_server(mcp-terminal, help, { "cmdname": "terminal_run" })
-```
-
-Response should include `metadata.detailed_description` (multi-paragraph lifecycle text) **without** `apply_registry_metadata_patch()`.
+| Removed workaround | ~~`registry_metadata_patch.py`~~ (deleted) |

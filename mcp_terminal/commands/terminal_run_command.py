@@ -28,8 +28,12 @@ from mcp_terminal.services.command_history import CommandHistory, CommandRecord
 from mcp_terminal.services.container_runner import ContainerSpec, workspace_bind_mount_user
 from mcp_terminal.services.project_runtime_image import resolve_execution_image
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
+from mcp_terminal.services.terminal_defaults import (
+    resolve_default_keep_container,
+    resolve_run_mode,
+)
 from mcp_terminal.commands.terminal_run_metadata import get_terminal_run_metadata
-from mcp_terminal.services.shell_state import resolve_cwd
+from mcp_terminal.services.shell_state import resolve_cwd, resolve_use_venv
 
 _DEFAULT_TIMEOUT_S: int = 600
 
@@ -73,7 +77,10 @@ class TerminalRunCommand(Command):
                 "mode": {
                     "type": "string",
                     "enum": ["read_only", "workspace_write", "scratch_write"],
-                    "default": "read_only",
+                    "description": (
+                        "Omitted: workspace_write when the session has workspace_write, "
+                        "else read_only."
+                    ),
                 },
                 "network": {
                     "type": "string",
@@ -100,6 +107,14 @@ class TerminalRunCommand(Command):
                         "after saving shell_state."
                     ),
                 },
+                "use_venv": {
+                    "type": "boolean",
+                    "description": (
+                        "When omitted, uses the session default from terminal_session_create "
+                        "(true when project has .venv). When true, prepends /workspace/.venv/bin "
+                        "to PATH before the command (no activate). Set false for system Python."
+                    ),
+                },
             },
             "required": ["project_id", "session_id", "execution_kind"],
             "additionalProperties": False,
@@ -113,8 +128,13 @@ class TerminalRunCommand(Command):
         command = kwargs.get("command")
         argv = kwargs.get("argv")
         cwd = kwargs.get("cwd")
-        keep_container = bool(kwargs.get("keep_container", False))
-        mode = str(kwargs.get("mode", "read_only"))
+        if "keep_container" in kwargs:
+            keep_container = bool(kwargs["keep_container"])
+        else:
+            keep_container = resolve_default_keep_container()
+        use_venv_arg: Optional[bool] = (
+            bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
+        )
         network = str(kwargs.get("network", "none"))
         image_profile = str(kwargs.get("image_profile", "python_dev_3_12"))
         timeout_seconds = int(kwargs.get("timeout_seconds", _DEFAULT_TIMEOUT_S))
@@ -138,6 +158,11 @@ class TerminalRunCommand(Command):
         srec, sess_err = resolve_session(project_id, session_id)
         if sess_err is not None or srec is None:
             return CommandResult(success=False, error=sess_err or "INVALID_SESSION")
+        mode = resolve_run_mode(
+            session_workspace_write=srec.workspace_write,
+            request_mode=kwargs.get("mode"),
+        )
+        use_venv = resolve_use_venv(srec.session_dir, use_venv_arg)
         session_store = get_session_store()
 
         if mode == "workspace_write" and not srec.workspace_write:
@@ -238,6 +263,7 @@ class TerminalRunCommand(Command):
             timeout_seconds=timeout_seconds,
             environment=dict(img_cmd.environment),
             resolved_argv=list(img_cmd.resolved_argv),
+            pid_namespace=srec.pid_namespace,
         )
         job_params = JobParams(
             project_id=project_id,
@@ -251,6 +277,7 @@ class TerminalRunCommand(Command):
             execution_kind=execution_kind,
             command=cmd_str if execution_kind == "shell" else None,
             argv=argv_list if execution_kind == "argv" else None,
+            use_venv=use_venv,
         )
         job = TerminalExecutionJob(job_params)
 
@@ -271,6 +298,7 @@ class TerminalRunCommand(Command):
                 "meta_file": meta_file,
                 "cwd": effective_cwd,
                 "keep_container": keep_container,
+                "use_venv": use_venv,
             },
         )
 

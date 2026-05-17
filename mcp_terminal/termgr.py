@@ -21,6 +21,12 @@ from pathlib import Path
 
 from mcp_terminal.cli_sessions_purge import add_purge_sessions_parser
 from mcp_terminal.paths import repo_root
+from mcp_terminal.config.config_cli import _collect_all_generate_kwargs, _optional_bool
+from mcp_terminal.config.create_config import (
+    default_create_config_name,
+    resolve_config_output_path,
+    write_term_server_config,
+)
 from mcp_terminal.term_config import (
     DEFAULT_TERM_SERVER_LISTEN_PORT,
     default_config_path,
@@ -128,6 +134,16 @@ def cmd_restart(_args: argparse.Namespace) -> int:
     return cmd_start(_args)
 
 
+def cmd_create_config(args: argparse.Namespace) -> int:
+    """Write ``configs/<name>`` from adapter defaults + terminal overlay."""
+    out = write_term_server_config(
+        resolve_config_output_path(args.config_name),
+        generate_kwargs=_collect_all_generate_kwargs(args),
+    )
+    print(f"Created config: {out}")
+    return 0
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     pid_file = _pid_path()
     cfg_path = default_config_path()
@@ -174,6 +190,54 @@ def main() -> None:
         help="Stop term_server if running, then start it again",
     ).set_defaults(func=cmd_restart)
     sub.add_parser("status", help="Show pid and probe HTTPS /health").set_defaults(func=cmd_status)
+    create_cfg = sub.add_parser(
+        "create-config",
+        help="Generate configs/<name> (adapter + terminal sections)",
+    )
+    create_cfg.add_argument(
+        "config_name",
+        nargs="?",
+        default=default_create_config_name(),
+        help=f"Config file name under configs/ (default: {default_create_config_name()})",
+    )
+    create_cfg.add_argument(
+        "--code-analysis-enabled",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="code_analysis.enabled",
+    )
+    create_cfg.add_argument(
+        "--code-analysis-protocol",
+        type=str,
+        default=None,
+        choices=("http", "https"),
+        help="code_analysis.protocol",
+    )
+    create_cfg.add_argument("--code-analysis-host", type=str, default=None)
+    create_cfg.add_argument("--code-analysis-port", type=int, default=None)
+    create_cfg.add_argument(
+        "--terminal-defaults-workspace-write",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="terminal.defaults.workspace_write",
+    )
+    create_cfg.add_argument(
+        "--terminal-defaults-pid-namespace",
+        type=str,
+        default=None,
+        choices=("container", "host"),
+        help="terminal.defaults.pid_namespace",
+    )
+    create_cfg.add_argument(
+        "--terminal-defaults-keep-container",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="terminal.defaults.keep_container",
+    )
+    create_cfg.set_defaults(func=cmd_create_config)
     add_purge_sessions_parser(sub)
     ns = parser.parse_args()
     code: int = ns.func(ns)

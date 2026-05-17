@@ -16,6 +16,12 @@ from dataclasses import dataclass, field
 from pathlib import Path  # noqa: F401
 from typing import Dict, FrozenSet, List, Optional  # noqa: F401
 
+from mcp_terminal.services.docker_hosts import (
+    docker_run_add_host_args,
+    parse_docker_host_mappings,
+    resolve_container_network_mode,
+)
+from mcp_terminal.services.pid_namespace import apply_docker_pid_namespace
 from mcp_terminal.services.sandbox_policy import MountSpec
 
 logger = logging.getLogger(__name__)
@@ -72,6 +78,8 @@ class ContainerSpec:
     """Safe minimal environment variables for the container."""
     resolved_argv: List[str] = field(default_factory=list)
     """Actual argv passed to the container entrypoint."""
+    pid_namespace: str = "container"
+    """``container`` (isolated, default) or ``host`` (``docker run --pid=host``)."""
 
 
 class ContainerRunner:
@@ -119,6 +127,7 @@ class ContainerRunner:
         Returns:
             List of strings forming the complete docker/podman run command.
         """
+        host_mappings = parse_docker_host_mappings()
         cmd: List[str] = [
             self._runtime,
             "run",
@@ -143,8 +152,10 @@ class ContainerRunner:
             "--cpus",
             str(spec.cpu_limit),
             "--network",
-            "none" if spec.network_spec == "none" else "bridge",
+            resolve_container_network_mode(spec.network_spec),
         ]
+        apply_docker_pid_namespace(cmd, spec.pid_namespace)
+        cmd.extend(docker_run_add_host_args(host_mappings))
         ro = ":ro" if spec.mount_spec.workspace_readonly else ":rw"
         ws = spec.mount_spec.workspace_source
         cmd += ["-v", f"{ws}:/workspace{ro}"]

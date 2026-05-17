@@ -23,7 +23,6 @@ from mcp_proxy_adapter.commands.hooks import register_custom_commands_hook
 from mcp_proxy_adapter.config import get_config
 from mcp_proxy_adapter.core.app_factory.ssl_config import build_server_ssl_config
 from mcp_proxy_adapter.core.server_engine import ServerEngineFactory
-from mcp_terminal.commands.registry_metadata_patch import apply_registry_metadata_patch
 from mcp_terminal.commands.terminal_delete_command import TerminalDeleteCommand
 from mcp_terminal.commands.terminal_get_command import TerminalGetCommand
 from mcp_terminal.commands.terminal_get_session_bootstrap_command import (
@@ -35,6 +34,7 @@ from mcp_terminal.commands.terminal_list_command import TerminalListCommand
 from mcp_terminal.commands.terminal_list_watch_command import TerminalListWatchCommand
 from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
 from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
+from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand
 from mcp_terminal.commands.terminal_search_commands_command import (
     TerminalSearchCommandsCommand,
 )
@@ -54,6 +54,8 @@ from mcp_terminal.services.project_registry_refresh import (
     start_project_registry_refresh_daemon,
 )
 from mcp_terminal.services.session_store import SessionStore
+from mcp_terminal.config.config_generator import generate_terminal_config
+from mcp_terminal.services.host_execution_config import warn_if_host_execution_enabled_without_commands
 from mcp_terminal.term_config import (
     DEFAULT_TERM_SERVER_LISTEN_PORT,
     load_validated_term_simple_config,
@@ -78,6 +80,7 @@ _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
     TerminalSessionCreateCommand,
     TerminalGetSessionBootstrapCommand,
     TerminalRunCommand,
+    TerminalRunHostCommand,
     TerminalListCommand,
     TerminalListWatchCommand,
     TerminalGetCommand,
@@ -107,7 +110,6 @@ def _register_terminal_commands(registry: object) -> None:
         reg.register(cast(Any, cmd_cls), "custom")
 
 
-apply_registry_metadata_patch()
 register_custom_commands_hook(_register_terminal_commands)
 
 
@@ -146,6 +148,13 @@ def main() -> None:
     for section, value in simple_config.to_dict().items():
         app_config[section] = value
 
+    try:
+        app_config = generate_terminal_config(app_config)
+    except ValueError as exc:
+        _die(str(exc))
+
+    warn_if_host_execution_enabled_without_commands(app_config)
+
     _install_project_registry(app_config, cfg_path)
 
     app_config.setdefault("server", {})
@@ -174,8 +183,11 @@ def main() -> None:
         start_project_registry_refresh_daemon(cfg_path, interval, _app_config_snapshot)
 
     app = create_app(
-        title="MCP Terminal (minimal)",
-        description="HTTPS JSON-RPC adapter with built-in commands only.",
+        title="MCP Terminal",
+        description=(
+            "Per-project sandboxed terminals: session-scoped Docker containers, "
+            "shell_state.json for cwd, keep_container mode, terminal_* MCP commands."
+        ),
         version="0.1.0",
         app_config=app_config,
         config_path=str(cfg_path),

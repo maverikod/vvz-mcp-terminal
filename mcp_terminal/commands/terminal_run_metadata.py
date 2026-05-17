@@ -47,10 +47,14 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "finished or before terminal_delete.\n\n"
             "**Not a TTY:** ``command: bash`` does not open an interactive shell; it exits "
             "immediately. Use shell strings with explicit commands.\n\n"
-            "**Python venv:** ``source .venv/bin/activate`` does not persist across runs "
-            "unless you use keep_container and run activate once, then subsequent runs in "
-            "the same kept container. Prefer ``/workspace/.venv/bin/python`` or "
-            "``. .venv/bin/activate && ...`` in one shell command."
+            "**Python venv:** ``terminal_session_create`` sets a session default "
+            "(``use_venv`` true when ``.venv`` exists). Each ``terminal_run`` prepends "
+            "``/workspace/.venv/bin`` to PATH — no ``source activate``. Console scripts "
+            "(``casmgr``, ``pytest``, …) work by name. Set ``use_venv: false`` on create "
+            "or run for system Python only.\n\n"
+            "For host-side tools (e.g. ``casmgr`` against a host daemon), use "
+            "``terminal_run_host`` when ``terminal.host_execution.enabled`` is set in "
+            "config — not this command."
         ),
         "parameters": {
             "project_id": {
@@ -107,15 +111,25 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "required": False,
                 "default": False,
             },
+            "use_venv": {
+                "description": (
+                    "When omitted, uses session default from terminal_session_create. "
+                    "When true, prepends /workspace/.venv/bin to PATH (no activate). "
+                    "When false, system tools only."
+                ),
+                "type": "boolean",
+                "required": False,
+            },
             "mode": {
                 "description": (
-                    "read_only (default): /workspace ro. workspace_write: rw if this session "
+                    "read_only: /workspace ro. workspace_write: rw when the session has "
+                    "workspace_write (default mode for writer sessions). "
                     "has workspace_write. scratch_write: /workspace ro, use /scratch for writes."
                 ),
                 "type": "string",
                 "required": False,
-                "default": "read_only",
                 "enum": ["read_only", "workspace_write", "scratch_write"],
+                "notes": "Omitted: workspace_write for writer sessions, else read_only.",
             },
             "network": {
                 "description": "none (default) or package_registry for pip/apt egress.",
@@ -151,6 +165,7 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "meta_file": "Relative meta JSON (exit_code after completion).",
                     "cwd": "Effective cwd used for this run.",
                     "keep_container": "Echo of request flag.",
+                    "use_venv": "Echo of request flag.",
                 },
                 "example": {
                     "success": True,
@@ -250,7 +265,8 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "end with keep_container false."
             ),
             "Omit cwd to continue from the previous directory; pass cwd to jump explicitly.",
-            "Use /workspace/.venv/bin/python when not using keep_container after activate.",
+            "Omit use_venv or leave it true so project console scripts work without manual activate.",
+            "Set use_venv false only when the project has no .venv or you need system Python.",
             (
                 "Call terminal_delete when done to remove the session container "
                 "and .terminals directory."

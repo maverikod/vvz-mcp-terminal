@@ -17,12 +17,19 @@ from typing import List, Optional
 
 from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.container_runner import ContainerRunner, ContainerSpec
+from mcp_terminal.services.docker_hosts import (
+    docker_run_add_host_args,
+    parse_docker_host_mappings,
+    resolve_container_network_mode,
+)
+from mcp_terminal.services.pid_namespace import apply_docker_pid_namespace
 from mcp_terminal.services.shell_state import (
     ShellState,
     normalize_cwd,
     read_shell_state,
     write_shell_state,
 )
+from mcp_terminal.services.venv_activation import venv_activation_shell_block
 
 _SESSION_LABEL = "mcp.terminal.session=true"
 _IDLE_CMD = ["sleep", "infinity"]
@@ -64,7 +71,10 @@ def session_container_name(project_id: str, session_id: str) -> str:
 def spec_fingerprint(spec: ContainerSpec) -> str:
     """Hash mount/write settings that require container recreation when changed."""
     m = spec.mount_spec
-    raw = f"{spec.image}|{m.workspace_readonly}|{spec.user}|{spec.network_spec}"
+    raw = (
+        f"{spec.image}|{m.workspace_readonly}|{spec.user}|"
+        f"{spec.network_spec}|{spec.pid_namespace}"
+    )
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -121,6 +131,7 @@ def _build_start_cmd(
     m = spec.mount_spec
     ro = ":ro" if m.workspace_readonly else ":rw"
     ws = m.workspace_source
+    host_mappings = parse_docker_host_mappings()
     cmd: List[str] = [
         runner._runtime,  # noqa: SLF001
         "run",
@@ -149,12 +160,14 @@ def _build_start_cmd(
         "--cpus",
         str(spec.cpu_limit),
         "--network",
-        "none" if spec.network_spec == "none" else "bridge",
+        resolve_container_network_mode(spec.network_spec),
         "-v",
         f"{ws}:/workspace{ro}",
         "-v",
         f"{session_dir.resolve()}:/session-state:rw",
     ]
+    apply_docker_pid_namespace(cmd, spec.pid_namespace)
+    cmd.extend(docker_run_add_host_args(host_mappings))
     for key, val in spec.environment.items():
         cmd += ["-e", f"{key}={val}"]
     cmd.append(spec.image)
@@ -170,6 +183,7 @@ def _write_exec_script(
     execution_kind: str,
     command: Optional[str],
     argv: Optional[List[str]],
+    use_venv: bool = True,
 ) -> Path:
     """Write a host-side script mounted into the container for one execution."""
     cwd = normalize_cwd(effective_cwd)
@@ -190,6 +204,7 @@ def _write_exec_script(
         f"CWD=$(python3 -c {shlex.quote(py_load)} \"$STATE\" 2>/dev/null)"
         f" || CWD={shlex.quote(cwd)}"
     )
+    venv_block = venv_activation_shell_block(use_venv=use_venv)
     script = textwrap.dedent(
         f"""\
         #!/usr/bin/env bash
@@ -204,7 +219,7 @@ def _write_exec_script(
         else
           cd "/workspace/$CWD" || cd /workspace
         fi
-        {user_body}
+        {venv_block}{user_body}
         ec=$?
         python3 <<'PYEND'
 {_SAVE_CWD_PY}
@@ -257,6 +272,7 @@ class SessionContainerExecutor:
         execution_kind: str,
         command: Optional[str],
         argv: Optional[List[str]],
+        use_venv: bool = True,
     ) -> tuple[Optional[int], bool, str]:
         """Return ``(exit_code, timed_out, status)``."""
         name = session_container_name(project_id, session_id)
@@ -269,6 +285,7 @@ class SessionContainerExecutor:
             execution_kind=execution_kind,
             command=command,
             argv=argv,
+            use_venv=use_venv,
         )
         script_name = script_path.name
 
@@ -355,13 +372,14 @@ class SessionContainerExecutor:
                     container_id=cid,
                     container_name=name,
                     spec_fingerprint=fp,
+                    use_venv=new_state.use_venv,
                 ),
             )
         else:
             stop_session_container(project_id, session_id)
             write_shell_state(
                 session_dir,
-                ShellState(cwd=new_state.cwd),
+                ShellState(cwd=new_state.cwd, use_venv=new_state.use_venv),
             )
 
         try:

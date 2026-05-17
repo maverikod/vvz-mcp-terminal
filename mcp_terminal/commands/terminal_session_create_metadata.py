@@ -35,6 +35,13 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "started on each ``terminal_run`` (see that command's lifecycle). Optional "
             "``bootstrap_python_env`` only queues a **runtime image build** under "
             "``.mcp_terminal/runtime/`` when ``requirements.txt`` exists.\n\n"
+            "**Session defaults (stored in shell_state / session record):**\n"
+            "- ``use_venv`` — whether ``terminal_run`` prepends ``/workspace/.venv/bin`` "
+            "to PATH (no ``source activate``). Omitted on create: auto true when "
+            "``.venv`` exists on the project.\n"
+            "- ``pid_namespace`` — Docker PID namespace for this session's containers. "
+            "``container`` (default): isolated. ``host``: ``docker run --pid=host`` so "
+            "tools on the host (e.g. ``casmgr status``) see daemon PIDs; dev/debug only.\n\n"
             "Typical agent flow: ``terminal_session_create`` → (poll bootstrap if needed) "
             "→ ``terminal_run`` (possibly with ``keep_container: true`` for multi-step work) "
             "→ ``terminal_get_status`` / ``terminal_tail`` → ``terminal_delete`` when done."
@@ -81,6 +88,29 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "default": "python_dev_3_12",
                 "enum": ["python_dev_3_12", "node_dev_20", "base_tools"],
             },
+            "use_venv": {
+                "description": (
+                    "Session default for ``terminal_run``: prepend /workspace/.venv/bin to "
+                    "PATH when true (no activate script). When omitted on create: true if "
+                    "project_dir/.venv exists, else false. Can be overridden per "
+                    "terminal_run. Updating on an existing session rewrites shell_state "
+                    "when the value changes."
+                ),
+                "type": "boolean",
+                "required": False,
+            },
+            "pid_namespace": {
+                "description": (
+                    "Docker PID namespace for containers started for this session. "
+                    "container (default): normal isolated PID namespace. host: "
+                    "--pid=host so host tools (e.g. casmgr) can match daemon PIDs inside "
+                    "the container; use only for local dev/debug."
+                ),
+                "type": "string",
+                "required": False,
+                "default": "container",
+                "enum": ["container", "host"],
+            },
         },
         "return_value": {
             "success": {
@@ -95,6 +125,10 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     ),
                     "created_at": "ISO-8601 timestamp.",
                     "reminder": "Short hint about Python/venv and terminal_run behavior.",
+                    "venv_ready": "True when project has a usable .venv on disk.",
+                    "use_venv": "Resolved session default for PATH/.venv (see use_venv param).",
+                    "pid_namespace": "container or host — stored on the session record.",
+                    "python": "Path to /workspace/.venv/bin/python when venv_ready and use_venv.",
                     "bootstrap": (
                         "Optional { status: pending, job_id } when bootstrap_python_env is true."
                     ),
@@ -108,6 +142,10 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                         "already_exists": False,
                         "workspace_write": True,
                         "created_at": "2026-05-16T12:00:00+00:00",
+                        "venv_ready": True,
+                        "use_venv": True,
+                        "pid_namespace": "container",
+                        "python": "/workspace/.venv/bin/python",
                         "reminder": "Use terminal_run; cwd persists via shell_state.json.",
                         "bootstrap": {"status": "pending", "job_id": "uuid-job"},
                     },
@@ -145,6 +183,20 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "and adopts shell_state/history without losing cwd."
                 ),
             },
+            {
+                "description": "Host PID namespace for casmgr from inside container",
+                "command": {
+                    "project_id": _EXAMPLE_PROJECT,
+                    "session_id": _EXAMPLE_SESSION,
+                    "pid_namespace": "host",
+                    "bootstrap_python_env": False,
+                    "use_venv": True,
+                },
+                "explanation": (
+                    "terminal_run containers use --pid=host so casmgr status from "
+                    "/workspace can see the code-analysis-server daemon on the host."
+                ),
+            },
         ],
         "error_cases": {
             "INVALID_PROJECT_ID": {
@@ -174,6 +226,11 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "message": "SESSION_PROJECT_MISMATCH",
                 "solution": "Use matching UUIDs or a new session_id.",
             },
+            "INVALID_PID_NAMESPACE": {
+                "description": "pid_namespace is not container or host.",
+                "message": "INVALID_PID_NAMESPACE",
+                "solution": "Omit the field or use enum value container or host.",
+            },
         },
         "best_practices": [
             (
@@ -186,6 +243,8 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "Poll terminal_get_session_bootstrap when bootstrap.status is "
                 "pending before heavy pip installs."
             ),
+            "Set pid_namespace host only when host-side process tools must see daemon PIDs.",
+            "Set use_venv false when the project has no .venv and system Python is intended.",
             (
                 "Call terminal_delete when the editor tab closes to remove "
                 "the session container and disk state."

@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.config.config_validator import validate_terminal_config
+from mcp_terminal.config.create_config import build_term_server_config
 
 
 def _optional_bool(raw: Optional[str]) -> Optional[bool]:
@@ -28,6 +29,17 @@ def _optional_bool(raw: Optional[str]) -> Optional[bool]:
     if s in ("false", "0", "no", "off"):
         return False
     raise argparse.ArgumentTypeError(f"expected boolean string, got {raw!r}")
+
+
+def _collect_terminal_defaults_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if getattr(args, "terminal_defaults_workspace_write", None) is not None:
+        out["terminal_defaults_workspace_write"] = args.terminal_defaults_workspace_write
+    if getattr(args, "terminal_defaults_pid_namespace", None) is not None:
+        out["terminal_defaults_pid_namespace"] = args.terminal_defaults_pid_namespace
+    if getattr(args, "terminal_defaults_keep_container", None) is not None:
+        out["terminal_defaults_keep_container"] = args.terminal_defaults_keep_container
+    return out
 
 
 def _collect_code_analysis_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
@@ -62,10 +74,15 @@ def _collect_code_analysis_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
     return out
 
 
+def _collect_all_generate_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
+    out = _collect_code_analysis_kwargs(args)
+    out.update(_collect_terminal_defaults_kwargs(args))
+    return out
+
+
 def cmd_generate(args: argparse.Namespace) -> None:
     """Generate a default terminal config and write to output path."""
-    ca_kw = _collect_code_analysis_kwargs(args)
-    config = generate_terminal_config({}, **ca_kw)
+    config = build_term_server_config(**_collect_all_generate_kwargs(args))
     output = Path(args.output) if args.output else None
     text = json.dumps(config, indent=2)
     if output:
@@ -175,6 +192,27 @@ def main() -> None:
         default=None,
         metavar="BOOL",
         help="code_analysis.ssl.check_hostname",
+    )
+    gen.add_argument(
+        "--terminal-defaults-workspace-write",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="terminal.defaults.workspace_write",
+    )
+    gen.add_argument(
+        "--terminal-defaults-pid-namespace",
+        type=str,
+        default=None,
+        choices=("container", "host"),
+        help="terminal.defaults.pid_namespace",
+    )
+    gen.add_argument(
+        "--terminal-defaults-keep-container",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="terminal.defaults.keep_container",
     )
     gen.set_defaults(func=cmd_generate)
     val = subparsers.add_parser("validate", help="Validate config file")

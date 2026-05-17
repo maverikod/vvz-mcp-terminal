@@ -94,3 +94,5 @@ def list_watch_dirs_sync(section: Dict[str, Any], *, config_path: Path) -> List[
         return _run_coro_sync(_list_watch_dirs_async(section))
     except ClientError as exc:
         raise ValueError(f"code_analysis list_watch_dirs: {exc}") from exc
+    except Exception as exc:
+        raise ValueError(f"code_analysis list_watch_dirs: {exc}") from exc

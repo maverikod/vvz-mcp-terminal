@@ -11,7 +11,7 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import asyncio
-from typing import Any, ClassVar, Dict, Type
+from typing import Any, ClassVar, Dict, Optional, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
@@ -23,12 +23,20 @@ from mcp_terminal.commands.terminal_session_create_metadata import (
     get_terminal_session_create_metadata,
 )
 from mcp_terminal.services.session_ids import validate_uuid4_field
+from mcp_terminal.services.shell_state import (
+    ShellState,
+    read_shell_state,
+    resolve_use_venv,
+    write_shell_state,
+)
+from mcp_terminal.services.pid_namespace import normalize_pid_namespace
+from mcp_terminal.services.venv_activation import WORKSPACE_VENV_ROOT, project_has_usable_venv
 
 _SESSION_CREATE_PYTHON_REMINDER = (
-    "terminal_run persists cwd in .terminals/<session_id>/shell_state.json. "
+    "terminal_run puts /workspace/.venv/bin on PATH automatically when use_venv is true "
+    "(default if the project has .venv). No source activate. "
     "Use keep_container:true for multi-step work. "
-    "For Python prefer /workspace/.venv/bin/python or "
-    "'source .venv/bin/activate && …' in one shell command."
+    "Set use_venv:false on session create or terminal_run to use system tools only."
 )
 
 
@@ -84,6 +92,29 @@ class TerminalSessionCreateCommand(Command):
                         "Used for runtime image recipe when bootstrap_python_env is true."
                     ),
                 },
+                "workspace_write": {
+                    "type": "boolean",
+                    "description": (
+                        "Whether this session may mount /workspace read-write. "
+                        "Omitted: terminal.defaults.workspace_write from term server config. "
+                        "At most one session per project may be true."
+                    ),
+                },
+                "use_venv": {
+                    "type": "boolean",
+                    "description": (
+                        "Prepends /workspace/.venv/bin to PATH on terminal_run (no activate). "
+                        "Omitted: terminal.defaults.use_venv from term server config."
+                    ),
+                },
+                "pid_namespace": {
+                    "type": "string",
+                    "enum": ["container", "host"],
+                    "description": (
+                        "Docker PID namespace for this session. "
+                        "Omitted: terminal.defaults.pid_namespace from term server config."
+                    ),
+                },
             },
             "required": ["project_id", "session_id"],
             "additionalProperties": False,
@@ -114,14 +145,53 @@ class TerminalSessionCreateCommand(Command):
                 error=resolved.error_code or "PROJECT_NOT_FOUND",
             )
 
+        workspace_write_create: Optional[bool] = None
+        if "workspace_write" in kwargs:
+            workspace_write_create = bool(kwargs["workspace_write"])
+
+        use_venv_create: Optional[bool] = None
+        if "use_venv" in kwargs:
+            use_venv_create = bool(kwargs["use_venv"])
+
+        pid_namespace_create: Optional[str] = None
+        if "pid_namespace" in kwargs:
+            try:
+                pid_namespace_create = normalize_pid_namespace(kwargs.get("pid_namespace"))
+            except ValueError:
+                return CommandResult(success=False, error="INVALID_PID_NAMESPACE")
+
         session_store = get_session_store()
         rec, created, ensure_err = session_store.ensure_session(
             project_id=project_id,
             session_id=session_id,
             project_dir=resolved.project_dir,
+            use_venv=use_venv_create,
+            pid_namespace=pid_namespace_create,
+            workspace_write=workspace_write_create,
         )
         if ensure_err is not None or rec is None:
             return CommandResult(success=False, error=ensure_err or "INVALID_SESSION")
+
+        if not created and use_venv_create is not None:
+            state = read_shell_state(rec.session_dir)
+            if state.use_venv != use_venv_create:
+                write_shell_state(
+                    rec.session_dir,
+                    ShellState(
+                        cwd=state.cwd,
+                        container_id=state.container_id,
+                        container_name=state.container_name,
+                        spec_fingerprint=state.spec_fingerprint,
+                        use_venv=use_venv_create,
+                    ),
+                )
+
+        if not created and pid_namespace_create is not None and rec.pid_namespace != pid_namespace_create:
+            rec.pid_namespace = pid_namespace_create
+            session_store.persist_session_record(rec)
+
+        has_venv = project_has_usable_venv(resolved.project_dir)
+        use_venv = resolve_use_venv(rec.session_dir, use_venv_create)
 
         data: Dict[str, Any] = {
             "session_id": rec.session_id,
@@ -130,6 +200,10 @@ class TerminalSessionCreateCommand(Command):
             "already_exists": not created,
             "workspace_write": rec.workspace_write,
             "created_at": rec.created_at.isoformat(),
+            "venv_ready": has_venv,
+            "use_venv": use_venv,
+            "pid_namespace": rec.pid_namespace,
+            "python": f"{WORKSPACE_VENV_ROOT}/bin/python" if has_venv and use_venv else None,
             "reminder": _SESSION_CREATE_PYTHON_REMINDER,
         }
         if bootstrap:

@@ -14,9 +14,12 @@ import copy
 from typing import Any, Dict, List, Optional
 
 from mcp_terminal.config.config_validator import validate_terminal_config
+from mcp_terminal.config.host_execution_schema import HOST_EXECUTION_CONFIG
+from mcp_terminal.config.terminal_defaults_schema import TERMINAL_DEFAULTS_CONFIG
 
 TERMINAL_CONFIG_DEFAULTS: Dict[str, Any] = {
     "terminal": {
+        "defaults": copy.deepcopy(TERMINAL_DEFAULTS_CONFIG),
         "sessions": {
             "ttl_seconds": 86400,
             "cleanup_interval_seconds": 3600,
@@ -39,10 +42,10 @@ TERMINAL_CONFIG_DEFAULTS: Dict[str, Any] = {
             "delete_expired_sessions": True,
             "delete_running_sessions": False,
         },
+        "host_execution": copy.deepcopy(HOST_EXECUTION_CONFIG),
     },
     "runtime": {
         "default_image_profile": "python_dev_3_12",
-        "default_mode": "read_only",
         "default_network": "none",
         "timeout_seconds": 60,
         "max_timeout_seconds": 300,
@@ -112,6 +115,9 @@ def generate_terminal_config(
     code_analysis_ssl_crl: Optional[str] = None,
     code_analysis_ssl_dnscheck: Optional[bool] = None,
     code_analysis_ssl_check_hostname: Optional[bool] = None,
+    terminal_defaults_workspace_write: Optional[bool] = None,
+    terminal_defaults_pid_namespace: Optional[str] = None,
+    terminal_defaults_keep_container: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Merge terminal-specific default sections into base_config.
 
@@ -154,6 +160,9 @@ def generate_terminal_config(
         code_analysis_ssl_crl: Overrides ``code_analysis.ssl.crl``.
         code_analysis_ssl_dnscheck: Overrides ``code_analysis.ssl.dnscheck``.
         code_analysis_ssl_check_hostname: Overrides ``code_analysis.ssl.check_hostname``.
+        terminal_defaults_workspace_write: Overrides ``terminal.defaults.workspace_write``.
+        terminal_defaults_pid_namespace: Overrides ``terminal.defaults.pid_namespace``.
+        terminal_defaults_keep_container: Overrides ``terminal.defaults.keep_container``.
 
     Returns:
         New dict containing adapter sections, ``terminal``, ``runtime``,
@@ -237,6 +246,24 @@ def generate_terminal_config(
         ca_section["ssl"] = None
 
     result["code_analysis"] = ca_section
+
+    td_updates: Dict[str, Any] = {}
+    if terminal_defaults_workspace_write is not None:
+        td_updates["workspace_write"] = bool(terminal_defaults_workspace_write)
+    if terminal_defaults_pid_namespace is not None:
+        td_updates["pid_namespace"] = str(terminal_defaults_pid_namespace).strip().lower()
+    if terminal_defaults_keep_container is not None:
+        td_updates["keep_container"] = bool(terminal_defaults_keep_container)
+    if td_updates:
+        term = result.setdefault("terminal", {})
+        if not isinstance(term, dict):
+            term = {}
+            result["terminal"] = term
+        defaults_block = term.setdefault("defaults", copy.deepcopy(TERMINAL_DEFAULTS_CONFIG))
+        if not isinstance(defaults_block, dict):
+            defaults_block = copy.deepcopy(TERMINAL_DEFAULTS_CONFIG)
+            term["defaults"] = defaults_block
+        defaults_block.update(td_updates)
 
     if overrides:
         for key, value in overrides.items():

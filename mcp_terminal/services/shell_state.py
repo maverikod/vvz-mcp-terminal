@@ -26,6 +26,7 @@ class ShellState:
     container_id: Optional[str] = None
     container_name: Optional[str] = None
     spec_fingerprint: Optional[str] = None
+    use_venv: bool = True
 
 
 def normalize_cwd(cwd: str) -> str:
@@ -61,11 +62,14 @@ def read_shell_state(session_dir: Path) -> ShellState:
     cid = raw.get("container_id")
     cname = raw.get("container_name")
     fp = raw.get("spec_fingerprint")
+    use_venv_raw = raw.get("use_venv")
+    use_venv = True if use_venv_raw is None else bool(use_venv_raw)
     return ShellState(
         cwd=cwd,
         container_id=str(cid) if cid else None,
         container_name=str(cname) if cname else None,
         spec_fingerprint=str(fp) if fp else None,
+        use_venv=use_venv,
     )
 
 
@@ -78,9 +82,22 @@ def write_shell_state(session_dir: Path, state: ShellState) -> None:
         "container_id": state.container_id,
         "container_name": state.container_name,
         "spec_fingerprint": state.spec_fingerprint,
+        "use_venv": state.use_venv,
     }
     path = session_dir / SHELL_STATE_FILE
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def initial_shell_state_for_project(project_dir: Path, *, use_venv: bool) -> ShellState:
+    """Default shell_state when opening a session (venv on PATH when requested)."""
+    return ShellState(cwd=".", use_venv=use_venv)
+
+
+def resolve_use_venv(session_dir: Path, request_use_venv: Optional[bool]) -> bool:
+    """Session default from shell_state unless terminal_run overrides."""
+    if request_use_venv is not None:
+        return request_use_venv
+    return read_shell_state(session_dir).use_venv
 
 
 def resolve_cwd(
@@ -107,5 +124,6 @@ def clear_container_from_state(session_dir: Path) -> None:
         ShellState(
             cwd=state.cwd,
             spec_fingerprint=None,
+            use_venv=state.use_venv,
         ),
     )

@@ -111,8 +111,118 @@ def validate_terminal_config(
                 )
             )
 
+    errors.extend(_validate_terminal_defaults(terminal.get("defaults")))
+    errors.extend(_validate_host_execution(terminal.get("host_execution")))
+    errors.extend(_validate_runtime(config.get("runtime")))
     errors.extend(_validate_code_analysis(config.get("code_analysis")))
     errors.extend(_validate_watch_dirs(config.get("watch_dirs")))
+    return errors
+
+
+def _validate_terminal_defaults(section: Any) -> List[ValidationError]:
+    """Validate ``terminal.defaults`` session/run defaults."""
+    errors: List[ValidationError] = []
+    if section is None:
+        return errors
+    if not isinstance(section, dict):
+        errors.append(
+            ValidationError(
+                field="terminal.defaults",
+                message="terminal.defaults must be an object when present",
+            )
+        )
+        return errors
+    ws = section.get("workspace_write")
+    if ws is not None and not isinstance(ws, bool):
+        errors.append(
+            ValidationError(
+                field="terminal.defaults.workspace_write",
+                message="workspace_write must be a boolean",
+            )
+        )
+    pid_ns = section.get("pid_namespace")
+    if pid_ns is not None and str(pid_ns).lower() not in ("container", "host"):
+        errors.append(
+            ValidationError(
+                field="terminal.defaults.pid_namespace",
+                message="pid_namespace must be 'container' or 'host'",
+            )
+        )
+    kc = section.get("keep_container")
+    if kc is not None and not isinstance(kc, bool):
+        errors.append(
+            ValidationError(
+                field="terminal.defaults.keep_container",
+                message="keep_container must be a boolean",
+            )
+        )
+    uv = section.get("use_venv")
+    if uv is not None and not isinstance(uv, bool):
+        errors.append(
+            ValidationError(
+                field="terminal.defaults.use_venv",
+                message="use_venv must be a boolean",
+            )
+        )
+    return errors
+
+
+def _validate_host_execution(section: Any) -> List[ValidationError]:
+    """Validate ``terminal.host_execution`` (optional host-side command allowlist)."""
+    errors: List[ValidationError] = []
+    if section is None:
+        return errors
+    if not isinstance(section, dict):
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution",
+                message="terminal.host_execution must be an object when present",
+            )
+        )
+        return errors
+
+    enabled = section.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.enabled",
+                message="enabled must be a boolean",
+            )
+        )
+
+    commands = section.get("allowed_commands")
+    if commands is None:
+        return errors
+    if not isinstance(commands, list):
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.allowed_commands",
+                message="allowed_commands must be an array of strings when present",
+            )
+        )
+        return errors
+
+    for i, item in enumerate(commands):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(
+                ValidationError(
+                    field=f"terminal.host_execution.allowed_commands[{i}]",
+                    message="each allowed_commands entry must be a non-empty string",
+                )
+            )
+    return errors
+
+
+def _validate_runtime(section: Any) -> List[ValidationError]:
+    """Validate ``runtime`` sandbox defaults."""
+    errors: List[ValidationError] = []
+    if section is None:
+        return errors
+    if not isinstance(section, dict):
+        errors.append(
+            ValidationError(field="runtime", message="runtime must be an object when present")
+        )
+        return errors
     return errors
 
 

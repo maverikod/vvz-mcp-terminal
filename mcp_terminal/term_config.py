@@ -75,6 +75,41 @@ def normalize_tls_paths_in_term_config(config_path: Path) -> None:
         config_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def sanitize_registration_proxy_metadata(config_path: Path) -> None:
+    """
+    Move legacy ``registration.description`` / ``registration.version`` into
+    ``registration.metadata`` (``RegistrationConfig`` only accepts ``metadata``).
+
+    Rewrites the config file when migration runs.
+    """
+    config_path = config_path.resolve()
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    reg = data.get("registration")
+    if not isinstance(reg, dict):
+        return
+
+    legacy_keys = ("description", "version")
+    if not any(key in reg for key in legacy_keys):
+        return
+
+    meta = reg.get("metadata")
+    if not isinstance(meta, dict):
+        meta = {}
+        reg["metadata"] = meta
+
+    changed = False
+    for key in legacy_keys:
+        value = reg.pop(key, None)
+        if value is None:
+            continue
+        if not meta.get(key):
+            meta[key] = value
+        changed = True
+
+    if changed:
+        config_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
 def default_config_path() -> Path:
     """Path to the runtime SimpleConfig JSON (usually gitignored)."""
     return repo_root() / "configs" / "term_server.json"
@@ -107,6 +142,7 @@ def load_validated_term_simple_config(path: Path) -> tuple[SimpleConfig, SimpleC
     """Load ``path`` as ``SimpleConfig`` and validate with ``SimpleConfigValidator``."""
     path = path.resolve()
     normalize_tls_paths_in_term_config(path)
+    sanitize_registration_proxy_metadata(path)
     p = str(path)
     simple_config = SimpleConfig(p)
     model = simple_config.load()
@@ -161,5 +197,6 @@ def ensure_term_server_config(
             data["server"]["ssl"]["ca"] = str(Path(ca_cert))
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    sanitize_registration_proxy_metadata(path)
     validate_term_server_config(path)
     return path
