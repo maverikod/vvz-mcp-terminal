@@ -1,0 +1,7 @@
+step_id: A-002
+parent_tactical_step: T-001
+name: terminal-session-create-command
+target_file: mcp_terminal/commands/terminal_session_create_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_session_create public command (C-014, C-005) allocating session_id and queuing session bootstrap.

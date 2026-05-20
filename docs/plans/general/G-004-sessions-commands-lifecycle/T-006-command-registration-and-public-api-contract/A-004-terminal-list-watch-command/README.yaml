@@ -1,0 +1,7 @@
+step_id: A-004
+parent_tactical_step: T-006
+name: terminal-list-watch-command
+target_file: mcp_terminal/commands/terminal_list_watch_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_list_watch public command (C-014) listing watch anchors and projects discovered under each.

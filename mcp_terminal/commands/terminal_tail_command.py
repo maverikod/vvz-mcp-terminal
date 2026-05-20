@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Dict, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_tail_metadata import get_terminal_tail_metadata
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.output_reader import DEFAULT_TAIL_LINES, OutputReader
 
@@ -47,6 +48,10 @@ class TerminalTailCommand(Command):
             "required": ["project_id", "session_id", "seq", "stream"],
             "additionalProperties": False,
         }
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_tail_metadata(cls)
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)

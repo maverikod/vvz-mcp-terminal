@@ -55,5 +55,7 @@ prompt: "Create the file `mcp_terminal/services/audit_writer.py`.\n\nOperation: 
 verification:
   type: import
   target: mcp_terminal/services/audit_writer.py
-  expected: '`from mcp_terminal.services.audit_writer import AuditWriter` succeeds.'
-status: draft
+  expected: '`from mcp_terminal.services.audit_writer import AuditWriter` succeeds. AuditWriter.write
+    accepts execution_target (sandbox|host|attached) and optional policy_code on rejected
+    requests; both fields are persisted in the audit JSON record.'
+status: frozen

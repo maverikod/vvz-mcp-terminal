@@ -1,7 +1,7 @@
 step_id: T-002
 parent_global_step: G-005
 name: TTL Cleanup Service
-status: draft
+status: frozen
 description: 'Defines the TTL cleanup behaviour of ConfigOverlay (C-013) over SessionStore
   (C-005). The cleanup service runs on a configurable interval (terminal.sessions.cleanup_interval_seconds).
   On each cycle it enumerates all session directories across all known projects, reads
@@ -12,7 +12,8 @@ description: 'Defines the TTL cleanup behaviour of ConfigOverlay (C-013) over Se
   by the cleanup service unless terminal.cleanup.delete_running_sessions is explicitly
   true (default: false). Deletion removes the full session directory and all output
   files. The cleanup service logs every deletion using logical project/session identifiers,
-  not raw host paths.'
+  not raw host paths. Implemented: TtlCleanupService is wired in mcp_terminal/term_server.py
+  at server startup; tests/test_ttl_cleanup_service.py covers expiry and skip rules.'
 concepts:
 - C-013
 - C-005
@@ -31,4 +32,7 @@ outputs:
   description: 'Per-session deletion result: session_id, project_id, outcome (deleted,
     skipped_running, skipped_not_expired). Logged by the cleanup service; not returned
     to callers.'
-atomic_steps: []
+atomic_steps:
+- A-001
+- A-002
+- A-003

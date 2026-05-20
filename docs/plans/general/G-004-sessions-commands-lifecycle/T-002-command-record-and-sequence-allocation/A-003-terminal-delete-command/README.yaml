@@ -1,0 +1,7 @@
+step_id: A-003
+parent_tactical_step: T-002
+name: terminal-delete-command
+target_file: mcp_terminal/commands/terminal_delete_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_delete public command (C-014, C-005) removing session directories with optional project scope.

@@ -1,0 +1,90 @@
+step_id: G-008
+name: Host Execution Target
+status: frozen
+description: "Formalizes the host execution target as a first-class concept of the
+  system. Covers the gate (terminal.host_execution.enabled + non-empty allowed_commands),
+  the validation policy (HostExecutionPolicy) including the allowlist by basename,
+  the hard-forbidden executables list, the forbidden-pattern scanner over command
+  text, argv elements, redirect targets, here-string operands, and heredoc bodies,
+  the host job execution lifecycle (no container start/stop/mount steps), the cwd/venv
+  resolution on the host project tree, and shared session/sequence space with the
+  sandbox target. Establishes terminal_run_host as the public MCP command exposing
+  this target. The target is transitional and will be removed under the conditions
+  in tech_spec.md §28.11 (once code-analysis-server and mcp_terminal themselves run
+  inside containers reachable via the attached target). Until then the target is supported
+  and config-gated.
+
+  Cross-G ownership: host_execution config overlay (TRT-T-004) primary G-005 T-001;
+  audit host fields (TRT-T-008) primary G-005 T-003; H-1..H-11 tests (TRT-T-006) primary
+  G-007 T-002; terminal_get_status execution_target (TRT-T-007) G-004 T-005 / G-008 T-003.
+
+  Implementation complete for this revision: host_shell_scanner.py, host_execution_config.py,
+  terminal_run_host command chain, TerminalHostExecutionJob, and host test modules are
+  present; 195 pytest passed, 0 skipped when Docker is available (section 21 MVP acceptance fully
+  automated in test_sandbox_mvp_acceptance.py and test_sandbox_docker_e2e.py); suite includes
+  test_host_invariants.py
+  and test_host_shell_scanner.py.\n"
+concepts:
+- C-017
+- C-018
+- C-019
+relations:
+- from_concept: C-019
+  to_concept: C-017
+  type: depends_on
+- from_concept: C-018
+  to_concept: C-001
+  type: uses
+- from_concept: C-018
+  to_concept: C-015
+  type: produces
+- from_concept: C-019
+  to_concept: C-018
+  type: depends_on
+- from_concept: C-019
+  to_concept: C-008
+  type: produces
+- from_concept: C-019
+  to_concept: C-006
+  type: produces
+- from_concept: C-019
+  to_concept: C-012
+  type: produces
+- from_concept: C-019
+  to_concept: C-015
+  type: produces
+- from_concept: C-013
+  to_concept: C-018
+  type: owns
+- from_concept: C-014
+  to_concept: C-019
+  type: produces
+source_ranges:
+- end: 1251
+  start: 1198
+- end: 1335
+  start: 1256
+- end: 1363
+  start: 1354
+- end: 1401
+  start: 1364
+- end: 1440
+  start: 1402
+- end: 1500
+  start: 1441
+- end: 1512
+  start: 1501
+- end: 1530
+  start: 1513
+depends_on:
+- G-001
+- G-004
+- G-005
+tactical_steps:
+- T-001
+- T-002
+- T-003
+tactical_rework_tasks: []
+removal_condition_reference: "tech_spec.md §28.11 — host target is transitional and
+  removable once code-analysis-server and mcp_terminal themselves run inside containers
+  reachable through the attached target.\n"

@@ -6,12 +6,19 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 import asyncio
+from typing import Any
 from unittest.mock import patch
 
 from mcp_terminal.commands.terminal_session_create_command import TerminalSessionCreateCommand
 from mcp_terminal.runtime_context import set_terminal_services
 from mcp_terminal.services.session_bootstrap import read_bootstrap_state, write_bootstrap_pending
 from mcp_terminal.services.session_store import SessionStore
+
+
+def _mock_enqueue_coroutine(coro: Any, *, job_id: str) -> str:
+    if asyncio.iscoroutine(coro):
+        coro.close()
+    return job_id
 
 
 @dataclass
@@ -28,7 +35,9 @@ def test_session_create_enqueues_bootstrap(
     mock_enqueue,
     tmp_path: Path,
 ) -> None:
-    mock_enqueue.return_value = "bootstrap-job-abc"
+    mock_enqueue.side_effect = lambda coro: _mock_enqueue_coroutine(
+        coro, job_id="bootstrap-job-abc"
+    )
     project_id = "00000000-0000-4000-8000-000000000001"
     session_id = "00000000-0000-4000-8000-000000000002"
     mock_resolve.return_value = _FakeResolution(success=True, project_dir=tmp_path)

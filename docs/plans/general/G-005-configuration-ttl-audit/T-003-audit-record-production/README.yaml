@@ -1,30 +1,36 @@
 step_id: T-003
 parent_global_step: G-005
 name: Audit Record Production
-status: draft
+status: frozen
 description: 'Defines AuditRecord (C-012) production by TerminalExecutionJob (C-009)
-  for every terminal_run invocation regardless of outcome. The audit record is created
-  at job start (not at request time) and contains: run_id (generated UUID4), caller
-  identity if available from the adapter context, project_id, session_id, seq, resolved
-  project root hash (not the raw host path), command display string, resolved_argv,
-  cwd, mode, network, image_profile, container_id (assigned at container start), start_time,
+  and TerminalHostExecutionJob (C-019) for every terminal_run and terminal_run_host
+  invocation regardless of outcome. The audit record is created at job start (not at
+  request time) and contains: run_id (generated UUID4), caller identity if available
+  from the adapter context, project_id, session_id, seq, resolved project root hash
+  (not the raw host path), command display string, resolved_argv, cwd, mode, network,
+  image_profile, container_id (assigned at container start for sandbox), start_time,
   finish_time, duration, exit_code, timed_out flag, stdout_file name and byte size,
-  stderr_file name and byte size, policy decision summary (which checks passed and
-  which produced the rejection), and error code if the job failed. Secret environment
-  variable values must never appear in the audit record; only variable names may be
-  logged if present. AuditRecord is distinct from CommandRecord (C-006): CommandRecord
-  is the user-facing history; AuditRecord is the immutable security trail.'
+  stderr_file name and byte size,   mandatory execution_target (sandbox|host|attached; implemented in AuditWriter.write),
+  host-specific fields when execution_target=host (resolved_cwd_on_host, use_venv_resolved,
+  allowed_commands_snapshot_hash), policy decision summary (which checks passed and
+  which produced the rejection), and policy_code on reject (stable ErrorContract
+  C-015 code that caused rejection; persisted when request is rejected before queue). Secret environment variable values must never
+  appear in the audit record; only variable names may be logged if present. AuditRecord
+  is distinct from CommandRecord (C-006): CommandRecord is the user-facing history;
+  AuditRecord is the immutable security trail.'
 concepts:
 - C-012
 inputs:
 - name: execution_context
   type: job execution parameters
-  description: All parameters passed to TerminalExecutionJob including project_id,
-    session_id, seq, command fields, container_id, timing, and policy decision.
+  description: All parameters passed to TerminalExecutionJob or TerminalHostExecutionJob
+    including project_id, session_id, seq, command fields, execution_target, container_id
+    or host context, timing, and policy decision.
 outputs:
 - name: audit_record
   type: immutable audit entry
-  description: Complete AuditRecord persisted to the audit log. Contains all required
-    fields defined by C-012 without any secret environment values. Immutable once
-    written.
-atomic_steps: []
+  description: Complete AuditRecord persisted to the audit log. Contains execution_target,
+    target-specific fields, policy_code when rejected, and all required C-012 fields
+    without any secret environment values. Immutable once written.
+atomic_steps:
+- A-001

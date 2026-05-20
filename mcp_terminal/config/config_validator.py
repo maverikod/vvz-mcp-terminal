@@ -112,6 +112,7 @@ def validate_terminal_config(
             )
 
     errors.extend(_validate_terminal_defaults(terminal.get("defaults")))
+    errors.extend(_validate_terminal_admin(terminal.get("admin")))
     errors.extend(_validate_host_execution(terminal.get("host_execution")))
     errors.extend(_validate_runtime(config.get("runtime")))
     errors.extend(_validate_code_analysis(config.get("code_analysis")))
@@ -162,6 +163,30 @@ def _validate_terminal_defaults(section: Any) -> List[ValidationError]:
             ValidationError(
                 field="terminal.defaults.use_venv",
                 message="use_venv must be a boolean",
+            )
+        )
+    return errors
+
+
+def _validate_terminal_admin(section: Any) -> List[ValidationError]:
+    """Validate ``terminal.admin`` (optional destructive-operation flags)."""
+    errors: List[ValidationError] = []
+    if section is None:
+        return errors
+    if not isinstance(section, dict):
+        errors.append(
+            ValidationError(
+                field="terminal.admin",
+                message="terminal.admin must be an object when present",
+            )
+        )
+        return errors
+    ap = section.get("allow_purge_sessions")
+    if ap is not None and not isinstance(ap, bool):
+        errors.append(
+            ValidationError(
+                field="terminal.admin.allow_purge_sessions",
+                message="allow_purge_sessions must be a boolean",
             )
         )
     return errors

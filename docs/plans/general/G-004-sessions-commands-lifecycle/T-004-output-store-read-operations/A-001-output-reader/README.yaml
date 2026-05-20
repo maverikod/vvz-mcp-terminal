@@ -83,4 +83,4 @@ verification:
   expected: '`from mcp_terminal.services.output_reader import OutputReader, SearchMatch,
     StatResult` succeeds. OutputReader._resolve_file with an invalid stream name returns
     (None, ''INVALID_STREAM'').'
-status: draft
+status: frozen

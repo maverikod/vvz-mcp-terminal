@@ -1,7 +1,7 @@
 step_id: T-004
 parent_global_step: G-004
 name: Output Store Read Operations
-status: draft
+status: frozen
 description: 'Defines OutputStore (C-008) read operations: terminal_read, terminal_tail,
   terminal_search_output, and terminal_stat. terminal_read reads bytes from NNNNNN.stdout.log
   or NNNNNN.stderr.log starting at a byte offset with a max_bytes limit sourced from
@@ -33,4 +33,9 @@ outputs:
     last N lines of the stream file. For terminal_search_output: list of regex matches
     with seq, stream, line number, and matched text. For terminal_stat: file names,
     byte sizes, and command metadata without file content.'
-atomic_steps: []
+atomic_steps:
+- A-001
+- A-002
+- A-003
+- A-004
+- A-005

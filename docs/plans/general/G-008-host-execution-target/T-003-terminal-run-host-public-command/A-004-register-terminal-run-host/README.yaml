@@ -1,0 +1,43 @@
+concepts:
+- C-014
+- C-016
+depends_on:
+- A-003
+name: Register TerminalRunHostCommand in term_server.py
+operation: modify_file
+parent_tactical_step: T-003
+priority: 1
+prompt: "Modify the file `mcp_terminal/term_server.py`.\n\nOperation: modify_file\n\
+  \n## Purpose\n\nEnsures TerminalRunHostCommand is imported and included in\n_TERMINAL_COMMAND_TYPES
+  in mcp_terminal/term_server.py, so it is registered via\nthe adapter register_custom_commands_hook
+  and appears in MCP help as\n\"terminal_run_host\". This realises PublicCommandSet
+  (C-014) for the host target\nand extends AdapterSkeleton (C-016) per the extension-not-rewrite
+  invariant.\n\n## MRS concept excerpts\n\nC-014 PublicCommandSet:\n  - All terminal_*
+  commands registered via register_custom_commands_hook.\n  - No short aliases; terminal_
+  prefix mandatory.\n  - TerminalRunHostCommand must appear in _TERMINAL_COMMAND_TYPES
+  list.\n\nC-016 AdapterSkeleton:\n  - term_server.py is the existing server entry
+  point; must not be rewritten.\n  - New commands are added incrementally to _TERMINAL_COMMAND_TYPES.\n\
+  \n## Current file content (before this step)\n\nThe file already contains:\n  -
+  Line 38: from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand\n\
+  \  - Line 86: TerminalRunHostCommand, in _TERMINAL_COMMAND_TYPES list\n\nThis means
+  the required state is ALREADY PRESENT.\n\n## Required action\n\nVerify that the
+  following two conditions hold in term_server.py. If either is absent,\nadd it in
+  the correct location:\n\n1. Import present (near other terminal command imports):\n\
+  \   from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand\n\
+  \n2. TerminalRunHostCommand appears in _TERMINAL_COMMAND_TYPES list alongside\n\
+  \   the other TerminalXxxCommand entries.\n\nIf both are already present (as expected),
+  make NO changes to the file.\nDo not add duplicate imports or duplicate list entries.\n\
+  \n## Constraints\n- Modify ONLY `mcp_terminal/term_server.py`.\n- Do not reorder
+  existing imports or list entries unless strictly required.\n- File must not exceed
+  200 lines after modification.\n- Line length <= 99. Must pass flake8.\n- Do not
+  add or remove any other command from _TERMINAL_COMMAND_TYPES.\n"
+status: frozen
+step_id: A-004
+target_file: mcp_terminal/term_server.py
+verification:
+  expected: "grep -n 'TerminalRunHostCommand' mcp_terminal/term_server.py shows at
+    least 2 lines: one import line and one usage in _TERMINAL_COMMAND_TYPES. python
+    -c 'from mcp_terminal.term_server import _TERMINAL_COMMAND_TYPES; assert any(c.name
+    == \"terminal_run_host\" for c in _TERMINAL_COMMAND_TYPES)' exits with code 0."
+  target: mcp_terminal/term_server.py
+  type: static_analysis

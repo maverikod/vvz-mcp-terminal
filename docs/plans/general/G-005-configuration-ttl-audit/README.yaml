@@ -8,7 +8,10 @@ description: 'Covers the terminal-specific configuration layer and audit trail. 
   Key validated parameters include TTL, cleanup interval, output size limits, and
   history limits. The TTL cleanup service deletes expired sessions and protects running
   sessions. Every terminal_run invocation produces an immutable audit record regardless
-  of outcome, containing full execution context without secret values.'
+  of outcome, containing full execution context without secret values.
+
+  ConfigOverlay owns terminal.host_execution (gate and allowlist). terminal.attached_execution
+  is a reserved stub until the G-009 gate is cleared.'
 concepts:
 - C-012
 - C-013
@@ -32,4 +35,8 @@ depends_on:
 - G-001
 - G-003
 - G-004
-tactical_steps: []
+tactical_steps:
+- T-001
+- T-002
+- T-003
+tactical_rework_tasks: []

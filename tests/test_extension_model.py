@@ -37,7 +37,7 @@ def test_terminal_domain_modules_importable() -> None:
     from mcp_terminal.config.config_validator import validate_terminal_config  # noqa: F401
 
     assert SandboxPolicy is not None
-    assert len(ALL_ERROR_CODES) == 20
+    assert len(ALL_ERROR_CODES) == 24
 
 
 def test_command_modules_importable() -> None:
@@ -51,6 +51,9 @@ def test_command_modules_importable() -> None:
     from mcp_terminal.commands.terminal_list_command import TerminalListCommand
     from mcp_terminal.commands.terminal_list_watch_command import (  # noqa: F401
         TerminalListWatchCommand,
+    )
+    from mcp_terminal.commands.terminal_purge_sessions_command import (
+        TerminalPurgeSessionsCommand,
     )
     from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
     from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
@@ -83,6 +86,7 @@ def test_command_modules_importable() -> None:
     assert TerminalSearchOutputCommand.name == "terminal_search_output"
     assert TerminalDeleteCommand.name == "terminal_delete"
     assert TerminalKillCommand.name == "terminal_kill"
+    assert TerminalPurgeSessionsCommand.name == "terminal_purge_sessions"
     assert TerminalListCommand.name == "terminal_list"
     assert TerminalListWatchCommand.name == "terminal_list_watch"
 
@@ -97,16 +101,18 @@ def test_config_overlay_generates_defaults() -> None:
     assert "watch_dirs" in config
     assert "code_analysis" in config
     assert config["terminal"]["sessions"]["ttl_seconds"] == 86400
+    assert config["terminal"]["admin"]["allow_purge_sessions"] is True
     assert config["code_analysis"]["enabled"] is False
     errors = validate_terminal_config(config)
     assert errors == [], f"Unexpected validation errors: {errors}"
 
 
 def test_error_codes_stable() -> None:
-    """All 15 ErrorContract codes must be defined (C-015)."""
+    """All ErrorContract codes must be defined (C-015)."""
     from mcp_terminal.errors import ALL_ERROR_CODES
 
     assert "PROJECT_NOT_FOUND" in ALL_ERROR_CODES
     assert "INVALID_SESSION" in ALL_ERROR_CODES
     assert "CONTAINER_CLEANUP_FAILED" in ALL_ERROR_CODES
-    assert len(ALL_ERROR_CODES) == 20
+    assert "PURGE_SESSIONS_DISABLED" in ALL_ERROR_CODES
+    assert len(ALL_ERROR_CODES) == 24

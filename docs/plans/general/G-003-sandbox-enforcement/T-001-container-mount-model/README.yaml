@@ -1,7 +1,7 @@
 step_id: T-001
 parent_global_step: G-003
 name: Container Mount Model
-status: draft
+status: frozen
 description: 'Defines the container mount model enforced by ContainerRuntime (C-010).
   The project root is always mounted at the fixed path /workspace; the caller cannot
   choose the mount point. Three mount modes are defined: read_only mounts /workspace
@@ -33,4 +33,5 @@ outputs:
   description: 'Complete mount specification for the container: /workspace source
     path, mount mode (ro or rw), /scratch configuration, and validated absolute working
     directory inside /workspace. Consumed by the runtime security profile step.'
-atomic_steps: []
+atomic_steps:
+- A-001

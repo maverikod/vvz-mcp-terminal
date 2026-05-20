@@ -16,7 +16,18 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
+
+
+def session_audit_log_path(session_dir: Path) -> Path:
+    """Per-session append-only audit log (C-012)."""
+    return session_dir / "audit.jsonl"
+
+
+def allowed_commands_snapshot_hash(allowed_commands: FrozenSet[str]) -> str:
+    """Stable hash of the active host allowlist at decision time."""
+    payload = "\n".join(sorted(allowed_commands))
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
 class AuditWriter:
@@ -50,6 +61,11 @@ class AuditWriter:
         stderr_bytes: int,
         policy_decision: str,
         error_code: Optional[str],
+        execution_target: str,
+        resolved_cwd_on_host: Optional[str] = None,
+        use_venv_resolved: Optional[bool] = None,
+        allowed_commands_snapshot_hash: Optional[str] = None,
+        policy_code: Optional[str] = None,
     ) -> str:
         """Write an immutable AuditRecord to the audit log.
 
@@ -58,7 +74,11 @@ class AuditWriter:
 
         Args:
             project_dir: Used only for hashing; the hash is recorded, not the path.
-            ... (all other args map directly to AuditRecord fields)
+            execution_target: ``sandbox``, ``host``, or ``attached`` (C-017).
+            resolved_cwd_on_host: Project-relative cwd for host target (C-012).
+            use_venv_resolved: Resolved venv flag for host/sandbox runs.
+            allowed_commands_snapshot_hash: Host allowlist snapshot (C-012).
+            policy_code: Stable ErrorContract code when the request was rejected.
 
         Returns:
             run_id (UUID4 string) of the written audit record.
@@ -89,7 +109,16 @@ class AuditWriter:
             "stderr_bytes": stderr_bytes,
             "policy_decision": policy_decision,
             "error_code": error_code,
+            "execution_target": execution_target,
         }
+        if resolved_cwd_on_host is not None:
+            record["resolved_cwd_on_host"] = resolved_cwd_on_host
+        if use_venv_resolved is not None:
+            record["use_venv_resolved"] = use_venv_resolved
+        if allowed_commands_snapshot_hash is not None:
+            record["allowed_commands_snapshot_hash"] = allowed_commands_snapshot_hash
+        if policy_code is not None:
+            record["policy_code"] = policy_code
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         with self._log_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")

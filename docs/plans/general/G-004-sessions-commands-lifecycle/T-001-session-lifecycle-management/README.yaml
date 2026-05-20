@@ -1,7 +1,7 @@
 step_id: T-001
 parent_global_step: G-004
 name: Session Lifecycle Management
-status: draft
+status: frozen
 description: 'Defines the lifecycle of TerminalSession (C-004) managed by SessionStore
   (C-005). terminal_session_create allocates a new UUID4 session_id, creates the .terminals/<session_id>/
   directory inside the project root, initialises an empty history.jsonl, and records
@@ -33,4 +33,7 @@ outputs:
   description: 'Newly created session: session_id (UUID4), project_id, created_at,
     last_activity_at, status (idle), session_dir path. Stored in SessionStore and
     returned to the caller.'
-atomic_steps: []
+atomic_steps:
+- A-001
+- A-002
+- A-004

@@ -54,4 +54,4 @@ verification:
   type: import
   target: mcp_terminal/commands/__init__.py
   expected: '`import mcp_terminal.commands` succeeds without error.'
-status: draft
+status: frozen

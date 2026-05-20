@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Dict, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_get_metadata import get_terminal_get_metadata
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
 
@@ -43,6 +44,10 @@ class TerminalGetCommand(Command):
             "required": ["project_id", "session_id", "seq"],
             "additionalProperties": False,
         }
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_get_metadata(cls)
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         """Return full CommandRecord for project_id + session_id + seq."""

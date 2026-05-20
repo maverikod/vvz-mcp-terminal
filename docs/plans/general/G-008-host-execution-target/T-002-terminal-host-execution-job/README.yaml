@@ -1,0 +1,75 @@
+step_id: T-002
+parent_global_step: G-008
+name: Terminal Host Execution Job
+status: frozen
+description: 'Creates TerminalHostExecutionJob (C-019): the queue job that executes
+  a host-target command directly on the host filesystem and host process namespace,
+  without Docker, parallel to TerminalExecutionJob (C-009) but bypassing ContainerRuntime.
+  Implements the 11-step host job lifecycle mandated by §28.4.6: (1) validate request
+  shape, (2) apply HostExecutionPolicy (C-018), (3) resolve project_id and session_id,
+  (4) allocate the next session-local sequence number via CommandSequence (shared
+  with sandbox), (5) create NNNNNN.meta.json, NNNNNN.stdout.log, NNNNNN.stderr.log
+  in the session directory, (6) append the pending record to history.jsonl, (7) enqueue
+  job carrying (project_id, session_id, seq, execution_kind, command|argv, cwd_resolved_on_host,
+  timeout_seconds, use_venv_resolved), (8) return job_id, seq, and output file names
+  with execution_target=host, (9) worker runs the command directly on the host redirecting
+  stdout/stderr to per-seq files, (10) worker updates NNNNNN.meta.json with exit_code,
+  timed_out, execution_target=host on completion/failure/stop/timeout, (11) worker
+  writes the AuditRecord (C-012). No container start, no container stop, no mount
+  step. Produces output into OutputStore (C-008) files using the same NNNNNN layout
+  as sandbox. Writes final status into CommandRecord (C-006). Creates AuditRecord
+  (C-012) for every execution regardless of outcome including the allowed_commands_snapshot_hash.
+  Produces ErrorContract (C-015) codes on execution failures (timeout, host process
+  error). Bound to ExecutionTarget=host (C-017) via depends_on relation.'
+concepts:
+- C-019
+- C-018
+- C-017
+- C-008
+- C-006
+- C-012
+- C-015
+inputs:
+- description: Permitted request carrying (project_id, session_id, seq, 
+    execution_kind, command|argv, cwd_resolved_on_host, timeout_seconds, 
+    use_venv_resolved). Produced by HostExecutionPolicy (C-018) when all checks 
+    pass.
+  name: permitted_job_payload
+  type: request object
+- description: "HostExecutionPolicy (C-018) validation decision: 'permitted'. The
+    job is never enqueued on a rejected decision."
+  name: validation_decision
+  type: binary decision (permitted only)
+- description: Session directory path for the (project_id, session_id) pair. 
+    Used to locate and write NNNNNN.stdout.log, NNNNNN.stderr.log, 
+    NNNNNN.meta.json, and history.jsonl.
+  name: session_directory
+  type: filesystem path
+outputs:
+- description: NNNNNN.stdout.log and NNNNNN.stderr.log files written to the 
+    session directory. Same layout and naming as sandbox OutputStore (C-008) 
+    files. Readable via OutputStore read/tail/search operations.
+  name: output_store_files
+  type: OutputStore (C-008) files
+- description: Updated NNNNNN.meta.json in the session directory with exit_code,
+    timed_out, execution_target=host, and timing fields written after job 
+    completion, failure, stop, or timeout. Appended pending record in 
+    history.jsonl before job execution, updated with final status after 
+    completion.
+  name: command_record_entry
+  type: CommandRecord (C-006) entry in history.jsonl and meta.json
+- description: Immutable audit record written after every host execution 
+    regardless of outcome. Contains execution_target=host, resolved_cwd_on_host 
+    (project-relative), use_venv_resolved, allowed_commands_snapshot_hash, 
+    exit_code, timed_out, timing, output file names and sizes.
+  name: audit_record
+  type: AuditRecord (C-012)
+- description: job_id (queue job identifier) and seq (session-local sequence 
+    number) returned immediately on enqueue. Output file names with 
+    execution_target=host returned in the response.
+  name: enqueue_response
+  type: job reference with seq and file names
+atomic_steps:
+- A-001
+- A-002
+- A-003

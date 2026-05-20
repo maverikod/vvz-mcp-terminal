@@ -15,10 +15,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from mcp_terminal.services.shell_state import (
-    ShellState,
     initial_shell_state_for_project,
     write_shell_state,
 )
@@ -80,12 +79,25 @@ class SessionStore:
         use_venv: Optional[bool] = None,
         pid_namespace: Optional[str] = None,
         workspace_write: Optional[bool] = None,
-    ) -> Tuple[Optional[SessionRecord], bool, Optional[str]]:
-        """Create or adopt a session. Returns (record, created, error_code)."""
+    ) -> Tuple[Optional[SessionRecord], bool, Optional[str], Optional[Dict[str, Any]]]:
+        """Create or adopt a session.
+
+        Returns ``(record, created, error_code, error_data)``. ``error_data`` is non-None
+        only for some errors (e.g. ``WORKSPACE_WRITE_NOT_ALLOWED`` includes the holder
+        ``session_id``).
+        """
         key = self._key(project_id, session_id)
         existing = self._sessions.get(key)
         if existing is not None:
-            return existing, False, None
+            if existing.session_dir.is_dir():
+                return existing, False, None, None
+            self._logger.info(
+                "Dropping in-memory session %s (missing session_dir after purge or manual delete)",
+                session_id,
+            )
+            if existing.workspace_write:
+                self._release_writer(project_id, session_id)
+            del self._sessions[key]
 
         terminals_root = project_dir / self.TERMINALS_DIR
         session_dir = terminals_root / session_id
@@ -99,12 +111,12 @@ class SessionStore:
                 session_dir=session_dir,
             )
             if err is not None:
-                return None, False, err
+                return None, False, err, None
             assert rec is not None
             self._sessions[key] = rec
-            return rec, False, None
+            return rec, False, None, None
 
-        rec, create_err = self._create_new(
+        rec, create_err, create_err_data = self._create_new(
             project_id=project_id,
             session_id=session_id,
             project_dir=project_dir,
@@ -115,9 +127,10 @@ class SessionStore:
             workspace_write=workspace_write,
         )
         if create_err is not None:
-            return None, False, create_err
+            return None, False, create_err, create_err_data
+        assert rec is not None
         self._sessions[key] = rec
-        return rec, True, None
+        return rec, True, None, None
 
     def _create_new(
         self,
@@ -130,9 +143,8 @@ class SessionStore:
         use_venv: Optional[bool] = None,
         pid_namespace: Optional[str] = None,
         workspace_write: Optional[bool] = None,
-    ) -> Tuple[Optional[SessionRecord], Optional[str]]:
+    ) -> Tuple[Optional[SessionRecord], Optional[str], Optional[Dict[str, Any]]]:
         terminals_root.mkdir(parents=True, exist_ok=True)
-        session_dir.mkdir(parents=True, exist_ok=True)
         self._ensure_gitignore(project_dir)
         now = datetime.now(timezone.utc)
 
@@ -144,11 +156,17 @@ class SessionStore:
         if wants_write:
             current = self._project_writer.get(project_id)
             if current is not None and current != session_id:
-                return None, "WORKSPACE_WRITE_NOT_ALLOWED"
+                return (
+                    None,
+                    "WORKSPACE_WRITE_NOT_ALLOWED",
+                    {"workspace_writer_session_id": current},
+                )
             self._project_writer[project_id] = session_id
             ws_on_disk = True
         else:
             ws_on_disk = False
+
+        session_dir.mkdir(parents=True, exist_ok=True)
 
         if pid_namespace is None:
             pid_ns = normalize_pid_namespace(None, default=resolve_default_pid_namespace())
@@ -180,7 +198,7 @@ class SessionStore:
             venv_on,
             pid_ns,
         )
-        return record, None
+        return record, None, None
 
     def _adopt_from_disk(
         self,
@@ -244,11 +262,40 @@ class SessionStore:
         )
         return record, None
 
+    @staticmethod
+    def _workspace_writer_claim_valid(
+        terminals_root: Path, project_id: str, writer_session_id: str
+    ) -> bool:
+        """True when on-disk session still claims workspace write for this project."""
+        meta_path = terminals_root / writer_session_id / "session.json"
+        if not meta_path.is_file():
+            return False
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        if not isinstance(meta, dict):
+            return False
+        if meta.get("project_id") != project_id:
+            return False
+        return meta.get("workspace_write") is True
+
     def _reconcile_project_writer(self, project_dir: Path, project_id: str) -> None:
         """Restore per-project write lock from ``session.json`` on disk (after restart)."""
+        terminals = project_dir / self.TERMINALS_DIR
+        current_sid = self._project_writer.get(project_id)
+        if current_sid is not None and not self._workspace_writer_claim_valid(
+            terminals, project_id, current_sid
+        ):
+            del self._project_writer[project_id]
+            self._logger.info(
+                "Cleared stale workspace writer lock for project %s (was %s)",
+                project_id,
+                current_sid,
+            )
+
         if project_id in self._project_writer:
             return
-        terminals = project_dir / self.TERMINALS_DIR
         if not terminals.is_dir():
             return
         writers: List[Tuple[str, datetime]] = []
@@ -329,6 +376,48 @@ class SessionStore:
         if record:
             record.last_activity_at = datetime.now(timezone.utc)
 
+    def delete_session_by_id(
+        self,
+        project_id: str,
+        session_id: str,
+        project_dir: Path,
+        *,
+        force: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
+        """Remove session from memory and/or ``.terminals/<session_id>/`` on disk.
+
+        Returns ``(ok, error_code)``. ``error_code`` is ``SESSION_RUNNING`` when delete
+        is refused for a running in-memory session and ``force`` is false.
+        """
+        key = self._key(project_id, session_id)
+        record = self._sessions.get(key)
+        if record is not None:
+            ok = self.delete_session(project_id, session_id, force=force)
+            return ok, (None if ok else "SESSION_RUNNING")
+
+        session_dir = (project_dir / self.TERMINALS_DIR / session_id).resolve()
+        if not session_dir.is_dir():
+            return True, None
+
+        meta_path = session_dir / "session.json"
+        if meta_path.is_file():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if isinstance(meta, dict) and meta.get("workspace_write") is True:
+                    if self._project_writer.get(project_id) == session_id:
+                        self._release_writer(project_id, session_id)
+            except (OSError, json.JSONDecodeError):
+                pass
+
+        stop_session_container(project_id, session_id)
+        import shutil
+
+        shutil.rmtree(session_dir, ignore_errors=True)
+        self._logger.info(
+            "Deleted on-disk-only session %s for project %s", session_id, project_id
+        )
+        return True, None
+
     def delete_session(
         self,
         project_id: str,
@@ -360,3 +449,49 @@ class SessionStore:
 
     def list_sessions(self, project_id: str) -> List[SessionRecord]:
         return [r for r in self._sessions.values() if r.project_id == project_id]
+
+    def list_sessions_for_project(
+        self, project_id: str, project_dir: Path
+    ) -> List[SessionRecord]:
+        """In-memory sessions plus any ``.terminals/*`` dirs on disk not yet registered."""
+        self._reconcile_project_writer(project_dir, project_id)
+        by_id: Dict[str, SessionRecord] = {
+            r.session_id: r for r in self._sessions.values() if r.project_id == project_id
+        }
+        terminals_root = project_dir / self.TERMINALS_DIR
+        if not terminals_root.is_dir():
+            return list(by_id.values())
+
+        for sub in terminals_root.iterdir():
+            if not sub.is_dir():
+                continue
+            sid = sub.name
+            if sid in by_id:
+                continue
+            rec, err = self._adopt_from_disk(
+                project_id=project_id,
+                session_id=sid,
+                project_dir=project_dir,
+                session_dir=sub,
+            )
+            if err is None and rec is not None:
+                by_id[sid] = rec
+                self._sessions[self._key(project_id, sid)] = rec
+        return list(by_id.values())
+
+    def drop_sessions_for_purged_terminals(self, terminals_roots: List[Path]) -> int:
+        """Unregister in-memory sessions under purged ``.terminals`` trees (and ghosts)."""
+        normalized = {p.resolve() for p in terminals_roots}
+        dropped = 0
+        for key in list(self._sessions.keys()):
+            rec = self._sessions[key]
+            try:
+                parent = rec.session_dir.parent.resolve()
+            except OSError:
+                parent = None
+            if (parent is not None and parent in normalized) or not rec.session_dir.is_dir():
+                if rec.workspace_write:
+                    self._release_writer(rec.project_id, rec.session_id)
+                del self._sessions[key]
+                dropped += 1
+        return dropped

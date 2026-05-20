@@ -1,0 +1,7 @@
+step_id: A-002
+parent_tactical_step: T-002
+name: Host invariants test module
+target_file: tests/test_host_invariants.py
+operation: document_existing
+status: frozen
+description: Documents H-1..H-11 host execution invariant coverage in tests/test_host_invariants.py per tech_spec section 28.7.

@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.config.config_validator import validate_terminal_config
 from mcp_terminal.config.create_config import build_term_server_config
 
@@ -39,6 +38,8 @@ def _collect_terminal_defaults_kwargs(args: argparse.Namespace) -> Dict[str, Any
         out["terminal_defaults_pid_namespace"] = args.terminal_defaults_pid_namespace
     if getattr(args, "terminal_defaults_keep_container", None) is not None:
         out["terminal_defaults_keep_container"] = args.terminal_defaults_keep_container
+    if getattr(args, "terminal_admin_allow_purge_sessions", None) is not None:
+        out["terminal_admin_allow_purge_sessions"] = args.terminal_admin_allow_purge_sessions
     return out
 
 
@@ -213,6 +214,16 @@ def main() -> None:
         default=None,
         metavar="BOOL",
         help="terminal.defaults.keep_container",
+    )
+    gen.add_argument(
+        "--terminal-admin-allow-purge-sessions",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help=(
+            "terminal.admin.allow_purge_sessions (termgr purge-sessions / "
+            "terminal_purge_sessions MCP)"
+        ),
     )
     gen.set_defaults(func=cmd_generate)
     val = subparsers.add_parser("validate", help="Validate config file")

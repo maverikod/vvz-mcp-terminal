@@ -66,4 +66,4 @@ verification:
   expected: '`from mcp_terminal.config.config_validator import validate_terminal_config,
     ValidationError` succeeds. validate_terminal_config({}) returns a list containing
     a ValidationError with field=''terminal.sessions.ttl_seconds''.'
-status: draft
+status: frozen

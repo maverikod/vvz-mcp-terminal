@@ -33,6 +33,7 @@ from mcp_terminal.services.terminal_defaults import (
     resolve_run_mode,
 )
 from mcp_terminal.commands.terminal_run_metadata import get_terminal_run_metadata
+from mcp_terminal.services.audit_writer import AuditWriter, session_audit_log_path
 from mcp_terminal.services.shell_state import resolve_cwd, resolve_use_venv
 
 _DEFAULT_TIMEOUT_S: int = 600
@@ -132,9 +133,7 @@ class TerminalRunCommand(Command):
             keep_container = bool(kwargs["keep_container"])
         else:
             keep_container = resolve_default_keep_container()
-        use_venv_arg: Optional[bool] = (
-            bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
-        )
+        use_venv_arg: Optional[bool] = bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
         network = str(kwargs.get("network", "none"))
         image_profile = str(kwargs.get("image_profile", "python_dev_3_12"))
         timeout_seconds = int(kwargs.get("timeout_seconds", _DEFAULT_TIMEOUT_S))
@@ -184,6 +183,38 @@ class TerminalRunCommand(Command):
             argv=argv_list,
         )
         if not check.permitted:
+            now = datetime.now(timezone.utc)
+            reject_argv = (
+                list(argv_list)
+                if execution_kind == "argv" and argv_list
+                else ["bash", "-lc", cmd_str or ""]
+            )
+            AuditWriter(session_audit_log_path(srec.session_dir)).write(
+                project_id=project_id,
+                session_id=session_id,
+                seq=0,
+                project_dir=resolved.project_dir,
+                command=cmd_str,
+                resolved_argv=reject_argv,
+                cwd=effective_cwd,
+                mode=mode,
+                network=network,
+                image_profile=image_profile,
+                container_id=None,
+                start_time=now,
+                finish_time=now,
+                exit_code=None,
+                timed_out=False,
+                stdout_file="",
+                stderr_file="",
+                stdout_bytes=0,
+                stderr_bytes=0,
+                policy_decision="rejected",
+                error_code=check.error_code,
+                execution_target="sandbox",
+                use_venv_resolved=use_venv,
+                policy_code=check.error_code,
+            )
             return CommandResult(success=False, error=check.error_code or "INVALID_COMMAND")
 
         mount, m_err = policy.build_mount_spec(
@@ -270,6 +301,7 @@ class TerminalRunCommand(Command):
             session_id=session_id,
             seq=seq,
             session_dir=srec.session_dir,
+            project_dir=resolved.project_dir,
             container_spec=container_spec,
             timeout_seconds=timeout_seconds,
             keep_container=keep_container,

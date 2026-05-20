@@ -5,7 +5,8 @@ description: Covers the mechanism by which the server discovers projects and res
   a caller-supplied project_id into a verified host path. The registry is built from
   projectid marker files found under the configured projects root directory. Runtime
   resolution enforces canonical path containment before any mount operation, rejecting
-  symlink escapes, missing projects, and paths outside the configured root.
+  symlink escapes, missing projects, and paths outside the configured root. ProjectRegistry
+  resolves project_id for all ExecutionTarget values (sandbox, host, attached).
 concepts:
 - C-001
 - C-002
@@ -24,4 +25,7 @@ source_ranges:
   end: 167
 depends_on:
 - G-001
-tactical_steps: []
+tactical_steps:
+- T-001
+- T-002
+- T-003

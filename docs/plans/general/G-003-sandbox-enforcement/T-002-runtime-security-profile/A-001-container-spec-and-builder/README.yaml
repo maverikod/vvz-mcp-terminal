@@ -81,4 +81,4 @@ verification:
   target: mcp_terminal/services/container_runner.py
   expected: '`from mcp_terminal.services.container_runner import ContainerSpec, ContainerRunner`
     succeeds without error.'
-status: draft
+status: frozen

@@ -142,4 +142,4 @@ verification:
   expected: '`from mcp_terminal.services.project_registry import ProjectRegistry`
     succeeds. Instantiating ProjectRegistry(root_dir=Path("/tmp")) and calling build()
     completes without error. known_project_ids returns a frozenset.'
-status: draft
+status: frozen

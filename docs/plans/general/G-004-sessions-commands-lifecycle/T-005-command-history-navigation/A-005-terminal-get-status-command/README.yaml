@@ -14,8 +14,8 @@ prompt: "Create the file `mcp_terminal/commands/terminal_get_status_command.py`.
   \ and terminal\ncommand success state.\n\n## MRS concept excerpts\n\nC-011 QueueResultSemantics:\n\
   \  - queue completed does not imply terminal success\n  - Terminal success requires\
   \ exit_code==0 AND timed_out==false\n  - terminal_get_status returns: job_id, queue_status,\
-  \ terminal_status,\n    exit_code, timed_out, output file names, and output byte\
-  \ sizes\n\n## Module docstring\n\"\"\"\nterminal_get_status command for mcp_terminal\
+  \ terminal_status,\n    exit_code, timed_out, execution_target (sandbox|host;\
+  \ legacy container -> sandbox), output file names, and output byte sizes\n\n## Module docstring\n\"\"\"\nterminal_get_status command for mcp_terminal\
   \ (C-014, C-011).\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\
   \n\n## Imports\nfrom __future__ import annotations\nfrom pathlib import Path\nfrom\
   \ typing import Any, Dict, Optional\nfrom mcp_terminal.services.command_history\
@@ -47,17 +47,20 @@ prompt: "Create the file `mcp_terminal/commands/terminal_get_status_command.py`.
   \ timed_out:\n        terminal_status = \"timed_out\"\n    elif queue_status ==\
   \ \"completed\":\n        terminal_status = \"failure\"\n    else:\n        terminal_status\
   \ = queue_status  # pending, running, failed, stopped\n    reader = OutputReader(record.session_dir)\n\
-  \    stat = reader.stat(seq)\n    return {\n        \"success\": True,\n       \
-  \ \"data\": {\n            \"job_id\": cmd_record.job_id,\n            \"queue_status\"\
-  : queue_status,\n            \"terminal_status\": terminal_status,\n           \
-  \ \"exit_code\": exit_code,\n            \"timed_out\": timed_out,\n           \
-  \ \"stdout_file\": stat.stdout_file,\n            \"stderr_file\": stat.stderr_file,\n\
-  \            \"stdout_bytes\": stat.stdout_bytes,\n            \"stderr_bytes\"\
-  : stat.stderr_bytes,\n        },\n        \"error\": None,\n    }\n\n## Constraints\n\
+  \    stat = reader.stat(seq)\n    meta = reader.read_meta(seq)  # or equivalent;\
+  \ execution_target from meta\n    execution_target = meta.get(\"execution_target\"\
+  , \"sandbox\")\n    if execution_target == \"container\":\n        execution_target\
+  \ = \"sandbox\"\n    return {\n        \"success\": True,\n        \"data\": {\n\
+  \            \"job_id\": cmd_record.job_id,\n            \"queue_status\": queue_status,\n\
+  \            \"terminal_status\": terminal_status,\n            \"exit_code\": exit_code,\n\
+  \            \"timed_out\": timed_out,\n            \"execution_target\": execution_target,\n\
+  \            \"stdout_file\": stat.stdout_file,\n            \"stderr_file\": stat.stderr_file,\n\
+  \            \"stdout_bytes\": stat.stdout_bytes,\n            \"stderr_bytes\":\
+  \ stat.stderr_bytes,\n        },\n        \"error\": None,\n    }\n\n## Constraints\n\
   - File must not exceed 120 lines. Line length limit 99.\n"
 verification:
   type: import
   target: mcp_terminal/commands/terminal_get_status_command.py
   expected: '`from mcp_terminal.commands.terminal_get_status_command import TerminalGetStatusCommand`
     succeeds. TerminalGetStatusCommand.name == "terminal_get_status".'
-status: draft
+status: frozen

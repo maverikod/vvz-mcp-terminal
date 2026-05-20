@@ -1,7 +1,7 @@
 step_id: T-002
 parent_global_step: G-004
 name: Command Record and Sequence Allocation
-status: draft
+status: frozen
 description: 'Defines CommandSequence (C-007) and CommandRecord (C-006) creation during
   terminal_run request handling. CommandSequence allocates the next seq for the session:
   reads the current maximum seq from history.jsonl (or 0 if empty), increments by
@@ -40,4 +40,7 @@ outputs:
   type: set of file name strings
   description: NNNNNN.stdout.log, NNNNNN.stderr.log, NNNNNN.meta.json pre-created
     in the session directory.
-atomic_steps: []
+atomic_steps:
+- A-001
+- A-002
+- A-003

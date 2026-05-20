@@ -40,4 +40,4 @@ verification:
   type: import
   target: mcp_terminal/config/config_cli.py
   expected: '`from mcp_terminal.config.config_cli import main` succeeds.'
-status: draft
+status: frozen

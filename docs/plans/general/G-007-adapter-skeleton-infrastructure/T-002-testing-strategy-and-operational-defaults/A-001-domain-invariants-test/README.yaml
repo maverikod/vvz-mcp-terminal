@@ -65,4 +65,4 @@ verification:
   expected: 'All 9 test functions pass. pytest reports 0 failures and 0 errors. Key
     safety invariants verified: config validation, marker validation, seq allocation,
     stream name rejection, sandbox zero-trust policy.'
-status: draft
+status: frozen

@@ -1,8 +1,13 @@
 meta:
   plan: general
-  total_atomic_steps: 31
-  total_waves: 5
+  total_atomic_steps: 45
+  total_waves: 6
   analysis_basis: import-dependency graph derived from AS prompts
+  notes: >
+    G-001..G-008 implementation complete; 45 atomic steps frozen (40 original plus five
+    TASK_SYNC document_existing stubs). 195 pytest passed, 0 skipped when Docker is available;
+    tech_spec section 21 MVP acceptance fully automated in test_sandbox_mvp_acceptance.py and
+    test_sandbox_docker_e2e.py. G-009 excluded from TASK_SYNC.
 import_graph:
   sandbox_policy.py: []
   project_registry.py: []
@@ -46,6 +51,7 @@ import_graph:
   - terminal_search_commands_command
   - terminal_get_status_command
   - session_store
+  - terminal_run_host_command  # G-008 addition
   test_queue_result_semantics.py: []
   test_extension_model.py:
   - sandbox_policy
@@ -71,368 +77,358 @@ import_graph:
   - command_history
   - output_reader
   - sandbox_policy
+  # G-008 new files
+  host_shell_scanner.py: []
+  host_execution_config.py:
+  - host_shell_scanner
+  host_session_executor.py:
+  - host_execution_config
+  - command_history
+  host_run_service.py:
+  - host_execution_config
+  - command_history
+  - terminal_host_execution_job
+  - session_store
+  terminal_host_execution_job.py:
+  - host_session_executor
+  - command_history
+  terminal_run_host_schema.py: []
+  terminal_run_host_metadata.py: []
+  terminal_run_host_command.py:
+  - terminal_run_host_schema
+  - terminal_run_host_metadata
+  - host_run_service
+  - session_store
 sequential_chains:
 - file: mcp_terminal/services/sandbox_policy.py
-  note: 5 AS spanning G-001 and G-003; must run in priority order 1→2→3→4
+  note: 5 AS spanning G-001 and G-003; must run in priority order 1->2->3->4
   sequence:
   - as_id: G-001-T-001-A-001
     op: create_file
     p: 1
     wave: 0
+    status: done
   - as_id: G-001-T-002-A-001
     op: modify_file
     p: 1
     wave: 0
+    status: done
   - as_id: G-003-T-001-A-001
     op: modify_file
     p: 2
     wave: 0
+    status: done
   - as_id: G-003-T-003-A-001
     op: modify_file
     p: 3
     wave: 0
+    status: done
   - as_id: G-003-T-004-A-001
     op: modify_file
     p: 4
     wave: 0
+    status: done
   total_wall_time: 5 sequential coder calls
 - file: mcp_terminal/services/project_registry.py
-  note: 3 AS across G-002; run in priority order 1→2→3
+  note: 3 AS across G-002; run in priority order 1->2->3
   sequence:
   - as_id: G-002-T-001-A-001
     op: create_file
     p: 1
     wave: 0
+    status: done
   - as_id: G-002-T-002-A-001
     op: modify_file
     p: 1
     wave: 0
+    status: done
   - as_id: G-002-T-003-A-001
     op: modify_file
     p: 1
     wave: 0
+    status: done
+  total_wall_time: 3 sequential coder calls
+- file: mcp_terminal/services/host_execution_config.py
+  note: G-008/T-001 sequential chain; host_shell_scanner extraction complete.
+  sequence:
+  - as_id: G-008-T-001-A-001
+    op: create_file
+    target: mcp_terminal/services/host_shell_scanner.py
+    wave: 5
+    status: done
+  - as_id: G-008-T-001-A-002
+    op: modify_file
+    target: mcp_terminal/services/host_execution_config.py
+    wave: 5
+    status: done
+    note: imports host_shell_scanner; policy validation remains in this module
+  - as_id: G-008-T-001-A-003
+    op: document_existing
+    target: tests/test_host_shell_scanner.py
+    wave: 5
+    status: done
   total_wall_time: 3 sequential coder calls
 waves:
 - wave_id: 0
-  name: Foundation — no internal dependencies
-  description: All AS in this wave create or modify files with zero mcp_terminal-internal
-    imports. They may be executed in any order or fully in parallel. The sandbox_policy.py
-    chain and project_registry.py chain are internally sequential but independent
-    of each other.
+  name: Foundation - no internal dependencies
+  description: All AS create or modify files with zero mcp_terminal-internal imports.
+    Fully parallel except sandbox_policy.py and project_registry.py chains which are
+    internally sequential.
   can_start_after_wave: null
+  status: done
   parallel_groups:
   - group_id: 0-A
     name: sandbox_policy.py sequential chain
-    note: Internally sequential (5 steps). Parallel with all other W0 groups.
+    status: done
     steps:
     - as_id: G-001-T-001-A-001
       target_file: mcp_terminal/services/sandbox_policy.py
       op: create_file
-      concepts:
-      - C-003
+      status: done
       description: TrustCategory, TrustBoundary, TERMINAL_TRUST_BOUNDARY
-      must_precede:
-      - G-001-T-002-A-001
     - as_id: G-001-T-002-A-001
       target_file: mcp_terminal/services/sandbox_policy.py
       op: modify_file
-      concepts:
-      - C-003
-      - C-015
+      status: done
       description: PolicyConfig, ValidationResult, SandboxPolicy.validate()
-      must_precede:
-      - G-003-T-001-A-001
     - as_id: G-003-T-001-A-001
       target_file: mcp_terminal/services/sandbox_policy.py
       op: modify_file
-      concepts:
-      - C-003
-      - C-010
+      status: done
       description: MountSpec, SandboxPolicy.build_mount_spec()
-      must_precede:
-      - G-003-T-003-A-001
     - as_id: G-003-T-003-A-001
       target_file: mcp_terminal/services/sandbox_policy.py
       op: modify_file
-      concepts:
-      - C-003
-      - C-010
+      status: done
       description: NetworkSpec, DEFAULT/PACKAGE_REGISTRY_NETWORK_SPEC, build_network_spec()
-      must_precede:
-      - G-003-T-004-A-001
     - as_id: G-003-T-004-A-001
       target_file: mcp_terminal/services/sandbox_policy.py
       op: modify_file
-      concepts:
-      - C-003
-      - C-010
+      status: done
       description: ImageAndCommandSpec, IMAGE_PROFILE_MAP, build_image_and_command_spec()
-      must_precede: []
   - group_id: 0-B
     name: project_registry.py sequential chain
-    note: Internally sequential (3 steps). Parallel with all other W0 groups.
+    status: done
     steps:
     - as_id: G-002-T-001-A-001
       target_file: mcp_terminal/services/project_registry.py
       op: create_file
-      concepts:
-      - C-002
+      status: done
       description: ProjectMarker, MarkerValidationError, validate_marker_file()
-      must_precede:
-      - G-002-T-002-A-001
     - as_id: G-002-T-002-A-001
       target_file: mcp_terminal/services/project_registry.py
       op: modify_file
-      concepts:
-      - C-001
-      - C-002
+      status: done
       description: RegistryEntry, ProjectRegistry.__init__(), build(), known_project_ids
-      must_precede:
-      - G-002-T-003-A-001
     - as_id: G-002-T-003-A-001
       target_file: mcp_terminal/services/project_registry.py
       op: modify_file
-      concepts:
-      - C-001
+      status: done
       description: ResolutionResult, ProjectRegistry.resolve(), refresh()
-      must_precede: []
   - group_id: 0-C
     name: Independent service files
-    note: All fully parallel with each other and with 0-A, 0-B.
+    status: done
     steps:
     - as_id: G-004-T-001-A-001
       target_file: mcp_terminal/services/session_store.py
       op: create_file
-      concepts:
-      - C-004
-      - C-005
-      description: SessionRecord, SessionStore (create/touch/delete/list)
+      status: done
     - as_id: G-004-T-002-A-001
       target_file: mcp_terminal/services/command_history.py
       op: create_file
-      concepts:
-      - C-006
-      - C-007
-      description: CommandRecord, CommandHistory (allocate_seq, append, update, list)
+      status: done
     - as_id: G-005-T-003-A-001
       target_file: mcp_terminal/services/audit_writer.py
       op: create_file
-      concepts:
-      - C-012
-      description: AuditWriter.write()
+      status: done
     - as_id: G-006-T-001-A-001
       target_file: mcp_terminal/errors.py
       op: create_file
-      concepts:
-      - C-015
-      description: ErrorCode constants, ALL_ERROR_CODES, TerminalError
+      status: done
   - group_id: 0-D
     name: Config package files
-    note: config_cli depends on generator+validator; generator and validator are parallel.
+    status: done
     steps:
     - as_id: G-005-T-001-A-004
       target_file: mcp_terminal/config/__init__.py
       op: create_file
-      concepts:
-      - C-013
-      description: Package init for mcp_terminal.config
+      status: done
     - as_id: G-005-T-001-A-001
       target_file: mcp_terminal/config/config_generator.py
       op: create_file
-      concepts:
-      - C-013
-      description: TERMINAL_CONFIG_DEFAULTS, generate_terminal_config()
-      must_precede:
-      - G-005-T-001-A-003
+      status: done
     - as_id: G-005-T-001-A-002
       target_file: mcp_terminal/config/config_validator.py
       op: create_file
-      concepts:
-      - C-013
-      description: ValidationError, validate_terminal_config()
-      must_precede:
-      - G-005-T-001-A-003
+      status: done
     - as_id: G-005-T-001-A-003
       target_file: mcp_terminal/config/config_cli.py
       op: create_file
-      concepts:
-      - C-013
-      description: cmd_generate(), cmd_validate(), main()
+      status: done
       note: Depends on A-001 and A-002 (same wave); schedule last in this group.
   - group_id: 0-E
     name: Self-contained test
-    note: No internal imports; can run in parallel with everything.
+    status: done
     steps:
     - as_id: G-006-T-002-A-001
       target_file: tests/test_queue_result_semantics.py
       op: create_file
-      concepts:
-      - C-011
-      description: 8 unit tests for QueueResultSemantics invariant (self-contained
-        helper)
+      status: done
 - wave_id: 1
   name: First-level dependents
-  description: Files that import from Wave-0 outputs. All Wave-0 steps must be complete
-    before this wave begins. Steps within this wave are parallel unless they share
-    a target file.
+  description: Files that import from Wave-0 outputs.
   can_start_after_wave: 0
+  status: done
   steps:
   - as_id: G-003-T-002-A-001
     target_file: mcp_terminal/services/container_runner.py
     op: create_file
-    concepts:
-    - C-010
-    - C-003
-    description: ContainerSpec, ContainerRunner (build_cmd)
-    imports_from_wave_0:
-    - sandbox_policy.MountSpec
+    status: done
   - as_id: G-004-T-004-A-001
     target_file: mcp_terminal/services/output_reader.py
     op: create_file
-    concepts:
-    - C-008
-    description: SearchMatch, StatResult, OutputReader (read/tail/search/stat)
-    imports_from_wave_0:
-    - command_history.CommandHistory
+    status: done
   - as_id: G-005-T-002-A-001
     target_file: mcp_terminal/services/ttl_cleanup.py
     op: create_file
-    concepts:
-    - C-013
-    - C-005
-    description: TtlCleanupService (start/stop/_run/_cleanup_once)
-    imports_from_wave_0:
-    - session_store.SessionStore
+    status: done
   - as_id: G-004-T-005-A-006
     target_file: mcp_terminal/commands/__init__.py
     op: create_file
-    concepts:
-    - C-014
-    description: Package init for mcp_terminal.commands
-    imports_from_wave_0: []
+    status: done
   - as_id: G-004-T-005-A-001
     target_file: mcp_terminal/commands/terminal_list_command.py
     op: create_file
-    concepts:
-    - C-014
-    description: TerminalListCommand
-    imports_from_wave_0:
-    - command_history.CommandHistory
-    - session_store.SessionStore
+    status: done
   - as_id: G-004-T-005-A-002
     target_file: mcp_terminal/commands/terminal_get_command.py
     op: create_file
-    concepts:
-    - C-014
-    description: TerminalGetCommand
-    imports_from_wave_0:
-    - command_history.CommandHistory
-    - session_store.SessionStore
+    status: done
   - as_id: G-004-T-005-A-003
     target_file: mcp_terminal/commands/terminal_sessions_command.py
     op: create_file
-    concepts:
-    - C-014
-    description: TerminalSessionsCommand
-    imports_from_wave_0:
-    - session_store.SessionStore
+    status: done
   - as_id: G-004-T-005-A-004
     target_file: mcp_terminal/commands/terminal_search_commands_command.py
     op: create_file
-    concepts:
-    - C-014
-    description: TerminalSearchCommandsCommand
-    imports_from_wave_0:
-    - command_history.CommandHistory
-    - session_store.SessionStore
+    status: done
 - wave_id: 2
   name: Second-level dependents
-  description: Files that import from Wave-1 outputs. All Wave-1 steps must complete
-    before this wave begins.
+  description: Files that import from Wave-1 outputs.
   can_start_after_wave: 1
+  status: done
   steps:
   - as_id: G-004-T-003-A-002
     target_file: mcp_terminal/jobs/__init__.py
     op: create_file
-    concepts:
-    - C-009
-    description: Package init for mcp_terminal.jobs
-    imports_from_wave_1: []
-    note: No imports, but jobs/__init__.py must exist before terminal_execution_job.py
-      is importable.
+    status: done
   - as_id: G-004-T-003-A-001
     target_file: mcp_terminal/jobs/terminal_execution_job.py
     op: create_file
-    concepts:
-    - C-009
-    - C-011
-    description: JobParams, TerminalExecutionJob.run()
-    imports_from_wave_0:
-    - command_history.CommandHistory
-    imports_from_wave_1:
-    - container_runner.ContainerRunner
-    - container_runner.ContainerSpec
+    status: done
   - as_id: G-004-T-005-A-005
     target_file: mcp_terminal/commands/terminal_get_status_command.py
     op: create_file
-    concepts:
-    - C-014
-    - C-011
-    description: TerminalGetStatusCommand (applies QueueResultSemantics)
-    imports_from_wave_0:
-    - command_history.CommandHistory
-    - session_store.SessionStore
-    imports_from_wave_1:
-    - output_reader.OutputReader
+    status: done
 - wave_id: 3
   name: Server registration and integration
-  description: Modifies the existing term_server.py to register all terminal_* commands.
-    Requires all command modules (Wave-1 and Wave-2) to be complete.
+  description: Modifies existing term_server.py to register all terminal_* commands.
   can_start_after_wave: 2
+  status: done
   steps:
   - as_id: G-004-T-006-A-001
     target_file: mcp_terminal/term_server.py
     op: modify_file
-    concepts:
-    - C-014
-    - C-016
-    description: Add register_custom_commands_hook, _SESSION_STORE, _TERMINAL_COMMANDS,
-      _register_terminal_commands()
-    imports_from_wave_1:
-    - terminal_list_command.TerminalListCommand
-    - terminal_get_command.TerminalGetCommand
-    - terminal_sessions_command.TerminalSessionsCommand
-    - terminal_search_commands_command.TerminalSearchCommandsCommand
-    - session_store.SessionStore
-    imports_from_wave_2:
-    - terminal_get_status_command.TerminalGetStatusCommand
+    status: done
+    description: register_custom_commands_hook, _SESSION_STORE, _TERMINAL_COMMANDS
 - wave_id: 4
   name: Integration tests
-  description: Tests that import from the full domain module set. All production code
-    (Waves 0-3) must be complete before integration tests run.
+  description: Tests that import from the full domain module set.
   can_start_after_wave: 3
+  status: done
   steps:
   - as_id: G-007-T-001-A-001
     target_file: tests/test_extension_model.py
     op: create_file
-    concepts:
-    - C-016
-    - C-013
-    description: 5 import smoke tests for AdapterSkeleton extension model
-    imports_all_waves: true
+    status: done
   - as_id: G-007-T-002-A-001
     target_file: tests/test_domain_invariants.py
     op: create_file
-    concepts:
-    - C-016
-    - C-013
-    description: 9 unit tests for key domain invariants
-    imports_from_waves:
-    - 0
-    - 1
+    status: done
+- wave_id: 5
+  name: Host execution target (G-008)
+  description: >
+    All AS for the host execution target are done, including host_shell_scanner extraction
+    and tests/test_host_shell_scanner.py. Wave runs independently of waves 0-4.
+  can_start_after_wave: null
+  status: done
+  parallel_groups:
+  - group_id: 5-A
+    name: host_shell_scanner extraction
+    status: done
+    steps:
+    - as_id: G-008-T-001-A-001
+      target_file: mcp_terminal/services/host_shell_scanner.py
+      op: create_file
+      status: done
+      description: Shell parsing and forbidden-pattern scanner module.
+      must_precede:
+      - G-008-T-001-A-002
+    - as_id: G-008-T-001-A-002
+      target_file: mcp_terminal/services/host_execution_config.py
+      op: modify_file
+      status: done
+      description: HostExecutionPolicy gate, allowlist, and orchestration; imports host_shell_scanner.
+    - as_id: G-008-T-001-A-003
+      target_file: tests/test_host_shell_scanner.py
+      op: document_existing
+      status: done
+      description: Automated tests for host_shell_scanner.
+  - group_id: 5-B
+    name: TerminalHostExecutionJob lifecycle (done)
+    status: done
+    steps:
+    - as_id: G-008-T-002-A-001
+      target_file: mcp_terminal/services/host_session_executor.py
+      op: create_file
+      status: done
+      description: HostSessionExecutor - executes host commands via bash script
+    - as_id: G-008-T-002-A-002
+      target_file: mcp_terminal/services/host_run_service.py
+      op: create_file
+      status: done
+      description: enqueue_host_terminal_run - allocates seq, appends history, enqueues job
+    - as_id: G-008-T-002-A-003
+      target_file: mcp_terminal/jobs/terminal_host_execution_job.py
+      op: create_file
+      status: done
+      description: HostJobParams, TerminalHostExecutionJob.run()
+  - group_id: 5-C
+    name: terminal_run_host public command (done)
+    status: done
+    steps:
+    - as_id: G-008-T-003-A-001
+      target_file: mcp_terminal/commands/terminal_run_host_schema.py
+      op: create_file
+      status: done
+      description: get_terminal_run_host_schema()
+    - as_id: G-008-T-003-A-002
+      target_file: mcp_terminal/commands/terminal_run_host_metadata.py
+      op: create_file
+      status: done
+      description: get_terminal_run_host_metadata()
+    - as_id: G-008-T-003-A-003
+      target_file: mcp_terminal/commands/terminal_run_host_command.py
+      op: create_file
+      status: done
+      description: TerminalRunHostCommand (name=terminal_run_host)
+    - as_id: G-008-T-003-A-004
+      target_file: mcp_terminal/term_server.py
+      op: modify_file
+      status: done
+      description: TerminalRunHostCommand already registered in _TERMINAL_COMMAND_TYPES
 critical_path:
-  description: Longest sequential dependency chain determining minimum calendar time.
-    All other chains can proceed in parallel.
+  description: Longest sequential dependency chain. All other chains run in parallel.
   chain:
   - step: G-001-T-001-A-001
   - step: G-001-T-002-A-001
@@ -444,24 +440,30 @@ critical_path:
   - step: G-004-T-006-A-001
   - step: G-007-T-001-A-001
   total_sequential_steps: 9
-  parallel_savings: 'Without parallelization: 31 sequential calls. With this map:
-    critical path = 9 calls. Max parallelism at Wave 0: up to 9 simultaneous coder
-    calls. Max parallelism at Wave 1: up to 9 simultaneous coder calls.'
+  note: G-008 is not on the critical path; wave 5 runs independently.
 summary:
   wave_0_steps: 16
   wave_1_steps: 8
   wave_2_steps: 3
   wave_3_steps: 1
   wave_4_steps: 2
-  total: 30
-  note: test_queue_result_semantics (W0-E) + all other 30 AS = 31 total
+  wave_5_steps: 10
+  task_sync_steps: 5
+  total: 45
+  note: >-
+    40 original AS plus 5 TASK_SYNC document_existing stubs (TTL wire, TTL tests,
+    host invariants tests, command metadata modules, host shell scanner tests).
+status_summary:
+  frozen: 45
+  draft: 0
 intra_wave_ordering:
-- rule: 'Within group 0-A (sandbox_policy.py): execute in priority order 1→2→3→4→5.'
-- rule: 'Within group 0-B (project_registry.py): execute in priority order 1→2→3.'
-- rule: 'Within group 0-D: start A-001 and A-002 together; A-003 (config_cli) after
-    both complete.'
+- rule: 'Within group 0-A (sandbox_policy.py): execute in priority order 1->2->3->4->5.'
+- rule: 'Within group 0-B (project_registry.py): execute in priority order 1->2->3.'
+- rule: 'Within group 0-D: start A-001 and A-002 together; A-003 (config_cli) after both complete.'
 - rule: 'All other Wave-0 groups: fully parallel, no ordering constraint.'
 - rule: 'Wave-1 steps: all parallel (different files, all deps from Wave-0).'
 - rule: 'Wave-2 steps: all parallel (different files, deps from Wave-0 and Wave-1).'
 - rule: 'Wave-3: single step; must wait for Wave-2 terminal_get_status_command.py.'
 - rule: 'Wave-4: both tests parallel (different files).'
+- rule: 'Wave-5 group 5-A: A-001 must complete before A-002 (same file dependency).'
+- rule: 'Wave-5 groups 5-B and 5-C: already done; no coder action needed.'

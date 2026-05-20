@@ -52,4 +52,4 @@ verification:
   type: import
   target: mcp_terminal/jobs/__init__.py
   expected: '`import mcp_terminal.jobs` succeeds without error.'
-status: draft
+status: frozen

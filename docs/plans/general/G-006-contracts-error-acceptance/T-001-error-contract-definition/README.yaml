@@ -1,7 +1,7 @@
 step_id: T-001
 parent_global_step: G-006
 name: Error Contract Definition
-status: draft
+status: frozen
 description: 'Defines ErrorContract (C-015) as the complete, stable, closed set of
   error codes returned by the server. Each code maps to exactly one rejection condition
   and must not change meaning between versions. The defined codes and their conditions:
@@ -15,20 +15,26 @@ description: 'Defines ErrorContract (C-015) as the complete, stable, closed set 
   in allowlist), TIMEOUT_EXCEEDED (command exceeded configured timeout), OUTPUT_LIMIT_EXCEEDED
   (output truncated at configured byte limit), CONTAINER_CREATE_FAILED (runtime failed
   to create container), CONTAINER_EXEC_FAILED (runtime failed to execute command),
-  CONTAINER_CLEANUP_FAILED (container cleanup failed after execution). The code set
-  is closed: no new code may be added without a version change. Callers handle rejections
-  programmatically by code, not by parsing message text.'
+  CONTAINER_CLEANUP_FAILED (container cleanup failed after execution), HOST_EXECUTION_DISABLED
+  (host gate failed: enabled=false or allowed_commands empty), HOST_COMMAND_NOT_ALLOWED
+  (leading executable not on allowlist or path-bearing argv form), HOST_FORBIDDEN_COMMAND
+  (hard-forbidden executable or forbidden pattern in command/argv/redirect/here-string/heredoc).
+  Host-target codes are produced by HostExecutionPolicy (C-018) and TerminalHostExecutionJob
+  (C-019). The code set is closed: no new code may be added without a version change.
+  Callers handle rejections programmatically by code, not by parsing message text.'
 concepts:
 - C-015
 inputs:
 - name: rejection_event
   type: structured error context
   description: The specific validation failure or execution failure event generated
-    by SandboxPolicy (C-003) or TerminalExecutionJob (C-009).
+    by SandboxPolicy (C-003), HostExecutionPolicy (C-018), or TerminalExecutionJob
+    (C-009) / TerminalHostExecutionJob (C-019).
 outputs:
 - name: error_response
   type: structured error with stable code
   description: Error response containing the stable ErrorContract code, a human-readable
     message (not stable across versions), and the rejected field name where applicable.
     Returned to the caller without leaking host paths or internal state.
-atomic_steps: []
+atomic_steps:
+- A-001

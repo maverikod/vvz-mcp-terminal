@@ -12,6 +12,9 @@ from typing import Any, ClassVar, Dict, List, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_search_output_metadata import (
+    get_terminal_search_output_metadata,
+)
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.output_reader import DEFAULT_MAX_MATCHES, OutputReader
 
@@ -47,6 +50,10 @@ class TerminalSearchOutputCommand(Command):
             "required": ["project_id", "session_id", "seq", "stream", "pattern"],
             "additionalProperties": False,
         }
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_search_output_metadata(cls)
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)

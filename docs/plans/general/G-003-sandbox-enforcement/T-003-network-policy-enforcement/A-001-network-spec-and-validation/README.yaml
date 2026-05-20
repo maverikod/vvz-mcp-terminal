@@ -71,4 +71,4 @@ verification:
     SandboxPolicy` succeeds. SandboxPolicy().build_network_spec("none") returns (DEFAULT_NETWORK_SPEC,
     None) where DEFAULT_NETWORK_SPEC.mode == ''none''. SandboxPolicy().build_network_spec("open")
     returns (None, ValidationResult(permitted=False, error_code=''NETWORK_MODE_NOT_ALLOWED'')).'
-status: draft
+status: frozen

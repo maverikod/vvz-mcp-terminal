@@ -1,0 +1,90 @@
+concepts:
+- C-019
+- C-018
+- C-008
+- C-006
+- C-012
+depends_on:
+- A-001
+name: host_run_service — enqueue host terminal run
+operation: create_file
+parent_tactical_step: T-002
+priority: 1
+prompt: "Create the file `mcp_terminal/services/host_run_service.py`.\n\nOperation:
+  create_file\n\n## Purpose\n\nImplements `enqueue_host_terminal_run`: the async function
+  called by\nTerminalRunHostCommand (C-014) to allocate a seq, append history, and
+  enqueue a\nTerminalHostExecutionJob (C-019). Returns a CommandResult immediately
+  with job_id,\nseq, and output file names. This is the bridge between the public
+  MCP command and\nthe queue job.\n\n## MRS concept excerpts\n\nC-019 TerminalHostExecutionJob:\n\
+  \  - Enqueued by this service after pre-validation.\n  - Receives (project_id, session_id,
+  seq, execution_kind, command|argv,\n    cwd_resolved_on_host, timeout_seconds, use_venv_resolved).\n\
+  \  - job.run() is the callable executed by the queue worker.\n\nC-018 HostExecutionPolicy:\n\
+  \  - validate_host_run_request() is called here before enqueueing.\n  - Returns
+  HostCommandValidation(ok=False, error_code=...) on rejection.\n\nC-008 OutputStore:\n\
+  \  - Output files pre-created by CommandHistory.pre_create_output_files(seq).\n\
+  \  - Names returned in the CommandResult data dict.\n\nC-006 CommandRecord:\n  -
+  CommandHistory.append_record() writes the pending record to history.jsonl.\n  -
+  CommandHistory.update_record() updates job_id after enqueue.\n\nC-012 AuditRecord:\n\
+  \  - Written by TerminalHostExecutionJob.run() inside the queue worker; not written
+  here.\n\n## Module docstring\n\"\"\"\nEnqueue host-side terminal runs (``terminal_run_host``
+  only).\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports
+  (exact)\nfrom __future__ import annotations\n\nimport asyncio\nfrom datetime import
+  datetime, timezone\nfrom pathlib import Path\nfrom typing import Any, List, Optional\n\
+  \nfrom mcp_proxy_adapter.commands.base import CommandResult\nfrom mcp_proxy_adapter.core.job_manager
+  import enqueue_coroutine\n\nfrom mcp_terminal.errors import ErrorCode\nfrom mcp_terminal.jobs.terminal_host_execution_job
+  import HostJobParams, TerminalHostExecutionJob\nfrom mcp_terminal.services.command_history
+  import CommandHistory, CommandRecord\nfrom mcp_terminal.services.host_execution_config
+  import validate_host_run_request\nfrom mcp_terminal.services.session_store import
+  SessionRecord\n\n## Function\n\n### async def enqueue_host_terminal_run\nSignature:\n\
+  \  async def enqueue_host_terminal_run(\n      *,\n      project_id: str,\n    \
+  \  session_id: str,\n      srec: SessionRecord,\n      execution_kind: str,\n  \
+  \    cmd_str: Optional[str],\n      argv_list: Optional[List[str]],\n      effective_cwd:
+  str,\n      timeout_seconds: int,\n      use_venv: bool,\n      project_dir: Path,\n\
+  \      session_store: Any,\n  ) -> CommandResult:\nDocstring:\n  \"\"\"Allocate
+  seq, append history, and queue ``TerminalHostExecutionJob``.\"\"\"\nImplementation:\n\
+  \  1. Validate: validation = validate_host_run_request(execution_kind, cmd_str,
+  argv_list)\n     If not validation.ok:\n       return CommandResult(\n         \
+  \  success=False,\n           error=validation.error_code or ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n\
+  \       )\n\n  2. Touch activity:\n     session_store.touch_activity(project_id,
+  session_id)\n\n  3. Allocate seq and create output files:\n     history = CommandHistory(srec.session_dir)\n\
+  \     seq = history.allocate_seq()\n     stdout_file, stderr_file, meta_file = history.pre_create_output_files(seq)\n\
+  \     ts = datetime.now(timezone.utc).isoformat()\n\n  4. Build resolved_argv:\n\
+  \     if execution_kind == \"argv\" and argv_list:\n         resolved_argv = list(argv_list)\n\
+  \     else:\n         resolved_argv = [\"bash\", \"-lc\", cmd_str or \"true\"]\n\
+  \n  5. Append pending CommandRecord to history.jsonl:\n     record = CommandRecord(\n\
+  \         seq=seq,\n         job_id=None,\n         project_id=project_id,\n   \
+  \      session_id=session_id,\n         timestamp=ts,\n         execution_kind=execution_kind,\n\
+  \         command=cmd_str if execution_kind == \"shell\" else None,\n         argv=argv_list
+  if execution_kind == \"argv\" else None,\n         resolved_argv=resolved_argv,\n\
+  \         cwd=effective_cwd,\n         mode=\"host\",\n         network=\"host\"\
+  ,\n         image_profile=\"host\",\n         status=\"pending\",\n         stdout_file=stdout_file,\n\
+  \         stderr_file=stderr_file,\n         meta_file=meta_file,\n     )\n    \
+  \ history.append_record(record)\n\n  6. Build HostJobParams and TerminalHostExecutionJob:\n\
+  \     job_params = HostJobParams(\n         project_id=project_id,\n         session_id=session_id,\n\
+  \         seq=seq,\n         session_dir=srec.session_dir,\n         project_dir=project_dir.resolve(),\n\
+  \         timeout_seconds=timeout_seconds,\n         effective_cwd=effective_cwd,\n\
+  \         execution_kind=execution_kind,\n         command=cmd_str if execution_kind
+  == \"shell\" else None,\n         argv=argv_list if execution_kind == \"argv\" else
+  None,\n         use_venv=use_venv,\n     )\n     job = TerminalHostExecutionJob(job_params)\n\
+  \n  7. Enqueue via asyncio.to_thread:\n     async def _run_sync() -> dict:\n   \
+  \      return await asyncio.to_thread(job.run)\n     job_id = enqueue_coroutine(_run_sync())\n\
+  \n  8. Update history record with job_id:\n     history.update_record(seq, status=\"\
+  pending\", job_id=job_id)\n\n  9. Return CommandResult:\n     return CommandResult(\n\
+  \         success=True,\n         data={\n             \"job_id\": job_id,\n   \
+  \          \"seq\": seq,\n             \"stdout_file\": stdout_file,\n         \
+  \    \"stderr_file\": stderr_file,\n             \"meta_file\": meta_file,\n   \
+  \          \"cwd\": effective_cwd,\n             \"use_venv\": use_venv,\n     \
+  \        \"execution_target\": \"host\",\n         },\n     )\n\n## Constraints\n\
+  - Create ONLY `mcp_terminal/services/host_run_service.py`.\n- All type annotations
+  must be present on every parameter and return type.\n- File must not exceed 130
+  lines.\n- Line length <= 99. Must pass flake8.\n- Author header in module docstring:
+  Vasiliy Zdanovskiy / vasilyvz@gmail.com.\n"
+status: frozen
+step_id: A-002
+target_file: mcp_terminal/services/host_run_service.py
+verification:
+  expected: from mcp_terminal.services.host_run_service import 
+    enqueue_host_terminal_run succeeds without error. enqueue_host_terminal_run 
+    is an async callable.
+  target: mcp_terminal/services/host_run_service.py
+  type: import

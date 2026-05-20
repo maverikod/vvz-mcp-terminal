@@ -1,0 +1,7 @@
+step_id: A-002
+parent_tactical_step: T-004
+name: terminal-read-command
+target_file: mcp_terminal/commands/terminal_read_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_read public command (C-014, C-008) reading stdout/stderr byte ranges from OutputStore.

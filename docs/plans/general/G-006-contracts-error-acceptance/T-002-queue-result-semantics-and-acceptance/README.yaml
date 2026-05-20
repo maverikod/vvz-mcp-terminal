@@ -1,22 +1,132 @@
 step_id: T-002
 parent_global_step: G-006
 name: Queue Result Semantics and MVP Acceptance Criteria
-status: draft
+status: frozen
 description: 'Defines QueueResultSemantics (C-011) as a binding invariant and codifies
   the MVP acceptance criteria. QueueResultSemantics invariant: queue job status=completed
   (progress=100) means the worker completed the full execution lifecycle and wrote
   metadata. It does not mean the terminal command succeeded. Terminal command success
   requires all three conditions: queue status is completed, exit_code equals 0, and
   timed_out is false. terminal_get_status must expose both states: the queue job status
-  and the derived terminal_status (success, failure, timed_out). Callers must never
-  treat queue completed as command success without inspecting exit_code and timed_out.
-  Safety invariants that must be verifiable by tests: model cannot supply a host path
-  as project_id, cannot select mount points, cannot escape /workspace via cwd or symlinks,
-  cannot enable host networking, cannot add capabilities, cannot run privileged containers,
-  cannot access Docker socket, cannot access unrelated projects, read-only mode prevents
-  writes, timeout terminates and cleans up, output limits truncate safely, audit record
-  is created for every run. MVP is complete only when all acceptance criteria in the
-  source_spec section 21 are verified by automated tests and manual review.'
+  and the derived terminal_status (success, failure, timed_out), plus execution_target
+  from meta. Callers must never treat queue completed as command success without inspecting
+  exit_code and timed_out. Safety invariants that must be verifiable by tests: model
+  cannot supply a host path as project_id, cannot select mount points, cannot escape
+  /workspace via cwd or symlinks, cannot enable host networking, cannot add capabilities,
+  cannot run privileged containers, cannot access Docker socket, cannot access unrelated
+  projects, read-only mode prevents writes, timeout terminates and cleans up, output
+  limits truncate safely, audit record is created for every run. MVP acceptance (tech_spec section 21) is fully automated: 195 pytest tests pass with zero skipped
+  when Docker is available, covering sandbox safety invariants, queue semantics, unit-testable §21
+  criteria, and live-Docker E2E in test_sandbox_mvp_acceptance.py and test_sandbox_docker_e2e.py.
+  Verification mapping is in implementation_verification below.'
+implementation_verification:
+  terminal_run_in_mcp_help:
+    coverage: automated
+    test_files:
+    - tests/test_sandbox_mvp_acceptance.py
+    notes: test_mvp_terminal_run_appears_in_mcp_help asserts terminal_run is listed in MCP help
+      after server registration.
+  terminal_run_rejects_unknown_project_id:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+    - tests/test_extension_model.py
+  terminal_run_rejects_direct_host_path:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+    - tests/test_extension_model.py
+  terminal_run_rejects_invalid_session_id:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+    - tests/test_extension_model.py
+  terminal_run_queues_existing_session:
+    coverage: automated
+    test_files:
+    - tests/test_extension_model.py
+  terminal_run_shell_and_argv_kinds:
+    coverage: automated
+    test_files:
+    - tests/test_extension_model.py
+  project_mounted_only_at_workspace:
+    coverage: automated
+    test_files:
+    - tests/test_workspace_bind_mount_user.py
+    - tests/test_extension_model.py
+  default_mode_read_only:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+    - tests/test_extension_model.py
+  default_network_none:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+  read_only_write_fails:
+    coverage: automated
+    test_files:
+    - tests/test_extension_model.py
+  workspace_write_creates_file:
+    coverage: automated
+    test_files:
+    - tests/test_sandbox_docker_e2e.py
+    - tests/test_extension_model.py
+  cwd_traversal_rejected:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+    - tests/test_extension_model.py
+  container_cannot_access_docker_sock:
+    coverage: automated
+    test_files:
+    - tests/test_pid_namespace.py
+    - tests/test_extension_model.py
+  container_cannot_access_outside_project:
+    coverage: automated
+    test_files:
+    - tests/test_extension_model.py
+  timeout_and_cleanup:
+    coverage: automated
+    test_files:
+    - tests/test_running_terminal_jobs.py
+  stdout_stderr_sequence_files:
+    coverage: automated
+    test_files:
+    - tests/test_extension_model.py
+  audit_record_every_run:
+    coverage: automated
+    test_files:
+    - tests/test_domain_invariants.py
+    - tests/test_sandbox_docker_e2e.py
+  verify_via_get_status_and_read:
+    coverage: automated
+    test_files:
+    - tests/test_queue_result_semantics.py
+    - tests/test_terminal_get_status_command.py
+    - tests/test_extension_model.py
+    - tests/test_sandbox_mvp_acceptance.py
+  section_21_mvp_acceptance_automated:
+    coverage: automated
+    test_files:
+    - tests/test_sandbox_mvp_acceptance.py
+    notes: Unit-testable tech_spec §21 MVP criteria (sandbox policy, queue semantics C-011,
+      terminal_get_status response shape, MCP integration checks for terminal_run).
+  sandbox_docker_e2e_docker_gated:
+    coverage: automated
+    test_files:
+    - tests/test_sandbox_docker_e2e.py
+    notes: Live-Docker §21 E2E (read_only write fail, workspace_write, mount isolation, outside mount,
+      timeout cleanup, stdout/stderr seq files, audit per run, queue job lifecycle). Automated when
+      Docker is available (docker on PATH and docker info succeeds); module skipped via skipif only
+      when Docker is unavailable.
+  section_24_hostile_input_unit:
+    coverage: automated
+    test_files:
+    - tests/test_hostile_input_unit.py
+    notes: tech_spec §24 hostile-input unit tests for sandbox policy and output reader rejections.
+pytest_count: 195
+pytest_skipped: 0
 concepts:
 - C-011
 inputs:
@@ -26,11 +136,13 @@ inputs:
     progress, and any worker-written metadata.
 - name: command_metadata
   type: CommandRecord terminal fields
-  description: exit_code and timed_out from the completed CommandRecord (NNNNNN.meta.json).
+  description: exit_code, timed_out, and execution_target from the completed CommandRecord
+    (NNNNNN.meta.json).
 outputs:
 - name: terminal_status_response
   type: combined status object
   description: job_id, queue_status, terminal_status (success/failure/timed_out/pending),
-    exit_code, timed_out, stdout_file, stderr_file, stdout_bytes, stderr_bytes. Returned
-    by terminal_get_status.
-atomic_steps: []
+    exit_code, timed_out, execution_target, stdout_file, stderr_file, stdout_bytes,
+    stderr_bytes. Returned by terminal_get_status.
+atomic_steps:
+- A-001

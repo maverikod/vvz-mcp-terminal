@@ -1,0 +1,81 @@
+concepts:
+- C-019
+- C-006
+- C-008
+- C-012
+- C-017
+depends_on:
+- A-001
+- A-002
+name: TerminalHostExecutionJob — queue job for host execution
+operation: create_file
+parent_tactical_step: T-002
+priority: 1
+prompt: "Create the file `mcp_terminal/jobs/terminal_host_execution_job.py`.\n\nOperation:
+  create_file\n\nNote: `mcp_terminal/jobs/__init__.py` already exists and is not modified
+  here.\n\n## Purpose\n\nImplements TerminalHostExecutionJob (C-019): the queue job
+  that runs an allowlisted\ncommand on the host filesystem. Called by the adapter
+  queue worker via job.run().\nDelegates actual execution to HostSessionExecutor (from
+  A-001). Writes output to\nOutputStore (C-008) files and updates CommandRecord (C-006)
+  in history.jsonl.\nSets execution_target=\"host\" in meta.json. Bound to ExecutionTarget=host
+  (C-017)\nvia the implements relation.\n\nDoes NOT write AuditRecord (C-012) directly;
+  that is written by the executor\nin its final step. Meta.json carries execution_target=\"\
+  host\" per C-019 invariant.\n\n## MRS concept excerpts\n\nC-019 TerminalHostExecutionJob:\n\
+  \  - Queue job; run() called by queue worker, never synchronously.\n  - Receives
+  (project_id, session_id, seq, session_dir, project_dir,\n    timeout_seconds, effective_cwd,
+  execution_kind, command|argv, use_venv).\n  - Writes exit_code, timed_out, execution_target=host
+  to NNNNNN.meta.json.\n  - Updates CommandRecord (C-006) status after completion.\n\
+  \nC-017 ExecutionTarget:\n  - Value \"host\" distinguishes this job from sandbox
+  (C-009) jobs.\n  - execution_target field in meta.json is always \"host\" for this
+  job class.\n\nC-006 CommandRecord:\n  - history.jsonl updated via CommandHistory.update_record(seq,
+  ...).\n  - CommandHistory.seq_to_prefix(seq) yields NNNNNN prefix for file names.\n\
+  \nC-008 OutputStore:\n  - NNNNNN.meta.json written to session_dir with status, exit_code,
+  timed_out,\n    execution_target=\"host\".\n\nC-012 AuditRecord:\n  - HostSessionExecutor.run()
+  writes the audit record internally.\n  - This job class does not write it directly.\n\
+  \n## Module docstring\n\"\"\"\nTerminalHostExecutionJob: queue job for host-side
+  command execution.\n\nSeparate from ``TerminalExecutionJob`` (Docker session container
+  path).\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports
+  (exact)\nfrom __future__ import annotations\n\nimport json\nimport logging\nfrom
+  dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import List,
+  Optional\n\nfrom mcp_terminal.services.command_history import CommandHistory\nfrom
+  mcp_terminal.services.host_session_executor import HostSessionExecutor\n\n## Dataclass\n\
+  \n### @dataclass(frozen=True)\n### class HostJobParams\nDocstring: \"\"\"Immutable
+  parameters for one TerminalHostExecutionJob invocation.\"\"\"\nFields (all typed):\n\
+  \  project_id: str\n  session_id: str\n  seq: int\n  session_dir: Path\n  project_dir:
+  Path\n  timeout_seconds: int\n  effective_cwd: str = \".\"\n  execution_kind: str
+  = \"shell\"\n  command: Optional[str] = None\n  argv: Optional[List[str]] = None\n\
+  \  use_venv: bool = True\n\n## Class\n\n### class TerminalHostExecutionJob\nDocstring:
+  \"\"\"Queue job that runs an allowlisted command on the host (not in Docker).\"\"\
+  \"\n\n__init__ signature:\n  def __init__(\n      self,\n      params: HostJobParams,\n\
+  \      executor: Optional[HostSessionExecutor] = None,\n  ) -> None:\nDocstring:
+  \"\"\"Initialise with params and optional executor override for testing.\"\"\"\n\
+  Body:\n  self._params = params\n  self._executor = executor or HostSessionExecutor()\n\
+  \  self._logger = logging.getLogger(__name__)\n\n### run() method\nSignature: def
+  run(self) -> dict:\nDocstring:\n  \"\"\"Execute on the host and write output/meta
+  files.\n\n  Returns dict with keys: exit_code (int or None), timed_out (bool), status
+  (str).\n  \"\"\"\nImplementation:\n  p = self._params\n  prefix = CommandHistory.seq_to_prefix(p.seq)\n\
+  \  meta_path = p.session_dir / f\"{prefix}.meta.json\"\n\n  exit_code, timed_out,
+  status = self._executor.run(\n      project_id=p.project_id,\n      session_id=p.session_id,\n\
+  \      seq=p.seq,\n      session_dir=p.session_dir,\n      project_dir=p.project_dir,\n\
+  \      timeout_seconds=p.timeout_seconds,\n      effective_cwd=p.effective_cwd,\n\
+  \      execution_kind=p.execution_kind,\n      command=p.command,\n      argv=p.argv,\n\
+  \      use_venv=p.use_venv,\n  )\n\n  meta = {\n      \"seq\": p.seq,\n      \"\
+  status\": status,\n      \"exit_code\": exit_code,\n      \"timed_out\": timed_out,\n\
+  \      \"execution_target\": \"host\",\n  }\n  meta_path.write_text(json.dumps(meta,
+  indent=2), encoding=\"utf-8\")\n\n  history = CommandHistory(p.session_dir)\n  history.update_record(p.seq,
+  status=status, exit_code=exit_code, timed_out=timed_out)\n\n  self._logger.info(\n\
+  \      \"Host job complete seq=%d status=%s exit_code=%s timed_out=%s\",\n     \
+  \ p.seq, status, exit_code, timed_out,\n  )\n  return {\"exit_code\": exit_code,
+  \"timed_out\": timed_out, \"status\": status}\n\n## Constraints\n- Create ONLY `mcp_terminal/jobs/terminal_host_execution_job.py`.\n\
+  - Do NOT create or modify mcp_terminal/jobs/__init__.py here.\n- All type annotations
+  must be present.\n- File must not exceed 110 lines.\n- Line length <= 99. Must pass
+  flake8.\n- Author header in module docstring: Vasiliy Zdanovskiy / vasilyvz@gmail.com.\n"
+status: frozen
+step_id: A-003
+target_file: mcp_terminal/jobs/terminal_host_execution_job.py
+verification:
+  expected: 'from mcp_terminal.jobs.terminal_host_execution_job import TerminalHostExecutionJob,
+    HostJobParams succeeds without error. HostJobParams is a frozen dataclass with
+    field seq: int.'
+  target: mcp_terminal/jobs/terminal_host_execution_job.py
+  type: import

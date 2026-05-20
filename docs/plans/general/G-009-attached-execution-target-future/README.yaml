@@ -1,0 +1,88 @@
+step_id: G-009
+name: Attached Execution Target (Future)
+status: draft
+planning_only: true
+description: "Reserves the attached execution target for future implementation. Not
+  implemented in the current revision. Excluded from TASK_SYNC plan-to-code alignment
+  (G-001..G-008 only). Included so the execution-target axis (C-017)
+  is semantically complete and so tactical decomposition can begin from a defined
+  surface once the implementation work is scheduled. The attached target will execute
+  commands inside a long-running container that mcp_terminal did not create (typically
+  an infrastructure container of the surrounding deployment such as the embedding
+  service, the chunking service, or the proxy itself). The runtime mechanism will
+  be docker exec against the target container, resolved server-side by allowlisted
+  label or name; the model never supplies a container id directly. Configuration will
+  live in terminal.attached_execution with enabled:false default and a list of allowlisted
+  targets, each carrying attached_target_id, container_match, and a target-local allowed_commands.
+  Authorization model parallels host: static, config-driven, allowlist-based.\n"
+concepts:
+- C-017
+- C-020
+- C-021
+relations:
+- from_concept: C-021
+  to_concept: C-017
+  type: depends_on
+- from_concept: C-020
+  to_concept: C-017
+  type: depends_on
+- from_concept: C-021
+  to_concept: C-020
+  type: depends_on
+- from_concept: C-013
+  to_concept: C-020
+  type: owns
+source_ranges:
+- end: 1353
+  start: 1336
+depends_on:
+- G-008
+tactical_steps: []
+tactical_rework_tasks:
+- id: TRT-G009-T-001
+  name: Decide implementation gate before any tactic
+  rationale: "Per tech_spec.md §28.5 the attached target is reserved and not implemented.
+    No tactical decomposition should begin until product owner explicitly opens this
+    work item. This GS exists to keep the axis complete in MRS and to host the future
+    tactic; it must remain status=draft, planning_only:true until then.\n"
+  entities:
+  - ExecutionTarget (C-017)
+  - AttachedExecutionPolicy (C-020)
+  - TerminalAttachedExecutionJob (C-021)
+  actions:
+  - explicit product-owner sign-off to proceed
+  - removal of planning_only flag and transition to ready_for_review at that 
+    point
+- id: TRT-G009-T-002
+  name: AttachedExecutionPolicy (C-020) surface (planning sketch)
+  rationale: "When implementation begins, the tactic must mirror HostExecutionPolicy
+    structure: gate (terminal.attached_execution.enabled and non-empty targets), attached_target_id
+    resolution to a container by allowlisted label/name, per-target allowed_commands
+    check, hard-forbidden executables, forbidden patterns. Model never supplies container_id.\n"
+  entities:
+  - AttachedExecutionPolicy (C-020)
+  - terminal.attached_execution config block
+  actions:
+  - draft check pipeline parallel to §28.4.4
+  - reuse ProjectRegistry (C-001) for project scope and audit only; the attached
+    container itself is not a project
+  - produce a new attached-specific ErrorContract code subset (planned)
+- id: TRT-G009-T-003
+  name: TerminalAttachedExecutionJob (C-021) lifecycle (planning sketch)
+  rationale: "Will use docker exec, not docker run; will not own runtime profile,
+    mounts, network, or image of the attached container. Will share OutputStore, CommandRecord,
+    AuditRecord with sandbox and host jobs.\n"
+  entities:
+  - TerminalAttachedExecutionJob (C-021)
+  - docker exec invocation helper
+  actions:
+  - resolve container id server-side from allowlisted match at job start
+  - exec command, redirect stdout/stderr to per-seq files
+  - emit execution_target='attached' and resolved attached_target_id in meta and
+    audit
+  - close exec session on completion, failure, stop, or timeout
+not_to_do:
+- implement code for the attached target in this revision
+- expose terminal_run_attached in MCP help in this revision
+- extend tactical decomposition (T-step / A-step) beyond the planning sketches 
+  above until the gate in TRT-G009-T-001 is cleared

@@ -1,0 +1,185 @@
+concepts:
+- C-018
+- C-015
+depends_on:
+- A-001
+name: Refactor host_execution_config.py to import from host_shell_scanner
+operation: modify_file
+parent_tactical_step: T-001
+priority: 2
+prompt: "Modify the file `mcp_terminal/services/host_execution_config.py`.\n\nOperation:
+  modify_file\n\nThis file currently contains 675 lines. After this step it must be
+  <= 280 lines.\nThe file `mcp_terminal/services/host_shell_scanner.py` now exists
+  and contains\nall shell-parsing and forbidden-pattern logic. This step removes those\n\
+  functions and constants from host_execution_config.py and replaces them with\nimports.\n\
+  \n## MRS concept excerpt\n\nC-018 HostExecutionPolicy:\n  - Validates every host-target
+  request before it is queued.\n  - Enforces gate (enabled + non-empty allowed_commands).\n\
+  \  - Allowlist check by basename, case-insensitive.\n  - Forbidden-pattern scanning:
+  performed by host_shell_scanner functions.\n  - Produces ErrorContract (C-015) codes:
+  HOST_EXECUTION_DISABLED,\n    HOST_COMMAND_NOT_ALLOWED, HOST_FORBIDDEN_COMMAND.\n\
+  \nC-015 ErrorContract: stable error codes; string values must not change.\n\n##
+  Current file content of mcp_terminal/services/host_execution_config.py\n\n\"\"\"\
+  \nHost-side command execution policy from ``terminal.host_execution``.\n\nShell
+  chains (``&&``, ``||``, ``;``, ``|``) are decomposed; every segment is checked\n\
+  against the allowlist and forbidden patterns. A chain with any disallowed segment\n\
+  is rejected. Use ``terminal_run_host`` (not ``terminal_run``) for host execution.\n\
+  \nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\nfrom __future__
+  import annotations\n\nimport logging\nimport re\nimport shlex\nfrom dataclasses
+  import dataclass\nfrom pathlib import Path\nfrom typing import Any, Dict, FrozenSet,
+  List, Optional\n\nfrom mcp_terminal.config.host_execution_schema import (\n    HOST_EXECUTION_CONFIG,\n\
+  \    HOST_EXECUTION_EMPTY_ALLOWLIST_LOG,\n)\nfrom mcp_terminal.errors import ErrorCode\n\
+  \n_logger = logging.getLogger(__name__)\n\n_ENV_ASSIGN_RE = re.compile(r\"^[A-Za-z_][A-Za-z0-9_]*=\"\
+  )\n\nHOST_FORBIDDEN_SUBSTRINGS: FrozenSet[str] = frozenset(\n    {\n        \"--privileged\"\
+  , \"--pid=host\", \"--pid host\", \"--network=host\", \"--network host\",\n    \
+  \    \"--ipc=host\", \"--ipc host\", \"--uts=host\", \"--uts host\",\n        \"\
+  --cap-add=SYS_ADMIN\", \"--cap-add SYS_ADMIN\",\n        \"/var/run/docker.sock\"\
+  ,\n        \"$(\",  # command substitution\n        \"${\",  # parameter expansion\n\
+  \        \"`\",  # backtick substitution\n        \"\\x00\",\n    }\n)\n\nHOST_FORBIDDEN_EXECUTABLES:
+  FrozenSet[str] = frozenset(\n    {\n        \"docker\", \"podman\", \"sudo\", \"\
+  su\", \"doas\", \"mount\", \"umount\",\n        \"nsenter\", \"chroot\", \"systemctl\"\
+  , \"service\",\n    }\n)\n\n\n@dataclass(frozen=True)\nclass HostExecutionConfig:\n\
+  \    \"\"\"Resolved terminal.host_execution from server config.\"\"\"\n    enabled:
+  bool\n    allowed_commands: FrozenSet[str]\n\n\n@dataclass(frozen=True)\nclass HostCommandValidation:\n\
+  \    \"\"\"Result of allowlist + forbidden checks for one command or chain.\"\"\"\
+  \n    ok: bool\n    error_code: Optional[str] = None\n    detail: Optional[str]
+  = None\n    segments: tuple[str, ...] = ()\n\n\ndef _host_execution_section(config:
+  Dict[str, Any] | None) -> Dict[str, Any]:\n    if not isinstance(config, dict):\n\
+  \        return {}\n    terminal = config.get(\"terminal\")\n    if not isinstance(terminal,
+  dict):\n        return {}\n    raw = terminal.get(\"host_execution\")\n    if not
+  isinstance(raw, dict):\n        return {}\n    return raw\n\n\ndef get_host_execution_config(config:
+  Dict[str, Any] | None = None) -> HostExecutionConfig:\n    \"\"\"Return merged host_execution
+  settings (config + built-in fallbacks).\"\"\"\n    if config is None:\n        try:\n\
+  \            from mcp_proxy_adapter.config import get_config\n            data =
+  getattr(get_config(), \"config_data\", None)\n            config = data if isinstance(data,
+  dict) else {}\n        except Exception:\n            config = {}\n    section =
+  _host_execution_section(config)\n    enabled = section.get(\"enabled\", HOST_EXECUTION_CONFIG[\"\
+  enabled\"])\n    if not isinstance(enabled, bool):\n        enabled = bool(HOST_EXECUTION_CONFIG[\"\
+  enabled\"])\n    raw_list = section.get(\"allowed_commands\", HOST_EXECUTION_CONFIG[\"\
+  allowed_commands\"])\n    names: List[str] = []\n    if isinstance(raw_list, list):\n\
+  \        for item in raw_list:\n            if isinstance(item, str) and item.strip():\n\
+  \                names.append(item.strip())\n    return HostExecutionConfig(enabled=enabled,
+  allowed_commands=frozenset(names))\n\n\ndef warn_if_host_execution_enabled_without_commands(config:
+  Dict[str, Any]) -> None:\n    \"\"\"Log a reminder when host execution is on but
+  the allowlist is empty.\"\"\"\n    he = get_host_execution_config(config)\n    if
+  he.enabled and not he.allowed_commands:\n        _logger.warning(HOST_EXECUTION_EMPTY_ALLOWLIST_LOG)\n\
+  \n\n[... decompose_shell_command, shell_command_has_chain, command_executable_name,\n\
+  \ segment_executable_name, find_forbidden_substring, _advance_quote, _read_shell_word,\n\
+  \ _read_heredoc_delimiter, extract_heredoc_bodies, extract_redirection_targets,\n\
+  \ iter_shell_scan_fragments, collect_shell_scan_texts, _extract_here_string_words,\n\
+  \ find_forbidden_in_shell_command -- 17 functions/constants to be removed ...]\n\
+  \n\ndef _allowed_names_lower(allowed: FrozenSet[str]) -> FrozenSet[str]:\n    return
+  {name.lower() for name in allowed}\n\n\ndef _validate_segment(segment: str, allowed_lower:
+  FrozenSet[str]) -> HostCommandValidation:\n    exe = segment_executable_name(segment)\n\
+  \    if not exe:\n        return HostCommandValidation(\n            ok=False,\n\
+  \            error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n            detail=\"\
+  could not determine executable for segment\",\n            segments=(segment,),\n\
+  \        )\n    exe_lower = exe.lower()\n    if exe_lower in HOST_FORBIDDEN_EXECUTABLES:\n\
+  \        return HostCommandValidation(\n            ok=False,\n            error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,\n\
+  \            detail=f\"executable {exe!r} is forbidden on host\",\n            segments=(segment,),\n\
+  \        )\n    if exe_lower not in allowed_lower:\n        return HostCommandValidation(\n\
+  \            ok=False,\n            error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n\
+  \            detail=f\"executable {exe!r} is not in host allowlist\",\n        \
+  \    segments=(segment,),\n        )\n    return HostCommandValidation(ok=True,
+  segments=(segment,))\n\n\ndef validate_host_shell_command(\n    command: str,\n\
+  \    allowed_commands: FrozenSet[str],\n) -> HostCommandValidation:\n    \"\"\"\
+  Validate every segment of a shell command for host execution.\"\"\"\n    allowed_lower
+  = _allowed_names_lower(allowed_commands)\n    hit = find_forbidden_in_shell_command(command)\n\
+  \    if hit is not None:\n        forbidden, ctx = hit\n        return HostCommandValidation(\n\
+  \            ok=False,\n            error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,\n\
+  \            detail=f\"{ctx} contains forbidden pattern: {forbidden!r}\",\n    \
+  \    )\n    segments = decompose_shell_command(command)\n    if not segments:\n\
+  \        return HostCommandValidation(\n            ok=False,\n            error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n\
+  \            detail=\"empty shell command\",\n        )\n    for segment in segments:\n\
+  \        result = _validate_segment(segment, allowed_lower)\n        if not result.ok:\n\
+  \            return HostCommandValidation(\n                ok=False,\n        \
+  \        error_code=result.error_code,\n                detail=result.detail,\n\
+  \                segments=tuple(segments),\n            )\n    return HostCommandValidation(ok=True,
+  segments=tuple(segments))\n\n\ndef validate_host_argv_command(\n    argv: List[str],\n\
+  \    allowed_commands: FrozenSet[str],\n) -> HostCommandValidation:\n    \"\"\"\
+  Validate a single argv invocation for host execution.\"\"\"\n    if not argv:\n\
+  \        return HostCommandValidation(\n            ok=False,\n            error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n\
+  \            detail=\"empty argv\",\n        )\n    joined = \" \".join(str(x) for
+  x in argv)\n    forbidden = find_forbidden_substring(joined)\n    if forbidden is
+  not None:\n        return HostCommandValidation(\n            ok=False,\n      \
+  \      error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,\n            detail=f\"argv
+  contains forbidden pattern: {forbidden!r}\",\n        )\n    allowed_lower = _allowed_names_lower(allowed_commands)\n\
+  \    exe = Path(str(argv[0])).name\n    exe_lower = exe.lower()\n    if exe_lower
+  in HOST_FORBIDDEN_EXECUTABLES:\n        return HostCommandValidation(\n        \
+  \    ok=False,\n            error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,\n     \
+  \       detail=f\"executable {exe!r} is forbidden on host\",\n        )\n    if
+  exe_lower not in allowed_lower:\n        return HostCommandValidation(\n       \
+  \     ok=False,\n            error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n  \
+  \          detail=f\"executable {exe!r} is not in host allowlist\",\n        )\n\
+  \    return HostCommandValidation(ok=True, segments=(joined,))\n\n\ndef validate_host_run_request(\n\
+  \    execution_kind: str,\n    command: Optional[str],\n    argv: Optional[List[str]],\n\
+  ) -> HostCommandValidation:\n    \"\"\"Require ``terminal.host_execution.enabled``
+  and validate allowlist / forbidden rules.\"\"\"\n    he = get_host_execution_config()\n\
+  \    if not he.enabled:\n        return HostCommandValidation(\n            ok=False,\n\
+  \            error_code=ErrorCode.HOST_EXECUTION_DISABLED,\n            detail=(\n\
+  \                \"terminal.host_execution.enabled is false; use terminal_run for
+  container \"\n                \"execution or enable host_execution in config\"\n\
+  \            ),\n        )\n    if not he.allowed_commands:\n        return HostCommandValidation(\n\
+  \            ok=False,\n            error_code=ErrorCode.HOST_EXECUTION_DISABLED,\n\
+  \            detail=\"terminal.host_execution.allowed_commands is empty\",\n   \
+  \     )\n    if execution_kind == \"argv\":\n        if not argv:\n            return
+  HostCommandValidation(\n                ok=False,\n                error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n\
+  \                detail=\"argv is required for execution_kind argv\",\n        \
+  \    )\n        return validate_host_argv_command([str(x) for x in argv], he.allowed_commands)\n\
+  \    if execution_kind != \"shell\" or not command or not command.strip():\n   \
+  \     return HostCommandValidation(\n            ok=False,\n            error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,\n\
+  \            detail=\"command is required for execution_kind shell\",\n        )\n\
+  \    return validate_host_shell_command(command.strip(), he.allowed_commands)\n\n\
+  \ndef is_host_execution_eligible(\n    execution_kind: str,\n    command: Optional[str],\n\
+  \    argv: Optional[List[str]],\n    *,\n    config: Dict[str, Any] | None = None,\n\
+  ) -> bool:\n    \"\"\"True when host execution is enabled and the request passes
+  host validation.\"\"\"\n    if config is not None:\n        he = get_host_execution_config(config)\n\
+  \        if not he.enabled or not he.allowed_commands:\n            return False\n\
+  \        if execution_kind == \"argv\" and argv:\n            return validate_host_argv_command([str(x)
+  for x in argv], he.allowed_commands).ok\n        if execution_kind == \"shell\"\
+  \ and command and command.strip():\n            return validate_host_shell_command(command.strip(),
+  he.allowed_commands).ok\n        return False\n    return validate_host_run_request(execution_kind,
+  command, argv).ok\n\n\ndef host_shell_command_is_safe(command: str) -> bool:\n \
+  \   \"\"\"Backward-compatible: True when shell text passes host chain validation.\"\
+  \"\"\n    he = get_host_execution_config()\n    if not he.enabled or not he.allowed_commands:\n\
+  \        return False\n    return validate_host_shell_command(command, he.allowed_commands).ok\n\
+  \n## Required transformation\n\nProduce a new version of this file that:\n\n1. Updates
+  the module docstring to:\n   \"\"\"\n   Host-side command execution policy from
+  ``terminal.host_execution``.\n\n   Shell chain parsing and forbidden-pattern scanning
+  is delegated to\n   mcp_terminal/services/host_shell_scanner.py.\n\n   Use ``terminal_run_host``
+  (not ``terminal_run``) for host execution.\n\n   Author: Vasiliy Zdanovskiy\n  \
+  \ Email: vasilyvz@gmail.com\n   \"\"\"\n\n2. Replaces the import block with:\n \
+  \  from __future__ import annotations\n\n   import logging\n   from dataclasses
+  import dataclass\n   from pathlib import Path\n   from typing import Any, Dict,
+  FrozenSet, List, Optional\n\n   from mcp_terminal.config.host_execution_schema import
+  (\n       HOST_EXECUTION_CONFIG,\n       HOST_EXECUTION_EMPTY_ALLOWLIST_LOG,\n \
+  \  )\n   from mcp_terminal.errors import ErrorCode\n   from mcp_terminal.services.host_shell_scanner
+  import (\n       HOST_FORBIDDEN_EXECUTABLES,\n       HOST_FORBIDDEN_SUBSTRINGS,\n\
+  \       collect_shell_scan_texts,\n       command_executable_name,\n       decompose_shell_command,\n\
+  \       find_forbidden_in_shell_command,\n       find_forbidden_substring,\n   \
+  \    iter_shell_scan_fragments,\n       segment_executable_name,\n       shell_command_has_chain,\n\
+  \   )\n\n   Note: re and shlex are no longer needed after extraction.\n\n3. Removes
+  completely these 17 symbols (they now live in host_shell_scanner.py):\n   _ENV_ASSIGN_RE,
+  HOST_FORBIDDEN_SUBSTRINGS, HOST_FORBIDDEN_EXECUTABLES,\n   decompose_shell_command,
+  shell_command_has_chain, command_executable_name,\n   segment_executable_name, find_forbidden_substring,
+  _advance_quote,\n   _read_shell_word, _read_heredoc_delimiter, extract_heredoc_bodies,\n\
+  \   extract_redirection_targets, iter_shell_scan_fragments, collect_shell_scan_texts,\n\
+  \   _extract_here_string_words, find_forbidden_in_shell_command\n\n4. Keeps verbatim
+  (do not alter signatures or bodies):\n   HostExecutionConfig, HostCommandValidation,
+  _host_execution_section,\n   get_host_execution_config, warn_if_host_execution_enabled_without_commands,\n\
+  \   _allowed_names_lower, _validate_segment, validate_host_shell_command,\n   validate_host_argv_command,
+  validate_host_run_request,\n   is_host_execution_eligible, host_shell_command_is_safe\n\
+  \n## Constraints\n- Modify ONLY `mcp_terminal/services/host_execution_config.py`.\n\
+  - File after modification must be <= 280 lines.\n- All remaining functions keep
+  their exact signatures and docstrings.\n- _validate_segment and validators call
+  host_shell_scanner names via imports;\n  their logic (not signatures) stays identical.\n\
+  - Line length <= 99. Must pass flake8.\n- All type annotations preserved.\n"
+status: frozen
+step_id: A-002
+target_file: mcp_terminal/services/host_execution_config.py
+verification:
+  expected: from mcp_terminal.services.host_execution_config import 
+    validate_host_run_request, get_host_execution_config, HostExecutionConfig, 
+    HostCommandValidation succeeds without error. wc -l shows file <= 380 lines.
+    flake8 mcp_terminal/services/host_execution_config.py passes with no errors.
+  target: mcp_terminal/services/host_execution_config.py
+  type: static_analysis

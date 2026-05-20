@@ -64,4 +64,4 @@ verification:
   expected: '`from mcp_terminal.services.ttl_cleanup import TtlCleanupService` succeeds.
     Instantiating TtlCleanupService( session_store=SessionStore(), ttl_seconds=86400)
     succeeds without error.'
-status: draft
+status: frozen

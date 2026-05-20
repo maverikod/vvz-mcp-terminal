@@ -77,4 +77,4 @@ verification:
   expected: '`from mcp_terminal.services.project_registry import ProjectRegistry,
     ResolutionResult` succeeds. Calling ProjectRegistry(root_dir=Path("/tmp")).resolve("unknown-id")
     returns ResolutionResult(success=False, error_code="PROJECT_NOT_FOUND").'
-status: draft
+status: frozen

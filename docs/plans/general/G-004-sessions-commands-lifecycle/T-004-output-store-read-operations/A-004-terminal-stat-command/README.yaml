@@ -1,0 +1,7 @@
+step_id: A-004
+parent_tactical_step: T-004
+name: terminal-stat-command
+target_file: mcp_terminal/commands/terminal_stat_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_stat public command (C-014, C-008) returning stream file metadata and byte sizes without full reads.

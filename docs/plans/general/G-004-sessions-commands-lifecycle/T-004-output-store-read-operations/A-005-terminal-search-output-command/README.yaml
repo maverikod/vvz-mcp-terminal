@@ -1,0 +1,7 @@
+step_id: A-005
+parent_tactical_step: T-004
+name: terminal-search-output-command
+target_file: mcp_terminal/commands/terminal_search_output_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_search_output public command (C-014, C-008) regex search over session command stdout/stderr files.

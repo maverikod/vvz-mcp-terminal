@@ -1,0 +1,64 @@
+step_id: T-003
+parent_global_step: G-008
+name: terminal_run_host Public Command
+status: frozen
+description: 'Extends PublicCommandSet (C-014) with the terminal_run_host MCP command,
+  which is the sole public entry point for the host execution target (C-017). Delivers
+  the terminal_run_host command class with ADP-01 separation: get_schema() in a dedicated
+  schema module, metadata() in a dedicated metadata module, validate_params() enforcing
+  required fields before domain logic, and execute() delegating to HostExecutionPolicy
+  (C-018) and enqueueing TerminalHostExecutionJob (C-019). Returns job_id, seq, stdout_file,
+  stderr_file, meta_file, and execution_target=host immediately. Registered via register_custom_commands_hook.
+  Schema parameters: project_id (required UUID4), session_id (required UUID4), execution_kind
+  (shell|argv), command (shell string), argv (list), cwd (project-relative, optional),
+  use_venv (optional bool), timeout_seconds (optional int). Metadata documents gate
+  behaviour (HOST_EXECUTION_DISABLED when HostExecutionPolicy rejects the request),
+  host ErrorContract codes from C-015, and the distinction between queue completion
+  and terminal command success. terminal_get_status with execution_target from meta
+  is the polling command. No short aliases exposed; the terminal_ prefix is mandatory
+  per PublicCommandSet (C-014) invariant.'
+concepts:
+- C-014
+- C-019
+- C-017
+- C-015
+- C-018
+inputs:
+- description: Inbound MCP request carrying project_id, session_id, 
+    execution_kind, command or argv, and optional cwd, use_venv, 
+    timeout_seconds.
+  name: mcp_request
+  type: request object
+- description: HostExecutionPolicy (C-018) — instantiated with the current 
+    host_execution_config — that receives the validated request and produces 
+    either a permitted decision (job enqueued) or a rejected decision 
+    (ErrorContract code returned immediately).
+  name: host_execution_policy
+  type: domain object
+- description: Adapter register_custom_commands_hook mechanism through which the
+    terminal_run_host command class is registered in PublicCommandSet (C-014) 
+    and exposed in MCP help.
+  name: adapter_hook
+  type: registration mechanism
+outputs:
+- description: 'MCP response returned immediately on successful enqueue: job_id (queue
+    job identifier), seq (session-local sequence number), stdout_file, stderr_file,
+    meta_file (all NNNNNN-prefixed paths), and execution_target=host.'
+  name: enqueue_response
+  type: MCP command response
+- description: The terminal_run_host command class registered in 
+    PublicCommandSet (C-014) and visible in adapter MCP help output. Implements 
+    get_schema(), metadata(), validate_params(), and execute() per ADP-01.
+  name: registered_command
+  type: MCP command class
+- description: 'ErrorContract (C-015) code returned in the MCP error response when
+    HostExecutionPolicy (C-018) rejects the request: HOST_EXECUTION_DISABLED, HOST_COMMAND_NOT_ALLOWED,
+    or HOST_FORBIDDEN_COMMAND, or INVALID_SESSION / PROJECT_NOT_FOUND / INVALID_CWD
+    / INVALID_COMMAND for pre-policy rejections.'
+  name: rejection_response
+  type: MCP error response with ErrorContract (C-015) code
+atomic_steps:
+- A-001
+- A-002
+- A-003
+- A-004

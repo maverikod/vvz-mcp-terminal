@@ -97,7 +97,9 @@ class TerminalSessionCreateCommand(Command):
                     "description": (
                         "Whether this session may mount /workspace read-write. "
                         "Omitted: terminal.defaults.workspace_write from term server config. "
-                        "At most one session per project may be true."
+                        "At most one session per project may be true; if another session holds "
+                        "write, creation fails with WORKSPACE_WRITE_NOT_ALLOWED (see metadata "
+                        "error_cases). Response may include data.workspace_writer_session_id."
                     ),
                 },
                 "use_venv": {
@@ -161,7 +163,7 @@ class TerminalSessionCreateCommand(Command):
                 return CommandResult(success=False, error="INVALID_PID_NAMESPACE")
 
         session_store = get_session_store()
-        rec, created, ensure_err = session_store.ensure_session(
+        rec, created, ensure_err, ensure_err_data = session_store.ensure_session(
             project_id=project_id,
             session_id=session_id,
             project_dir=resolved.project_dir,
@@ -170,6 +172,12 @@ class TerminalSessionCreateCommand(Command):
             workspace_write=workspace_write_create,
         )
         if ensure_err is not None or rec is None:
+            if ensure_err_data:
+                return CommandResult(
+                    success=False,
+                    error=ensure_err or "INVALID_SESSION",
+                    data=ensure_err_data,
+                )
             return CommandResult(success=False, error=ensure_err or "INVALID_SESSION")
 
         if not created and use_venv_create is not None:
@@ -186,7 +194,11 @@ class TerminalSessionCreateCommand(Command):
                     ),
                 )
 
-        if not created and pid_namespace_create is not None and rec.pid_namespace != pid_namespace_create:
+        if (
+            not created
+            and pid_namespace_create is not None
+            and rec.pid_namespace != pid_namespace_create
+        ):
             rec.pid_namespace = pid_namespace_create
             session_store.persist_session_record(rec)
 

@@ -93,4 +93,4 @@ verification:
     image_profile="python_dev_3_12", execution_kind="argv", command=None, argv=["pytest",
     "-q"]) returns (ImageAndCommandSpec(image_reference="ghcr.io/mcp-terminal/python-dev:3.12",
     resolved_argv=["pytest", "-q"], resolved_executable="pytest"), None).'
-status: draft
+status: frozen

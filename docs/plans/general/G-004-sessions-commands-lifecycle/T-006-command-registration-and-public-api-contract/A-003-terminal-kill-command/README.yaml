@@ -1,0 +1,7 @@
+step_id: A-003
+parent_tactical_step: T-006
+name: terminal-kill-command
+target_file: mcp_terminal/commands/terminal_kill_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_kill public command (C-014) sending SIGKILL to a pending sandbox docker run subprocess.

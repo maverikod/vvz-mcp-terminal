@@ -60,4 +60,4 @@ verification:
     succeeds without error. TERMINAL_TRUST_BOUNDARY.trusted_components contains "service_code".
     TERMINAL_TRUST_BOUNDARY.untrusted_input_categories contains "command_arguments".
     TERMINAL_TRUST_BOUNDARY.sensitive_host_resources contains "docker_socket".'
-status: draft
+status: frozen

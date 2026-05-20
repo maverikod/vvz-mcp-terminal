@@ -11,9 +11,9 @@ from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
-from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.commands.terminal_delete_metadata import get_terminal_delete_metadata
-from mcp_terminal.runtime_context import get_session_store
+from mcp_terminal.runtime_context import get_session_store, registry_resolve_project
+from mcp_terminal.services.session_ids import validate_uuid4_field
 
 
 class TerminalDeleteCommand(Command):
@@ -48,22 +48,32 @@ class TerminalDeleteCommand(Command):
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)
-        project_id = str(kwargs.get("project_id", ""))
-        session_id = str(kwargs.get("session_id", ""))
+        project_id = str(kwargs.get("project_id", "")).strip()
+        session_id = str(kwargs.get("session_id", "")).strip()
         force = bool(kwargs.get("force", False))
-        record, err = resolve_session(project_id, session_id)
-        if err == "INVALID_SESSION":
+        for field, value in (("project_id", project_id), ("session_id", session_id)):
+            err = validate_uuid4_field(value, field)
+            if err:
+                return CommandResult(success=False, error=err)
+
+        resolved = registry_resolve_project(project_id)
+        if not resolved.success or resolved.project_dir is None:
             return CommandResult(
-                success=True,
-                data={"deleted": True, "session_id": session_id, "project_id": project_id},
+                success=False,
+                error=resolved.error_code or "PROJECT_NOT_FOUND",
             )
-        if err is not None:
-            return CommandResult(success=False, error=err)
-        assert record is not None
+
         session_store = get_session_store()
-        ok = session_store.delete_session(record.project_id, record.session_id, force=force)
-        if not ok:
+        ok, del_err = session_store.delete_session_by_id(
+            project_id,
+            session_id,
+            resolved.project_dir,
+            force=force,
+        )
+        if del_err == "SESSION_RUNNING":
             return CommandResult(success=False, error="SESSION_RUNNING")
+        if not ok:
+            return CommandResult(success=False, error="INVALID_SESSION")
         return CommandResult(
             success=True,
             data={"deleted": True, "session_id": session_id, "project_id": project_id},

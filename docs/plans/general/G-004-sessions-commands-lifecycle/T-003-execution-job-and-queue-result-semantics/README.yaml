@@ -1,7 +1,7 @@
 step_id: T-003
 parent_global_step: G-004
 name: Execution Job and Queue Result Semantics
-status: draft
+status: frozen
 description: 'Defines TerminalExecutionJob (C-009) and QueueResultSemantics (C-011).
   After CommandRecord is appended, terminal_run enqueues a TerminalExecutionJob with:
   project_id, session_id, seq, NNNNNN prefix, execution_kind, command or argv, resolved_argv,
@@ -37,4 +37,6 @@ outputs:
   type: CommandRecord in terminal status
   description: Updated history.jsonl entry with final status, exit_code, timed_out;
     written by worker on job completion.
-atomic_steps: []
+atomic_steps:
+- A-001
+- A-002

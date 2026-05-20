@@ -1,0 +1,781 @@
+meta:
+  plan: general
+  source_spec: docs/plans/general/tech_spec.md
+  version: '1.4'
+  status: ready_for_review
+  cycle_1_status: green
+  cycle_1_pass: 4
+  cycle_1_findings_closed:
+  - F-01: added source_ranges 8-24 to C-003 (section 1+2 core security scope)
+  - F-02: added C-015 ErrorContract covering section 18 error codes (lines 
+      886-907)
+  - F-03: added C-016 AdapterSkeleton covering sections 22-23 (lines 970-1097)
+  - F-04: extended C-014 source_ranges to cover section 27 (lines 1181-1197)
+  - F-A: fixed YAML dict-vs-string defect in C-003 properties[0] and C-016 
+      properties[4]
+  - F-B: added missing relation C-005 uses C-001 (SessionStore uses 
+      ProjectRegistry for global delete)
+  - zero_trust: explicit invariant in C-003; zero trust applies to every request
+      independently
+  - 'F-G1: tightened source_ranges of C-017..C-021 to match actual line numbers of
+    §28 subsections after live grep of tech_spec.md'
+  - 'F-G2: added §28.2 applicability-matrix range to C-003 SandboxPolicy source_ranges
+    after the definition was scoped to target=sandbox'
+  - 'F-G3: added §28.3 sandbox-canonical range to C-009 TerminalExecutionJob source_ranges
+    after the definition was scoped to target=sandbox'
+  - 'F-G4: added §28.4.3 and §28.5 ranges to C-013 ConfigOverlay source_ranges after
+    the definition was extended with host_execution and planned attached_execution
+    sections'
+  - 'F-G5: added §28 axis range and §28.10 current-code-state range to C-014 PublicCommandSet
+    source_ranges after properties were extended with terminal_run_host and the four
+    current admin commands'
+  - 'F-G6: added §28.4.4 range to C-015 ErrorContract source_ranges after host-specific
+    codes were added to properties'
+  - 'F-G7: extended C-012 AuditRecord with four new properties for execution_target
+    field, host-specific fields, attached-specific fields, and rejection policy_code;
+    added §28.6 range to source_ranges'
+  - 'F-G8: added §28.10 current-code-state range to C-016 AdapterSkeleton source_ranges
+    since §28.10 explicitly extends §22 with the host-related code already present'
+  - 'F-G9: added removal-condition property and §28.11 range to C-017 ExecutionTarget
+    so the transitional character of target=host is bound to spec text'
+  - 'F-G10: changed type of three relations C-009/C-019/C-021 to C-017 from implements
+    to depends_on, because C-017 is a discriminator axis rather than an interface
+    contract; semantics now read as job-bound-to-target value'
+  - 'F-G11: C-020 AttachedExecutionPolicy and C-021 TerminalAttachedExecutionJob are
+    held as planned placeholders with explicit Status: planned property; full binding
+    will be done when G-009 gate is cleared by product owner'
+  cycle_2_status: green
+  cycle_2_pass: 2
+  cycle_2_findings_closed:
+  - 'F-G12: TRT references to external concepts in G-001 are acceptable; tactic resolution
+    goes through MRS where C-018 already exists'
+  - 'F-G13: G-004 need not list C-019 in its concepts; C-019 belongs to G-008; G-004
+    references it only as an external entity in tactical_rework_tasks via MRS concept_id'
+  - 'F-G14: extended G-007 source_ranges with 1441-1500 (§28.10 current code state
+    extends §22, bound to G-007); G-007 flipped to needs_review with TRT-G007-T-001'
+  - 'F-G15: narrowed G-008 source_ranges from the whole §28 (1198-1530) to eight host-specific
+    ranges, excluding §28.3 sandbox (1252-1255) and §28.5 attached (1336-1353)'
+  - 'F-G16: expanded G-009 source_ranges to cover §28.5 in full (1336-1353) plus attached
+    audit fields (1432-1465)'
+  - 'F-G17: added §28.3 sandbox-canonical range (1252-1255) to G-003 source_ranges
+    with TRT-G003-T-003 so PLAN-01 I1.c coverage of §28 has no gap'
+  - 'cycle_2_coverage: union of all G-step source_ranges covers §28 binding lines
+    1198-1530 without gaps; verified GS-by-GS under one MRS snapshot; no MRS edit
+    occurred during cycle_2 so no cycle_1 re-entry was required'
+  overall_consistency: 'green: cycle_1 (HRS-MRS) and cycle_2 (G-step triple autonomy)
+    both green under MRS v1.4 snapshot; plan ready for tactical level per PLAN-03
+    (Sonnet); G-009 remains planning_only pending product-owner gate'
+concepts:
+- concept_id: C-001
+  name: ProjectRegistry
+  definition: Scans projects.root_dir on startup and explicit refresh. Builds a 
+    registry of valid projects from projectid marker files. Resolves project_id 
+    to a canonical project root path. Enforces path containment invariants 
+    before any mount operation.
+  properties:
+  - Rejects duplicates; all conflicting projects disabled until operator fixes 
+    conflict
+  - Rejects symlink escapes, relative traversal, and paths outside 
+    projects.root_dir
+  - Resolution is read-only; registry is built from marker files only
+  - require_uuid4_id config flag enforces UUID4 format on marker id field
+  - allow_nested_projects=false (default) rejects nested project markers
+  source_ranges:
+  - start: 83
+    end: 100
+  - start: 101
+    end: 131
+  - start: 132
+    end: 167
+- concept_id: C-002
+  name: ProjectMarker
+  definition: Fixed-format file named exactly "projectid" at the root of a 
+    project directory. Contains JSON with required fields id (UUID4) and 
+    description (string). mcp_terminal may only read this file; it must not 
+    rename, reconfigure, or rewrite it.
+  properties:
+  - Filename is fixed to "projectid" and is not configurable
+  - Must be valid JSON
+  - id field must be present; UUID4 format enforced when require_uuid4_id is 
+    true
+  - description field is required
+  - Directory name is not the project identity; the id field is
+  source_ranges:
+  - start: 108
+    end: 131
+- concept_id: C-003
+  name: SandboxPolicy
+  definition: Validates every sandbox-target execution request against 
+    configured security rules before any container is created. Enforces cwd 
+    containment within /workspace, mount mode selection, network policy, image 
+    profile allowlist, and forbidden runtime options. Applies only to 
+    terminal_run (target=sandbox). Host-target requests are validated by 
+    HostExecutionPolicy (C-018) instead. Produces ErrorContract codes on policy 
+    violations.
+  properties:
+  - 'Zero trust: every request is validated independently; no implicit trust accumulates
+    across requests'
+  - cwd must be relative and resolve inside /workspace
+  - 'Supported modes: read_only (default), workspace_write, scratch_write'
+  - 'Network modes: none (default), package_registry; open is forbidden in MVP'
+  - Image profile must be from server-side allowlist; caller cannot provide 
+    image names
+  - Forbidden runtime options include --privileged, --pid host, --network host, 
+    --cap-add SYS_ADMIN, and Docker socket volume mount
+  - Command policy denies empty argv, NUL bytes, absolute executables outside 
+    safe PATH
+  - Server must not become a general-purpose remote shell for the host machine
+  - Server must not accept arbitrary host paths from the model
+  source_ranges:
+  - start: 8
+    end: 24
+  - start: 44
+    end: 82
+  - start: 168
+    end: 200
+  - start: 201
+    end: 241
+  - start: 242
+    end: 275
+  - start: 276
+    end: 289
+  - start: 290
+    end: 315
+  - start: 316
+    end: 335
+  - start: 399
+    end: 460
+  - end: 1255
+    start: 1216
+- concept_id: C-004
+  name: TerminalSession
+  definition: Scoped execution context identified by the pair (project_id, 
+    session_id). session_id is a UUID4 generated at creation time. Owns a 
+    session directory under .terminals/<session_id>/. Has a TTL based on 
+    last_activity_at. Activity includes session creation, command start/finish, 
+    output read, output search, and explicit metadata access.
+  properties:
+  - One project may have multiple independent sessions
+  - session_id is UUID4 and is validated on every terminal_run call
+  - terminal_run does not create sessions implicitly
+  - TTL is computed from last_activity_at
+  - Expired completed/failed/stopped sessions may be deleted after TTL
+  - Running sessions may be deleted only with an explicit force flag
+  source_ranges:
+  - start: 461
+    end: 495
+  - start: 557
+    end: 580
+  - start: 782
+    end: 860
+  - start: 1141
+    end: 1181
+- concept_id: C-005
+  name: SessionStore
+  definition: Creates and manages session directories under 
+    .terminals/<session_id>/. Enforces TTL cleanup policy. Protects running 
+    sessions from deletion unless force flag is explicitly provided. Ensures 
+    .terminals/ is gitignored inside the project directory.
+  properties:
+  - Creates .terminals/<session_id>/ on terminal_session_create
+  - Deletes session directory and all contents on terminal_delete
+  - Cleanup interval is configurable; never deletes running jobs without force
+  - .terminals/ must be added to project .gitignore
+  - terminal_delete with project_id scopes deletion to that project only
+  - terminal_delete without project_id deletes across all known projects via 
+    ProjectRegistry
+  source_ranges:
+  - start: 461
+    end: 495
+  - start: 725
+    end: 760
+  - start: 782
+    end: 860
+  - start: 1141
+    end: 1181
+- concept_id: C-006
+  name: CommandRecord
+  definition: Single entry in history.jsonl representing one executed command. 
+    Contains seq, job_id, project_id, session_id, timestamp, execution_kind, 
+    command (for shell kind), argv (for argv kind), resolved_argv (always), cwd,
+    mode, network, image_profile, status, exit_code, timed_out, stdout_file, 
+    stderr_file.
+  properties:
+  - execution_kind is either "shell" or "argv" and is mandatory
+  - 'For shell kind: command is non-null string, argv is null'
+  - 'For argv kind: command is null, argv is non-null array'
+  - resolved_argv is always present and contains the actual argv passed to the 
+    runtime
+  - seq is a session-local monotonic integer
+  - Appended to history.jsonl; file is append-only
+  source_ranges:
+  - start: 496
+    end: 548
+- concept_id: C-007
+  name: CommandSequence
+  definition: Per-session monotonically increasing integer counter. Allocates 
+    the next seq for each new command. Determines the output file name prefix 
+    zero-padded to 6 digits (NNNNNN). Unique within a session; not global.
+  properties:
+  - Monotonic; never decreases or reuses values within a session
+  - Zero-padded to 6 digits for output file names
+  - Allocation happens before the queue job is created
+  - seq is the stable external reference for a command within a session
+  source_ranges:
+  - start: 476
+    end: 495
+- concept_id: C-008
+  name: OutputStore
+  definition: Manages per-command output files NNNNNN.stdout.log, 
+    NNNNNN.stderr.log, and NNNNNN.meta.json. Provides read (offset+bytes), tail 
+    (last N lines), and regex search operations. Enforces path containment; 
+    rejects stream names other than stdout/stderr and path traversal attempts.
+  properties:
+  - stdout and stderr are stored in separate files; no combined output file
+  - Read supports offset and max_bytes limits from config
+  - Tail reads last N lines without loading the full file into memory
+  - Search enforces max_matches limit
+  - Rejects invalid stream names and path traversal via seq reference
+  - Files are created empty before the queue job starts; written by worker
+  - terminal_stat returns file sizes without reading full content
+  source_ranges:
+  - start: 461
+    end: 495
+  - start: 636
+    end: 660
+  - start: 661
+    end: 725
+  - start: 782
+    end: 860
+- concept_id: C-009
+  name: TerminalExecutionJob
+  definition: 'Queue job that performs the actual sandbox container execution for
+    target=sandbox. Receives session_id, project_id, seq, execution_kind, command
+    or argv, cwd, mode, network, image_profile, timeout. Manages container start,
+    mount, exec, stop, and cleanup. Parallel jobs exist for other targets: TerminalHostExecutionJob
+    (C-019) for target=host; TerminalAttachedExecutionJob (C-021) for the planned
+    target=attached.'
+  properties:
+  - Never runs synchronously in the request handler
+  - Writes stdout to NNNNNN.stdout.log and stderr to NNNNNN.stderr.log only
+  - Updates NNNNNN.meta.json and history.jsonl entry on completion
+  - Updates queue job status to completed, failed, or stopped
+  - Stops and removes container regardless of outcome (cleanup_always)
+  - Not exposed as a public MCP command
+  source_ranges:
+  - start: 26
+    end: 44
+  - start: 761
+    end: 782
+  - end: 1255
+    start: 1252
+- concept_id: C-010
+  name: ContainerRuntime
+  definition: Creates and runs sandbox containers with fixed /workspace mount. 
+    Enforces non-root user, capability drop, no-new-privileges, resource limits 
+    (memory, cpus, pids), network policy, and read-only root filesystem. 
+    Supports rootless Docker or Podman.
+  properties:
+  - /workspace is always the container mount point; caller cannot choose it
+  - 'Mount modes: read_only (ro), workspace_write (rw), scratch_write (ro + scratch
+    rw)'
+  - --cap-drop ALL and --security-opt no-new-privileges enforced by default
+  - 'Resource limits: memory, cpus, pids_limit sourced from ConfigOverlay'
+  - 'Network: none by default; package_registry via allowlisted egress only'
+  - 'Forbidden: --privileged, host pid/network/ipc/uts namespaces, Docker socket'
+  - Rootless Docker or Podman recommended but not required for MVP
+  source_ranges:
+  - start: 168
+    end: 241
+  - start: 242
+    end: 275
+  - start: 336
+    end: 399
+- concept_id: C-011
+  name: QueueResultSemantics
+  definition: Invariant governing interpretation of queue job completion versus 
+    terminal command success. Queue completed (progress=100) means the worker 
+    executed the full lifecycle. Terminal success additionally requires 
+    exit_code==0 and timed_out==false. terminal_get_status exposes both states.
+  properties:
+  - queue completed does not imply terminal success
+  - Callers must inspect exit_code and timed_out; not only queue status
+  - 'terminal_get_status returns: job_id, queue_status, terminal_status, exit_code,
+    timed_out, output file names, and output byte sizes'
+  source_ranges:
+  - start: 761
+    end: 782
+  - start: 907
+    end: 930
+- concept_id: C-012
+  name: AuditRecord
+  definition: Immutable record created for every terminal_run invocation 
+    regardless of outcome. Contains full execution context including run_id, 
+    project_id, session_id, seq, command, resolved path hash, cwd, mode, 
+    network, image_profile, container_id, timing, exit_code, timed_out, output 
+    file names and sizes, policy decision summary, and error code.
+  properties:
+  - Created for both successful and failed executions
+  - Must not record secret environment variable values
+  - Distinct from CommandRecord; AuditRecord is the security trail
+  - Mandatory field execution_target with one of values sandbox|host|attached; 
+    allows readers to discriminate per-target lifecycle
+  - 'For host target: additional fields resolved_cwd_on_host (project-relative), use_venv_resolved,
+    allowed_commands_snapshot_hash'
+  - 'For attached target (planned): additional fields attached_target_id, container_match,
+    resolved_container_id (redacted or hashed)'
+  - 'For rejected requests: additional field policy_code with one of the stable ErrorContract
+    codes that caused rejection'
+  source_ranges:
+  - start: 858
+    end: 887
+  - end: 1363
+    start: 1354
+- concept_id: C-013
+  name: ConfigOverlay
+  definition: Terminal-specific configuration layered on top of adapter 
+    SimpleConfig. Generator extends adapter SimpleConfigGenerator with terminal 
+    sections; validator extends adapter SimpleConfig/SimpleConfigValidator with 
+    terminal-specific checks; CLI exposes generate/validate/help subcommands. 
+    Sections include terminal.sessions, terminal.output, terminal.commands, 
+    terminal.cleanup, terminal.runtime, terminal.host_execution (target=host 
+    gate and allowlist), and the planned terminal.attached_execution 
+    (target=attached, not implemented).
+  properties:
+  - Must call adapter generator/validator first, then terminal-specific layer
+  - 'Required terminal config sections: terminal.sessions, terminal.output, terminal.commands,
+    terminal.cleanup, runtime'
+  - terminal.sessions.ttl_seconds is required; rejected if missing or 
+    non-positive
+  - default_history_limit must not exceed max_history_limit
+  - max_sessions_per_project must be >= 1 and max_commands_per_session must be 
+    >= 1
+  source_ranges:
+  - start: 782
+    end: 858
+  - start: 1097
+    end: 1141
+  - end: 1288
+    start: 1275
+  - end: 1353
+    start: 1336
+- concept_id: C-014
+  name: PublicCommandSet
+  definition: The complete set of public MCP commands exposed by mcp_terminal. 
+    All commands carry the terminal_ prefix. No short aliases are exposed. 
+    Commands are registered via the adapter register_custom_commands_hook 
+    mechanism.
+  properties:
+  - 'Commands: terminal_sessions, terminal_session_create, terminal_run, terminal_list,
+    terminal_get, terminal_read, terminal_search_commands, terminal_search_output,
+    terminal_tail, terminal_stat, terminal_delete, terminal_get_status'
+  - 'Forbidden public aliases: list, delete, grep, tail, head, stat'
+  - terminal_run returns job_id, seq, stdout_file, stderr_file, meta_file
+  - terminal_list default limit is 25 in descending timestamp order
+  - terminal_delete requires session_id; project_id is optional
+  - terminal_stat returns metadata and output sizes only; no full file read
+  - terminal_run_host is a public MCP command exposing target=host; gated by 
+    terminal.host_execution.enabled in server config
+  - terminal_run_attached is planned for target=attached and is not yet exposed 
+    in MCP help
+  - 'Additional commands implemented today and exposed in MCP help: terminal_kill
+    (SIGKILL pending sandbox docker run client), terminal_get_session_bootstrap (status
+    of optional Python env bootstrap queued at session create), terminal_list_watch
+    (read-only snapshot of project registry by watch anchor), terminal_purge_sessions
+    (admin: remove all .terminals dirs under watch anchors; gated by terminal.admin.allow_purge_sessions)'
+  source_ranges:
+  - start: 461
+    end: 495
+  - start: 549
+    end: 761
+  - start: 930
+    end: 970
+  - start: 1181
+    end: 1197
+  - end: 1255
+    start: 1198
+  - end: 1500
+    start: 1441
+- concept_id: C-015
+  name: ErrorContract
+  definition: Stable set of error codes returned by the server on request 
+    rejection or execution failure. Each code maps to a specific rejection 
+    condition. Codes must remain stable across versions so callers can handle 
+    them programmatically without parsing error messages.
+  properties:
+  - Codes are stable identifiers; their meaning must not change between versions
+  - 'Defined codes: PROJECT_NOT_FOUND, PROJECT_DELETED, PROJECT_PAUSED, PROJECT_PATH_OUT_OF_SCOPE,
+    INVALID_CWD, INVALID_COMMAND, INVALID_SESSION, IMAGE_PROFILE_NOT_ALLOWED, MODE_NOT_ALLOWED,
+    NETWORK_MODE_NOT_ALLOWED, TIMEOUT_EXCEEDED, OUTPUT_LIMIT_EXCEEDED, CONTAINER_CREATE_FAILED,
+    CONTAINER_EXEC_FAILED, CONTAINER_CLEANUP_FAILED'
+  - INVALID_SESSION covers missing session_id, non-UUID4 format, and unknown 
+    session
+  - INVALID_COMMAND covers empty command and invalid shell/argv execution fields
+  - 'Host-target codes: HOST_EXECUTION_DISABLED (gate failed: enabled=false or allowed_commands
+    empty), HOST_COMMAND_NOT_ALLOWED (leading executable not in allowlist or path-bearing
+    form), HOST_FORBIDDEN_COMMAND (hard-forbidden executable or forbidden pattern
+    in command/argv/redirect/here-string/heredoc)'
+  source_ranges:
+  - start: 886
+    end: 907
+  - end: 1305
+    start: 1289
+- concept_id: C-016
+  name: AdapterSkeleton
+  definition: The existing mcp_terminal codebase (term_server.py, 
+    term_config.py, termgr.py, paths.py, tests/test_imports.py) that must be 
+    preserved and incrementally extended. Establishes the adapter-based server 
+    startup, config reader, and process manager. Implementation is an extension,
+    not a rewrite. Section 23 defines the delivery phases for this extension.
+  properties:
+  - Must not be rewritten; only extended with terminal domain modules
+  - term_server.py must register terminal commands via 
+    register_custom_commands_hook
+  - Existing adapter built-in and queue commands must remain visible in MCP help
+  - Internal terminal_execute must not be exposed as a public MCP command
+  - 'Implementation proceeds in phases: config overlay, services, queue job, readers,
+    isolation'
+  source_ranges:
+  - start: 970
+    end: 1097
+  - end: 1500
+    start: 1441
+- concept_id: C-017
+  name: ExecutionTarget
+  definition: 'Discriminator over the execution environment of a terminal command.
+    Determines which validation policy, which execution job class, and which lifecycle
+    apply to a request. Values: sandbox (default product mode), host (config-gated,
+    transitional), attached (future, not implemented). Selection is per-request through
+    the choice of MCP command, not a parameter on terminal_run.'
+  properties:
+  - 'Possible values: sandbox, host, attached'
+  - 'sandbox: always enabled; canonical product mode; corresponds to terminal_run'
+  - 'host: gated by terminal.host_execution.enabled and non-empty terminal.host_execution.allowed_commands;
+    corresponds to terminal_run_host; transitional'
+  - 'attached: reserved, not implemented; corresponds to planned terminal_run_attached'
+  - Target is selected by MCP command name, not by a request parameter
+  - Session storage, sequence numbering, output store, history file, audit file,
+    and error contract are shared across targets
+  - Each target carries its own validation policy and execution job class
+  - Audit field execution_target is mandatory and takes one of the three values
+  - 'Removal condition for host: admissible once code-analysis-server and mcp_terminal
+    themselves run inside containers reachable through the attached target, and all
+    functional needs currently served by host are covered by attached and orchestration
+    controls'
+  source_ranges:
+  - end: 1215
+    start: 1198
+  - end: 1530
+    start: 1513
+  - end: 1512
+    start: 1501
+- concept_id: C-018
+  name: HostExecutionPolicy
+  definition: Validates every host-target execution request against the host 
+    execution config and the hard-forbidden list before the request is queued. 
+    Parallel to SandboxPolicy (C-003) but operates on the host environment and 
+    bypasses ContainerRuntime. Produces host-specific error codes on rejection.
+  properties:
+  - 'Gate: rejects all requests unless terminal.host_execution.enabled is true and
+    terminal.host_execution.allowed_commands is non-empty (HOST_EXECUTION_DISABLED)'
+  - 'Allowlist: each leading executable basename must appear (case-insensitive) in
+    allowed_commands (HOST_COMMAND_NOT_ALLOWED)'
+  - 'Hard-forbidden executables: docker, podman, kubectl, helm, sudo, su, mount, umount,
+    iptables, nft, ip, ifconfig, tcpdump, nmap, socat, nc, netcat (HOST_FORBIDDEN_COMMAND)'
+  - 'Shell decomposition: command string split along &&, ||, ;, |; each segment validated
+    independently'
+  - 'Forbidden patterns: --pid=host, /var/run/docker.sock, command substitution $(...),
+    backtick substitution; scanned in command text, argv elements, redirect targets,
+    here-string operands, heredoc bodies (HOST_FORBIDDEN_COMMAND)'
+  - 'cwd validation: project-relative, no absolute paths, no .. (INVALID_CWD)'
+  - 'Session validation: (project_id, session_id) must resolve to an existing session
+    (INVALID_SESSION)'
+  - 'Project resolution: project_id must resolve through ProjectRegistry (PROJECT_NOT_FOUND)'
+  - 'Authorization is static and config-driven: no per-caller acl, no runtime confirmation;
+    the trusted operator expresses intent in term_server.json'
+  source_ranges:
+  - end: 1305
+    start: 1256
+  - end: 1335
+    start: 1306
+- concept_id: C-019
+  name: TerminalHostExecutionJob
+  definition: Queue job that executes a host-target command directly on the host
+    filesystem and host process namespace, without Docker. Parallel to 
+    TerminalExecutionJob (C-009) but bypasses ContainerRuntime. Receives 
+    (project_id, session_id, seq, execution_kind, command|argv, 
+    cwd_resolved_on_host, timeout_seconds, use_venv_resolved).
+  properties:
+  - No container start, no container stop, no mount step
+  - Writes stdout and stderr to per-seq files identical in shape to sandbox 
+    output (NNNNNN.stdout.log, NNNNNN.stderr.log)
+  - Updates NNNNNN.meta.json with exit_code, timed_out, and 
+    execution_target=host on completion, failure, stop, or timeout
+  - Updates shell_state.json cwd after a successful host command; sandbox and 
+    host commands within one session see each other's cwd transitions
+  - Shares session and sequence space with TerminalExecutionJob; sequences are 
+    monotonic across both targets within one session
+  - Timeout terminates the host process and records timed_out=true
+  - Produces AuditRecord with execution_target=host for both accepted and 
+    rejected requests
+  source_ranges:
+  - end: 1335
+    start: 1318
+  - end: 1363
+    start: 1354
+- concept_id: C-020
+  name: AttachedExecutionPolicy
+  definition: Planned validation policy for the attached target. Reserved; not 
+    implemented. Will validate every attached-target execution request against 
+    terminal.attached_execution config (allowlist of named attached targets, 
+    each carrying container_match and a target-local allowed_commands). Parallel
+    to SandboxPolicy and HostExecutionPolicy.
+  properties:
+  - 'Status: planned, not implemented; no operational behavior in this revision'
+  - 'Gate: planned terminal.attached_execution.enabled flag and non-empty targets
+    list'
+  - 'Allowlist by attached_target_id: model supplies a logical name, server resolves
+    to a container by allowlisted label/name match'
+  - 'Per-target command allowlist: each attached target carries its own allowed_commands'
+  - Model never supplies container_id directly
+  - 'Authorization model parallels host: static, config-driven, allowlist-based'
+  source_ranges:
+  - end: 1353
+    start: 1336
+  - end: 1465
+    start: 1432
+- concept_id: C-021
+  name: TerminalAttachedExecutionJob
+  definition: Planned queue job for the attached target. Reserved; not 
+    implemented. Will execute a command inside a pre-existing running container 
+    via docker exec, against a container resolved by AttachedExecutionPolicy. 
+    Parallel to TerminalExecutionJob and TerminalHostExecutionJob.
+  properties:
+  - 'Status: planned, not implemented; no operational behavior in this revision'
+  - Will use docker exec, not docker run; mcp_terminal does not create the 
+    target container
+  - Will not own the runtime profile, mounts, network, or image of the attached 
+    container
+  - Will produce AuditRecord with execution_target=attached and resolved 
+    attached_target_id
+  - Will share session and sequence space with TerminalExecutionJob and 
+    TerminalHostExecutionJob
+  source_ranges:
+  - end: 1353
+    start: 1336
+  - end: 1465
+    start: 1432
+relations:
+- from_concept: C-001
+  to_concept: C-002
+  type: consumes
+  note: ProjectRegistry reads ProjectMarker files to build the project index.
+- from_concept: C-004
+  to_concept: C-001
+  type: depends_on
+  note: TerminalSession creation and terminal_run require a project resolved by 
+    ProjectRegistry.
+- from_concept: C-005
+  to_concept: C-004
+  type: owns
+  note: SessionStore owns the session directory lifecycle including create, 
+    delete, and TTL cleanup.
+- from_concept: C-005
+  to_concept: C-001
+  type: uses
+  note: SessionStore uses ProjectRegistry to enumerate all known projects when 
+    deleting without project_id scope.
+- from_concept: C-006
+  to_concept: C-004
+  type: depends_on
+  note: CommandRecord belongs to a session; seq is unique within the session.
+- from_concept: C-007
+  to_concept: C-004
+  type: depends_on
+  note: CommandSequence counter is per-session.
+- from_concept: C-007
+  to_concept: C-006
+  type: produces
+  note: CommandSequence allocates seq which becomes the CommandRecord identifier
+    and file prefix.
+- from_concept: C-008
+  to_concept: C-007
+  type: depends_on
+  note: OutputStore uses seq to name and locate output files.
+- from_concept: C-009
+  to_concept: C-010
+  type: uses
+  note: TerminalExecutionJob delegates container creation and execution to 
+    ContainerRuntime.
+- from_concept: C-009
+  to_concept: C-008
+  type: produces
+  note: TerminalExecutionJob writes stdout/stderr content into OutputStore 
+    files.
+- from_concept: C-009
+  to_concept: C-006
+  type: produces
+  note: TerminalExecutionJob writes final status, exit_code, and timed_out into 
+    CommandRecord.
+- from_concept: C-009
+  to_concept: C-012
+  type: produces
+  note: TerminalExecutionJob creates the AuditRecord for every execution 
+    regardless of outcome.
+- from_concept: C-010
+  to_concept: C-003
+  type: depends_on
+  note: ContainerRuntime enforces the constraints validated by SandboxPolicy.
+- from_concept: C-011
+  to_concept: C-009
+  type: depends_on
+  note: QueueResultSemantics governs how job completion maps to terminal command
+    success.
+- from_concept: C-013
+  to_concept: C-005
+  type: owns
+  note: ConfigOverlay defines TTL, cleanup intervals, and max_sessions used by 
+    SessionStore.
+- from_concept: C-013
+  to_concept: C-010
+  type: owns
+  note: ConfigOverlay defines resource limits, timeout, and image profiles for 
+    ContainerRuntime.
+- from_concept: C-014
+  to_concept: C-001
+  type: uses
+  note: All session-scoped commands resolve project_id through ProjectRegistry.
+- from_concept: C-014
+  to_concept: C-004
+  type: uses
+  note: Session-scoped commands require an existing TerminalSession.
+- from_concept: C-014
+  to_concept: C-005
+  type: uses
+  note: terminal_session_create and terminal_delete delegate to SessionStore.
+- from_concept: C-014
+  to_concept: C-008
+  type: uses
+  note: terminal_read, terminal_tail, terminal_search_output, and terminal_stat 
+    use OutputStore.
+- from_concept: C-014
+  to_concept: C-009
+  type: produces
+  note: terminal_run enqueues a TerminalExecutionJob and returns job_id and seq.
+- from_concept: C-014
+  to_concept: C-011
+  type: uses
+  note: terminal_get_status applies QueueResultSemantics to expose both queue 
+    and terminal states.
+- from_concept: C-003
+  to_concept: C-001
+  type: uses
+  note: SandboxPolicy uses the resolved project path from ProjectRegistry for 
+    containment checks.
+- from_concept: C-003
+  to_concept: C-015
+  type: produces
+  note: SandboxPolicy produces ErrorContract codes on policy violations.
+- from_concept: C-009
+  to_concept: C-015
+  type: produces
+  note: TerminalExecutionJob produces ErrorContract codes on execution failures.
+- from_concept: C-014
+  to_concept: C-016
+  type: extends
+  note: PublicCommandSet extends AdapterSkeleton by registering terminal 
+    commands via the hook mechanism.
+- from_concept: C-016
+  to_concept: C-013
+  type: uses
+  note: AdapterSkeleton uses ConfigOverlay for server startup and config 
+    validation.
+- from_concept: C-004
+  to_concept: C-017
+  type: uses
+  note: TerminalSession accepts commands directed at any ExecutionTarget; target
+    is selected per terminal_run* invocation.
+- from_concept: C-009
+  to_concept: C-017
+  type: depends_on
+  note: TerminalExecutionJob is the sandbox implementation of ExecutionTarget; 
+    its lifecycle and validation are bound to target=sandbox.
+- from_concept: C-019
+  to_concept: C-017
+  type: depends_on
+  note: TerminalHostExecutionJob is the host implementation of ExecutionTarget; 
+    its lifecycle and validation are bound to target=host.
+- from_concept: C-021
+  to_concept: C-017
+  type: depends_on
+  note: TerminalAttachedExecutionJob is the attached implementation of 
+    ExecutionTarget (planned, not implemented); its lifecycle and validation 
+    will be bound to target=attached.
+- from_concept: C-018
+  to_concept: C-001
+  type: uses
+  note: HostExecutionPolicy resolves project_id through ProjectRegistry to 
+    obtain the host-side project root for cwd validation.
+- from_concept: C-018
+  to_concept: C-015
+  type: produces
+  note: HostExecutionPolicy produces ErrorContract codes 
+    HOST_EXECUTION_DISABLED, HOST_COMMAND_NOT_ALLOWED, HOST_FORBIDDEN_COMMAND on
+    policy violations.
+- from_concept: C-019
+  to_concept: C-018
+  type: depends_on
+  note: TerminalHostExecutionJob runs only when HostExecutionPolicy accepts the 
+    request.
+- from_concept: C-019
+  to_concept: C-008
+  type: produces
+  note: TerminalHostExecutionJob writes stdout/stderr content into OutputStore 
+    files using the shared NNNNNN.stdout.log / NNNNNN.stderr.log layout.
+- from_concept: C-019
+  to_concept: C-006
+  type: produces
+  note: TerminalHostExecutionJob writes final status, exit_code, timed_out, and 
+    execution_target=host into the CommandRecord meta.
+- from_concept: C-019
+  to_concept: C-012
+  type: produces
+  note: TerminalHostExecutionJob creates the AuditRecord for every host 
+    execution regardless of outcome, including allowed_commands snapshot 
+    identifier.
+- from_concept: C-019
+  to_concept: C-015
+  type: produces
+  note: TerminalHostExecutionJob produces ErrorContract codes on execution 
+    failures (timeout, host process error).
+- from_concept: C-013
+  to_concept: C-018
+  type: owns
+  note: ConfigOverlay owns terminal.host_execution.enabled and 
+    terminal.host_execution.allowed_commands; defaults are enabled=false and [].
+    Validator warns at startup when enabled=true with empty allowlist.
+- from_concept: C-014
+  to_concept: C-019
+  type: produces
+  note: PublicCommandSet.terminal_run_host enqueues a TerminalHostExecutionJob 
+    and returns job_id and seq.
+- from_concept: C-014
+  to_concept: C-017
+  type: uses
+  note: 'PublicCommandSet exposes one execution command per ExecutionTarget: terminal_run
+    for sandbox, terminal_run_host for host, planned terminal_run_attached for attached.'
+- from_concept: C-020
+  to_concept: C-017
+  type: depends_on
+  note: AttachedExecutionPolicy operates on ExecutionTarget=attached (planned, 
+    not implemented).
+- from_concept: C-021
+  to_concept: C-020
+  type: depends_on
+  note: TerminalAttachedExecutionJob runs only when AttachedExecutionPolicy 
+    accepts the request (planned, not implemented).
+- from_concept: C-013
+  to_concept: C-020
+  type: owns
+  note: ConfigOverlay will own terminal.attached_execution section when 
+    implemented; defaults are enabled=false and empty targets list.

@@ -1,0 +1,7 @@
+step_id: A-003
+parent_tactical_step: T-002
+name: TTL cleanup service tests
+target_file: tests/test_ttl_cleanup_service.py
+operation: document_existing
+status: frozen
+description: Documents automated tests for TtlCleanupService expiry, running-session skip, and deletion behavior.

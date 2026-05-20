@@ -98,4 +98,4 @@ verification:
   expected: '`from mcp_terminal.services.command_history import CommandHistory, CommandRecord`
     succeeds. CommandHistory.seq_to_prefix(1) returns ''000001''. CommandHistory.seq_to_prefix(25)
     returns ''000025''.'
-status: draft
+status: frozen

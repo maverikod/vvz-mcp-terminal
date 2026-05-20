@@ -46,4 +46,4 @@ verification:
   expected: 'All 8 test functions pass. pytest reports 0 failures and 0 errors. The
     C-011 invariant is confirmed: queue completed without exit_code=0 and timed_out=False
     does not produce terminal_status=''success''.'
-status: draft
+status: frozen

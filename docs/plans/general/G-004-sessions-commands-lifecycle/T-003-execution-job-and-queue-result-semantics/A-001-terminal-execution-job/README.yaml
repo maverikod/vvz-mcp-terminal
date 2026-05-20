@@ -82,4 +82,4 @@ verification:
   target: mcp_terminal/jobs/terminal_execution_job.py
   expected: After mcp_terminal/jobs/__init__.py also exists, `from mcp_terminal.jobs.terminal_execution_job
     import TerminalExecutionJob, JobParams` succeeds without error.
-status: draft
+status: frozen

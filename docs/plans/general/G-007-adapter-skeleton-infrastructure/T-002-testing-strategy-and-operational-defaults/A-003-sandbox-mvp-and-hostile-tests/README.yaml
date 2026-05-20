@@ -1,0 +1,9 @@
+step_id: A-003
+parent_tactical_step: T-002
+name: Sandbox MVP and hostile input unit tests
+target_file: tests/test_sandbox_mvp_acceptance.py
+operation: document_existing
+status: frozen
+description: Documents tech_spec §21 MVP acceptance criteria fully automated in tests/test_sandbox_mvp_acceptance.py
+  (unit-testable and MCP integration checks) and tests/test_sandbox_docker_e2e.py (live-Docker E2E when
+  Docker is available), plus §24 hostile-input unit coverage in tests/test_hostile_input_unit.py.

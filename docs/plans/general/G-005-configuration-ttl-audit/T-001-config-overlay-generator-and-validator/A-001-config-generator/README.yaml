@@ -66,4 +66,6 @@ verification:
     import TERMINAL_CONFIG_DEFAULTS, generate_terminal_config` succeeds. generate_terminal_config({})
     contains key 'terminal' with terminal.sessions.ttl_seconds == 86400. generate_terminal_config({})
     contains key 'runtime' with runtime.timeout_seconds == 60.
-status: draft
+  host_execution_schema: mcp_terminal/config/host_execution_schema.py exists and supplies
+    HOST_EXECUTION_CONFIG merged by config_generator for terminal.host_execution defaults.
+status: frozen

@@ -1,0 +1,105 @@
+concepts:
+- C-014
+- C-015
+- C-018
+- C-019
+depends_on:
+- A-001
+name: terminal_run_host extended metadata
+operation: create_file
+parent_tactical_step: T-003
+priority: 1
+prompt: "Create the file `mcp_terminal/commands/terminal_run_host_metadata.py`.\n\n\
+  Operation: create_file\n\n## Purpose\n\nDefines get_terminal_run_host_metadata(cls):
+  the extended AI/documentation metadata\nfor the terminal_run_host command, per metadatastd.md.
+  Returned by\nTerminalRunHostCommand.metadata(). Contains detailed_description, parameters,\n\
+  return_value, usage_examples, error_cases, and best_practices.\n\n## MRS concept
+  excerpts\n\nC-014 PublicCommandSet:\n  - All commands carry terminal_ prefix; no
+  aliases.\n  - metadata() separates documentation from get_schema().\n\nC-015 ErrorContract:\n\
+  \  - Codes documented in error_cases must match codes actually returned.\n  - HOST_EXECUTION_DISABLED,
+  HOST_COMMAND_NOT_ALLOWED, HOST_FORBIDDEN_COMMAND,\n    INVALID_SESSION, INVALID_CWD,
+  INVALID_COMMAND, PROJECT_NOT_FOUND.\n\nC-018 HostExecutionPolicy:\n  - Gate: terminal.host_execution.enabled
+  must be true AND allowed_commands non-empty.\n  - Allowlist check by basename, case-insensitive.\n\
+  \  - Forbidden executables always blocked: docker, podman, sudo, su, doas, mount,\n\
+  \    umount, nsenter, chroot, systemctl, service.\n  - Forbidden substrings: --pid=host,
+  $( , ${ , `, /var/run/docker.sock, etc.\n\nC-019 TerminalHostExecutionJob:\n  -
+  Asynchronous; returns job_id and seq immediately.\n  - Poll terminal_get_status;
+  queue complete != terminal success.\n  - execution_target=\"host\" in meta.json
+  and response.\n\n## Module docstring\n\"\"\"Extended metadata for ``terminal_run_host``.\"\
+  \"\"\n\n## Imports (exact)\nfrom __future__ import annotations\n\nfrom typing import
+  Any, Dict, Type\n\n## Constants\n_EXAMPLE_PROJECT: str = \"8772a086-688d-4198-a0c4-f03817cc0e6c\"\
+  \n_EXAMPLE_SESSION: str = \"46ce9394-01ca-4440-9c03-c4a7466c4ec5\"\n\n## Function\n\
+  \n### def get_terminal_run_host_metadata(cls: Type[Any]) -> Dict[str, Any]\nReturn
+  a dict with ALL of the following top-level keys:\n  name, version, description,
+  category, author, email,\n  detailed_description, parameters, return_value, usage_examples,\n\
+  \  error_cases, best_practices.\n\nValues for top-level keys drawn from cls (cls.name,
+  cls.version, cls.descr,\ncls.category, cls.author, cls.email).\n\ndetailed_description:
+  multi-paragraph string explaining:\n  (a) Server config requirements: terminal.host_execution.enabled
+  must be true;\n      allowed_commands must be non-empty; returns HOST_EXECUTION_DISABLED
+  otherwise.\n  (b) Validation logic: shell chains decomposed (&&/||/;/|); every segment's\n\
+  \      executable checked against allowlist by basename, case-insensitive; some\n\
+  \      executables (docker, sudo, etc.) always blocked; forbidden substrings\n \
+  \     (--pid=host, $(, ${, `, /var/run/docker.sock) scanned in redirects and heredocs.\n\
+  \  (c) Async behaviour: returns job_id and seq immediately; poll terminal_get_status;\n\
+  \      queue completion != terminal success; check exit_code and timed_out.\n  (d)
+  Safety warning: host execution modifies the real project tree; keep\n      enabled=false
+  by default; enable only for trusted operator dev/debug workflows.\n\nparameters:
+  dict with one entry per parameter accepted by execute():\n  project_id: {description,
+  type: string, required: True, examples: [_EXAMPLE_PROJECT]}\n  session_id: {description,
+  type: string, required: True, examples: [_EXAMPLE_SESSION]}\n  execution_kind: {description,
+  type: string, required: True, enum: [shell, argv]}\n  command: {description, type:
+  string, required: False, examples: [\"casmgr --config config.json status\"]}\n \
+  \ argv: {description, type: array, required: False, items: {type: string},\n   \
+  \      examples: [[\"casmgr\", \"--config\", \"config.json\", \"status\"]]}\n  cwd:
+  {description, type: string, required: False,\n        default: \"(from shell_state.json,
+  usually '.')\", examples: [\"tests\", \"src/pkg\"]}\n  timeout_seconds: {description,
+  type: integer, required: False, default: 600}\n  use_venv: {description, type: boolean,
+  required: False}\n\nreturn_value:\n  success:\n    description: \"Host job enqueued;
+  execution runs in a background queue worker.\"\n    data:\n      job_id: \"Adapter
+  queue job id for terminal_get_status.\"\n      seq: \"Session-local monotonic command
+  number.\"\n      stdout_file: \"Relative name under .terminals/<session_id>/.\"\n\
+  \      stderr_file: \"Relative name under .terminals/<session_id>/.\"\n      meta_file:
+  \"Relative meta JSON (exit_code, timed_out, execution_target after completion).\"\
+  \n      cwd: \"Effective project-relative cwd used for this run.\"\n      use_venv:
+  \"Echo of resolved use_venv flag.\"\n      execution_target: \"Always 'host' for
+  this command.\"\n    example: {success: True, data: {job_id: \"...\", seq: 1, stdout_file:
+  \"000001.stdout.log\",\n              stderr_file: \"000001.stderr.log\", meta_file:
+  \"000001.meta.json\",\n              cwd: \".\", use_venv: True, execution_target:
+  \"host\"}}\n  error:\n    description: \"Rejected before queueing (config, policy,
+  or missing session).\"\n    code: \"HOST_EXECUTION_DISABLED\"\n    message: \"Stable
+  ErrorContract code.\"\n    details: \"Optional field-level hint from validation.\"\
+  \n\nusage_examples: list of at least 3 dicts, each with description, command, explanation:\n\
+  \  1. argv mode: execution_kind=argv, argv=[\"casmgr\", \"--config\", \"config.json\"\
+  , \"status\"]\n     explanation: requires terminal.host_execution.enabled and casmgr
+  in allowed_commands\n  2. shell chain: execution_kind=shell, command=\"pytest -q
+  && git status\"\n     explanation: both pytest and git must be allowlisted\n  3.
+  venv: execution_kind=argv, argv=[\"python\", \"-m\", \"build\"], use_venv=True\n\
+  \     explanation: omit cwd to use shell_state.json; python must be allowlisted\n\
+  \nerror_cases: dict mapping each of these 7 codes to {description, message, solution}:\n\
+  \  HOST_EXECUTION_DISABLED: enabled=false or empty allowlist\n  HOST_COMMAND_NOT_ALLOWED:
+  executable not allowlisted, empty argv/command, or invalid chain\n  HOST_FORBIDDEN_COMMAND:
+  forbidden substring in command/redirect/heredoc, or hard-blocked exe\n  INVALID_SESSION:
+  no session directory for (project_id, session_id)\n  INVALID_CWD: cwd is absolute,
+  contains .., or invalid characters\n  INVALID_COMMAND: execution_kind missing/invalid,
+  argv not a list\n  PROJECT_NOT_FOUND: project_id unknown to project registry\n\n\
+  best_practices: list of at least 8 string items covering:\n  - keep enabled=false
+  by default\n  - prefer terminal_run for sandboxed work\n  - prefer argv over shell
+  for single-tool invocations\n  - always terminal_session_create before terminal_run_host\n\
+  \  - poll terminal_get_status until completed before reading exit_code\n  - do not
+  assume success on queue completion; check exit_code and timed_out\n  - populate
+  allowed_commands with basenames only\n  - restart server after changing host_execution
+  config\n\n## Constraints\n- Create ONLY `mcp_terminal/commands/terminal_run_host_metadata.py`.\n\
+  - All type annotations must be present.\n- File must not exceed 270 lines.\n- Line
+  length <= 99. Must pass flake8.\n- No class definitions; only the two constants
+  and one function.\n"
+status: frozen
+step_id: A-002
+target_file: mcp_terminal/commands/terminal_run_host_metadata.py
+verification:
+  expected: "from mcp_terminal.commands.terminal_run_host_metadata import get_terminal_run_host_metadata
+    succeeds without error. get_terminal_run_host_metadata(type('X', (), {'name':
+    'terminal_run_host', 'version': '1.0.0', 'descr': 'd', 'category': 'custom', 'author':
+    'a', 'email': 'e'})) returns a dict with keys detailed_description, parameters,
+    error_cases, best_practices."
+  target: mcp_terminal/commands/terminal_run_host_metadata.py
+  type: import

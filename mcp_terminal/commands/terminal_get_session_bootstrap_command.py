@@ -12,6 +12,9 @@ from typing import Any, ClassVar, Dict, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_get_session_bootstrap_metadata import (
+    get_terminal_get_session_bootstrap_metadata,
+)
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.session_bootstrap import read_bootstrap_state
 
@@ -58,3 +61,7 @@ class TerminalGetSessionBootstrapCommand(Command):
         if not isinstance(runtime, dict):
             return CommandResult(success=False, error="BOOTSTRAP_STATE_CORRUPT")
         return CommandResult(success=True, data={"runtime_image": runtime})
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_get_session_bootstrap_metadata(cls)

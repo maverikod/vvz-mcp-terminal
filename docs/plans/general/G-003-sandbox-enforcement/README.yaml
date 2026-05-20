@@ -1,14 +1,24 @@
 step_id: G-003
 name: Sandbox Enforcement
 status: frozen
-description: Defines how execution requests are constrained inside an isolated container.
-  Covers container mount modes (/workspace fixed, caller cannot choose), mandatory
-  runtime security settings (non-root, cap-drop ALL, no-new-privileges, read-only
-  root filesystem, resource limits), network policy (none by default, package_registry
-  as the only permitted outbound mode in MVP), command execution kinds (shell and
-  argv), working directory containment, environment variable restrictions, and image
-  profile allowlist. Also covers tools excluded from MVP images and the command policy
-  layer that denies dangerous invocations even if the tool is present in the image.
+description: Defines how execution requests are constrained inside an isolated 
+  container. Covers container mount modes (/workspace fixed, caller cannot 
+  choose), mandatory runtime security settings (non-root, cap-drop ALL, 
+  no-new-privileges, read-only root filesystem, resource limits), network policy
+  (none by default, package_registry as the only permitted outbound mode in 
+  MVP), command execution kinds (shell and argv), working directory containment,
+  environment variable restrictions, and image profile allowlist. Also covers 
+  tools excluded from MVP images and the command policy layer that denies 
+  dangerous invocations even if the tool is present in the image.
+
+  Scope: ExecutionTarget=sandbox only; SandboxPolicy and ContainerRuntime apply only
+  to terminal_run.
+
+  Host target (terminal_run_host) is validated by HostExecutionPolicy (G-008); sandbox
+  constraints do not apply to host execution.
+
+  §28.3 canonical sandbox binding: terminal_run remains the sandbox product mode;
+  host and attached use separate MCP commands.
 concepts:
 - C-003
 - C-010
@@ -22,7 +32,14 @@ relations:
 source_ranges:
 - start: 168
   end: 460
+- end: 1255
+  start: 1252
 depends_on:
 - G-001
 - G-002
-tactical_steps: []
+tactical_steps:
+- T-001
+- T-002
+- T-003
+- T-004
+tactical_rework_tasks: []

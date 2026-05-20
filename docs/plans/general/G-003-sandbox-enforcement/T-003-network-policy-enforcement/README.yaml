@@ -1,7 +1,7 @@
 step_id: T-003
 parent_global_step: G-003
 name: Network Policy Enforcement
-status: draft
+status: frozen
 description: 'Defines the network policy validated by SandboxPolicy (C-003) and enforced
   by ContainerRuntime (C-010). Default network mode for all executions is "none" (no
   network access). The only permitted outbound mode in MVP is "package_registry":
@@ -29,4 +29,5 @@ outputs:
   description: 'Validated network configuration to apply to the container: none (no
     network) or package_registry egress rules. Merged into container_runtime_spec
     for use by ContainerRuntime.'
-atomic_steps: []
+atomic_steps:
+- A-001

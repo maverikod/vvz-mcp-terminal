@@ -7,10 +7,14 @@ description: 'Covers the full domain of terminal sessions and command execution.
   output files named by a monotonic sequence number. Execution is queue-only: terminal_run
   allocates a seq, creates output files, appends a pending record, enqueues a job,
   and returns without waiting. The worker starts the container, redirects stdout and
-  stderr to separate files, and updates record and queue state on completion. Covers
-  all public API commands: terminal_session_create, terminal_run, terminal_list, terminal_get,
-  terminal_read, terminal_search_commands, terminal_search_output, terminal_tail,
-  terminal_stat, terminal_sessions, terminal_delete, terminal_get_status.'
+  stderr to separate files, and updates record and queue state on completion.
+
+  TerminalSession (C-004) and CommandSequence (C-007) are target-agnostic; execution_target
+  is recorded on CommandRecord meta. Public commands include terminal_run_host, terminal_kill,
+  terminal_get_session_bootstrap, terminal_list_watch, and terminal_purge_sessions, in
+  addition to terminal_session_create, terminal_run, terminal_list, terminal_get, terminal_read,
+  terminal_search_commands, terminal_search_output, terminal_tail, terminal_stat, terminal_sessions,
+  terminal_delete, and terminal_get_status.'
 concepts:
 - C-004
 - C-005
@@ -82,4 +86,11 @@ depends_on:
 - G-001
 - G-002
 - G-003
-tactical_steps: []
+tactical_steps:
+- T-001
+- T-002
+- T-003
+- T-004
+- T-005
+- T-006
+tactical_rework_tasks: []

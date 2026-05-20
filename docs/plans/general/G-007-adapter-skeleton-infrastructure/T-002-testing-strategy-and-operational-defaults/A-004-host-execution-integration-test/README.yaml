@@ -1,0 +1,9 @@
+step_id: A-004
+parent_tactical_step: T-002
+name: Host execution integration test module
+target_file: tests/test_host_execution_integration.py
+operation: document_existing
+status: frozen
+description: Documents tech_spec §28.9 host execution integration coverage in
+  tests/test_host_execution_integration.py (H-5 docker rejection on host path;
+  H-10 monotonic seq shared across sandbox and host enqueue in one session).

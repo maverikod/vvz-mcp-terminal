@@ -34,6 +34,7 @@ from mcp_terminal.commands.terminal_list_command import TerminalListCommand
 from mcp_terminal.commands.terminal_list_watch_command import TerminalListWatchCommand
 from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
 from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
+from mcp_terminal.commands.terminal_purge_sessions_command import TerminalPurgeSessionsCommand
 from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand
 from mcp_terminal.commands.terminal_search_commands_command import (
     TerminalSearchCommandsCommand,
@@ -54,8 +55,11 @@ from mcp_terminal.services.project_registry_refresh import (
     start_project_registry_refresh_daemon,
 )
 from mcp_terminal.services.session_store import SessionStore
+from mcp_terminal.services.ttl_cleanup import TtlCleanupService
 from mcp_terminal.config.config_generator import generate_terminal_config
-from mcp_terminal.services.host_execution_config import warn_if_host_execution_enabled_without_commands
+from mcp_terminal.services.host_execution_config import (
+    warn_if_host_execution_enabled_without_commands,
+)
 from mcp_terminal.term_config import (
     DEFAULT_TERM_SERVER_LISTEN_PORT,
     load_validated_term_simple_config,
@@ -92,6 +96,7 @@ _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
     TerminalDeleteCommand,
     TerminalGetStatusCommand,
     TerminalKillCommand,
+    TerminalPurgeSessionsCommand,
 ]
 
 
@@ -181,6 +186,42 @@ def main() -> None:
             return data if isinstance(data, dict) else {}
 
         start_project_registry_refresh_daemon(cfg_path, interval, _app_config_snapshot)
+
+    terminal_section = app_config.get("terminal")
+    sessions_section: dict = {}
+    cleanup_section: dict = {}
+    if isinstance(terminal_section, dict):
+        raw_sessions = terminal_section.get("sessions")
+        if isinstance(raw_sessions, dict):
+            sessions_section = raw_sessions
+        raw_cleanup = terminal_section.get("cleanup")
+        if isinstance(raw_cleanup, dict):
+            cleanup_section = raw_cleanup
+
+    raw_ttl = sessions_section.get("ttl_seconds", 86400)
+    raw_cleanup_iv = sessions_section.get("cleanup_interval_seconds", 3600)
+    ttl_seconds = (
+        int(raw_ttl)
+        if isinstance(raw_ttl, (int, float)) and not isinstance(raw_ttl, bool)
+        else 86400
+    )
+    cleanup_interval = (
+        float(raw_cleanup_iv)
+        if isinstance(raw_cleanup_iv, (int, float)) and not isinstance(raw_cleanup_iv, bool)
+        else 3600.0
+    )
+    delete_expired = bool(cleanup_section.get("delete_expired_sessions", True))
+    delete_running = bool(cleanup_section.get("delete_running_sessions", False))
+
+    if cleanup_interval > 0:
+        ttl_service = TtlCleanupService(
+            _SESSION_STORE,
+            ttl_seconds=ttl_seconds,
+            cleanup_interval_seconds=int(cleanup_interval),
+            delete_expired=delete_expired,
+            delete_running=delete_running,
+        )
+        ttl_service.start()
 
     app = create_app(
         title="MCP Terminal",

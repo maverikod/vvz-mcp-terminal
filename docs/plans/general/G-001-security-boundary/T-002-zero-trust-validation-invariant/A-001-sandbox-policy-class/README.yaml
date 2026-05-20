@@ -167,4 +167,4 @@ verification:
     cwd=None, mode="read_only", network="none", image_profile="python_dev_3_12", command=None,
     argv=None) returns ValidationResult(permitted=False, error_code="INVALID_COMMAND").
     Calling with valid inputs returns ValidationResult(permitted=True).'
-status: draft
+status: frozen

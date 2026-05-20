@@ -1,0 +1,189 @@
+step_id: A-001
+parent_tactical_step: T-001
+name: Extract shell scanner into host_shell_scanner.py
+target_file: mcp_terminal/services/host_shell_scanner.py
+operation: create_file
+priority: 1
+depends_on: []
+concepts:
+- C-018
+- C-015
+prompt: "Create the file `mcp_terminal/services/host_shell_scanner.py`.\n\nOperation:
+  create_file\n\n## Purpose\n\nExtracts shell-string parsing and forbidden-pattern
+  scanning logic from\n`mcp_terminal/services/host_execution_config.py` into a dedicated
+  module.\nRequired because host_execution_config.py exceeds 400 lines (project limit)
+  and\nmust be split. This file owns all functions that parse shell syntax (chain\n\
+  operators, quotes, redirections, heredocs, here-strings) and scan for forbidden\n\
+  substrings. The validators remaining in host_execution_config.py import from here.\n\
+  \n## MRS concept excerpt\n\nC-018 HostExecutionPolicy:\n  - Implements the 10-step
+  check pipeline mandated by spec.\n  - Step 6: shell-command decomposition along
+  &&/||/;/| boundaries.\n  - Step 9: forbidden-pattern scanning over command text,
+  redirect targets,\n    here-string operands, and heredoc bodies.\n  - Step 10: forbidden-pattern
+  scanning over argv elements.\n  - Produces ErrorContract (C-015) codes on violations.\n\
+  \nC-015 ErrorContract:\n  - Stable error codes; values must not change across versions.\n\
+  \  - Relevant codes: HOST_FORBIDDEN_COMMAND, HOST_COMMAND_NOT_ALLOWED.\n\n## Module
+  docstring\n\"\"\"\nShell-string parsing and forbidden-pattern scanning for host
+  execution policy (C-018).\n\nParses shell chains, quotes, redirections, heredocs,
+  and here-strings.\nScans extracted fragments for forbidden substrings.\nImported
+  exclusively by mcp_terminal/services/host_execution_config.py validators.\n\nAuthor:
+  Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports (exact)\nfrom
+  __future__ import annotations\n\nimport re\nimport shlex\nfrom pathlib import Path\n\
+  from typing import FrozenSet, List, Optional\n\n## Constants\n\n_ENV_ASSIGN_RE =
+  re.compile(r\"^[A-Za-z_][A-Za-z0-9_]*=\")\n\nHOST_FORBIDDEN_SUBSTRINGS: FrozenSet[str]
+  = frozenset(\n    {\n        \"--privileged\", \"--pid=host\", \"--pid host\", \"\
+  --network=host\", \"--network host\",\n        \"--ipc=host\", \"--ipc host\", \"\
+  --uts=host\", \"--uts host\",\n        \"--cap-add=SYS_ADMIN\", \"--cap-add SYS_ADMIN\"\
+  ,\n        \"/var/run/docker.sock\",\n        \"$(\",\n        \"${\",\n       \
+  \ \"`\",\n        \"\\x00\",\n    }\n)\n\nHOST_FORBIDDEN_EXECUTABLES: FrozenSet[str]
+  = frozenset(\n    {\n        \"docker\", \"podman\", \"sudo\", \"su\", \"doas\"\
+  , \"mount\", \"umount\",\n        \"nsenter\", \"chroot\", \"systemctl\", \"service\"\
+  ,\n    }\n)\n\n## Functions (implement exactly as shown; copy bodies verbatim)\n\
+  \ndef decompose_shell_command(command: str) -> List[str]:\n    \"\"\"Split a shell
+  string on ``&&``, ``||``, ``;``, ``|`` outside quotes.\"\"\"\n    text = command.strip()\n\
+  \    if not text:\n        return []\n    segments: List[str] = []\n    buf: List[str]
+  = []\n    i = 0\n    n = len(text)\n    in_squote = False\n    in_dquote = False\n\
+  \    def flush() -> None:\n        seg = \"\".join(buf).strip()\n        buf.clear()\n\
+  \        if seg:\n            segments.append(seg)\n    while i < n:\n        ch
+  = text[i]\n        if in_squote:\n            buf.append(ch)\n            if ch
+  == \"'\":\n                in_squote = False\n            i += 1\n            continue\n\
+  \        if in_dquote:\n            if ch == \"\\\\\" and i + 1 < n:\n         \
+  \       buf.append(ch)\n                buf.append(text[i + 1])\n              \
+  \  i += 2\n                continue\n            buf.append(ch)\n            if
+  ch == '\"':\n                in_dquote = False\n            i += 1\n           \
+  \ continue\n        if ch == \"'\":\n            in_squote = True\n            buf.append(ch)\n\
+  \            i += 1\n            continue\n        if ch == '\"':\n            in_dquote
+  = True\n            buf.append(ch)\n            i += 1\n            continue\n \
+  \       if text.startswith(\"&&\", i):\n            flush()\n            i += 2\n\
+  \            continue\n        if text.startswith(\"||\", i):\n            flush()\n\
+  \            i += 2\n            continue\n        if ch in \";|\":\n          \
+  \  flush()\n            i += 1\n            continue\n        buf.append(ch)\n \
+  \       i += 1\n    flush()\n    return segments\n\ndef shell_command_has_chain(command:
+  str) -> bool:\n    \"\"\"True when ``command`` contains a chain operator outside
+  quotes.\"\"\"\n    return len(decompose_shell_command(command)) > 1\n\ndef segment_executable_name(segment:
+  str) -> Optional[str]:\n    \"\"\"First non-assignment token basename in one shell
+  segment.\"\"\"\n    try:\n        parts = shlex.split(segment.strip())\n    except
+  ValueError:\n        return None\n    for part in parts:\n        if _ENV_ASSIGN_RE.match(part):\n\
+  \            continue\n        return Path(part).name or None\n    return None\n\
+  \ndef command_executable_name(\n    execution_kind: str,\n    command: Optional[str],\n\
+  \    argv: Optional[List[str]],\n) -> Optional[str]:\n    \"\"\"Basename of the
+  executable for argv or the first shell token.\"\"\"\n    if execution_kind == \"\
+  argv\" and argv:\n        return Path(str(argv[0])).name or None\n    if execution_kind
+  == \"shell\" and command and command.strip():\n        return segment_executable_name(command.strip())\n\
+  \    return None\n\ndef find_forbidden_substring(text: str) -> Optional[str]:\n\
+  \    \"\"\"Return the first forbidden substring found in ``text``, if any.\"\"\"\
+  \n    for forbidden in HOST_FORBIDDEN_SUBSTRINGS:\n        if forbidden in text:\n\
+  \            return forbidden\n    return None\n\ndef _advance_quote(\n    ch: str,
+  i: int, text: str, in_squote: bool, in_dquote: bool\n) -> tuple[bool, bool, int]:\n\
+  \    \"\"\"Update quote state and index for one character.\"\"\"\n    if in_squote:\n\
+  \        if ch == \"'\":\n            in_squote = False\n        return in_squote,
+  in_dquote, i + 1\n    if in_dquote:\n        if ch == \"\\\\\" and i + 1 < len(text):\n\
+  \            return in_squote, in_dquote, i + 2\n        if ch == '\"':\n      \
+  \      in_dquote = False\n        return in_squote, in_dquote, i + 1\n    if ch
+  == \"'\":\n        return True, in_dquote, i + 1\n    if ch == '\"':\n        return
+  in_squote, True, i + 1\n    return in_squote, in_dquote, i + 1\n\ndef _read_shell_word(text:
+  str, i: int) -> tuple[str, int]:\n    \"\"\"Read one shell word (quoted or unquoted)
+  starting at ``i``; returns word and new index.\"\"\"\n    n = len(text)\n    while
+  i < n and text[i].isspace():\n        i += 1\n    if i >= n:\n        return \"\"\
+  , i\n    in_squote = False\n    in_dquote = False\n    buf: List[str] = []\n   \
+  \ start = i\n    while i < n:\n        ch = text[i]\n        if in_squote:\n   \
+  \         buf.append(ch)\n            if ch == \"'\":\n                in_squote
+  = False\n            i += 1\n            continue\n        if in_dquote:\n     \
+  \       if ch == \"\\\\\" and i + 1 < n:\n                buf.append(ch)\n     \
+  \           buf.append(text[i + 1])\n                i += 2\n                continue\n\
+  \            buf.append(ch)\n            if ch == '\"':\n                in_dquote
+  = False\n            i += 1\n            continue\n        if ch == \"'\":\n   \
+  \         in_squote = True\n            buf.append(ch)\n            i += 1\n   \
+  \         continue\n        if ch == '\"':\n            in_dquote = True\n     \
+  \       buf.append(ch)\n            i += 1\n            continue\n        if ch.isspace():\n\
+  \            break\n        buf.append(ch)\n        i += 1\n    if not buf:\n  \
+  \      return \"\", start\n    word = \"\".join(buf)\n    try:\n        parts =
+  shlex.split(word)\n        if len(parts) == 1:\n            return parts[0], i\n\
+  \    except ValueError:\n        pass\n    return word.strip(\"'\\\"\"), i\n\ndef
+  _read_heredoc_delimiter(text: str, i: int) -> tuple[str, int]:\n    \"\"\"Parse
+  delimiter after ``<<`` / ``<<-``; returns delimiter line text and index after it.\"\
+  \"\"\n    n = len(text)\n    while i < n and text[i].isspace():\n        i += 1\n\
+  \    delim, i = _read_shell_word(text, i)\n    return delim, i\n\ndef extract_heredoc_bodies(text:
+  str) -> List[str]:\n    \"\"\"Extract heredoc / here-string bodies from a (possibly
+  multiline) shell command.\"\"\"\n    bodies: List[str] = []\n    n = len(text)\n\
+  \    i = 0\n    in_squote = False\n    in_dquote = False\n    while i < n:\n   \
+  \     ch = text[i]\n        if in_squote or in_dquote:\n            in_squote, in_dquote,
+  i = _advance_quote(ch, i, text, in_squote, in_dquote)\n            continue\n  \
+  \      if text.startswith(\"<<<\", i):\n            i += 3\n            word, i
+  = _read_shell_word(text, i)\n            if word:\n                bodies.append(word)\n\
+  \            continue\n        if text.startswith(\"<<\", i):\n            i +=
+  2\n            if i < n and text[i] == \"-\":\n                i += 1\n        \
+  \    delim, i = _read_heredoc_delimiter(text, i)\n            if not delim:\n  \
+  \              continue\n            line_start = i\n            while line_start
+  < n and text[line_start] != \"\\n\":\n                line_start += 1\n        \
+  \    if line_start < n:\n                i = line_start + 1\n            buf: List[str]
+  = []\n            while i < n:\n                line_end = text.find(\"\\n\", i)\n\
+  \                if line_end == -1:\n                    line_end = n\n        \
+  \        line = text[i:line_end]\n                stripped = line.strip()\n    \
+  \            if stripped == delim:\n                    bodies.append(\"\\n\".join(buf))\n\
+  \                    i = line_end + 1 if line_end < n else line_end\n          \
+  \          break\n                buf.append(line)\n                i = line_end
+  + 1 if line_end < n else line_end\n            continue\n        in_squote, in_dquote,
+  i = _advance_quote(ch, i, text, in_squote, in_dquote)\n    return bodies\n\ndef
+  _extract_here_string_words(segment: str) -> List[str]:\n    \"\"\"Words after ``<<<``
+  in one segment.\"\"\"\n    words: List[str] = []\n    n = len(segment)\n    i =
+  0\n    in_squote = False\n    in_dquote = False\n    while i < n:\n        ch =
+  segment[i]\n        if in_squote or in_dquote:\n            in_squote, in_dquote,
+  i = _advance_quote(ch, i, segment, in_squote, in_dquote)\n            continue\n\
+  \        if segment.startswith(\"<<<\", i):\n            i += 3\n            word,
+  i = _read_shell_word(segment, i)\n            if word:\n                words.append(word)\n\
+  \            continue\n        in_squote, in_dquote, i = _advance_quote(ch, i, segment,
+  in_squote, in_dquote)\n    return words\n\ndef extract_redirection_targets(segment:
+  str) -> List[str]:\n    \"\"\"Extract redirect destination paths / here-string words
+  from one shell segment.\"\"\"\n    targets: List[str] = []\n    n = len(segment)\n\
+  \    i = 0\n    in_squote = False\n    in_dquote = False\n    while i < n:\n   \
+  \     ch = segment[i]\n        if in_squote or in_dquote:\n            in_squote,
+  in_dquote, i = _advance_quote(ch, i, segment, in_squote, in_dquote)\n          \
+  \  continue\n        if segment.startswith(\"<<<\", i):\n            i += 3\n  \
+  \          _, i = _read_shell_word(segment, i)\n            continue\n        if
+  segment.startswith(\"<<\", i):\n            i += 2\n            if i < n and segment[i]
+  == \"-\":\n                i += 1\n            _, i = _read_heredoc_delimiter(segment,
+  i)\n            continue\n        redirect_kind: Optional[str] = None\n        if
+  i + 1 < n and segment[i: i + 2] == \">>\":\n            redirect_kind = \">>\"\n\
+  \            i += 2\n        elif i + 1 < n and segment[i: i + 2] == \">&\":\n \
+  \           redirect_kind = \">&\"\n            i += 2\n        elif ch == \">\"\
+  :\n            redirect_kind = \">\"\n            i += 1\n        elif ch == \"\
+  <\":\n            redirect_kind = \"<\"\n            i += 1\n        elif ch.isdigit()
+  and i + 1 < n and segment[i + 1] in \"><\":\n            redirect_kind = segment[i
+  + 1]\n            i += 2\n            if i < n and segment[i] in \">&\" and redirect_kind
+  == \">\":\n                i += 1\n        if redirect_kind:\n            while
+  i < n and segment[i].isspace():\n                i += 1\n            if i < n and
+  segment[i] == \"&\":\n                i += 1\n                while i < n and segment[i].isdigit():\n\
+  \                    i += 1\n                continue\n            word, i = _read_shell_word(segment,
+  i)\n            if word and not word.isdigit():\n                targets.append(word)\n\
+  \            continue\n        in_squote, in_dquote, i = _advance_quote(ch, i, segment,
+  in_squote, in_dquote)\n    return targets\n\ndef iter_shell_scan_fragments(command:
+  str) -> List[tuple[str, str]]:\n    \"\"\"Labeled fragments to scan; specific targets
+  before whole segments.\"\"\"\n    items: List[tuple[str, str]] = []\n    for body
+  in extract_heredoc_bodies(command):\n        items.append((body, \"heredoc\"))\n\
+  \    segments = decompose_shell_command(command)\n    for segment in segments:\n\
+  \        for target in extract_redirection_targets(segment):\n            items.append((target,
+  \"redirect\"))\n        for word in _extract_here_string_words(segment):\n     \
+  \       items.append((word, \"here-string\"))\n    for segment in segments:\n  \
+  \      items.append((segment, \"segment\"))\n    items.append((command, \"command\"\
+  ))\n    return items\n\ndef collect_shell_scan_texts(command: str) -> List[str]:\n\
+  \    \"\"\"All command fragments to scan for forbidden patterns.\"\"\"\n    return
+  [fragment for fragment, _label in iter_shell_scan_fragments(command)]\n\ndef find_forbidden_in_shell_command(command:
+  str) -> Optional[tuple[str, str]]:\n    \"\"\"Return ``(forbidden, context)`` when
+  any scan fragment contains a forbidden pattern.\"\"\"\n    for fragment, label in
+  iter_shell_scan_fragments(command):\n        hit = find_forbidden_substring(fragment)\n\
+  \        if hit is not None:\n            return hit, label\n    return None\n\n\
+  ## Constraints\n- Create ONLY `mcp_terminal/services/host_shell_scanner.py`.\n-
+  Do NOT create or modify any other file here; refactoring of host_execution_config.py
+  is handled separately.\n- All function bodies above must be copied exactly as shown;
+  do not alter logic.\n- All type annotations must be present on every function and
+  parameter.\n- File must not exceed 400 lines.\n- Line length <= 99. Must pass flake8.\n\
+  - Author header in module docstring: Vasiliy Zdanovskiy / vasilyvz@gmail.com.\n"
+verification:
+  type: import
+  target: mcp_terminal/services/host_shell_scanner.py
+  expected: from mcp_terminal.services.host_shell_scanner import 
+    decompose_shell_command, find_forbidden_in_shell_command, 
+    HOST_FORBIDDEN_SUBSTRINGS, HOST_FORBIDDEN_EXECUTABLES succeeds without 
+    error. decompose_shell_command('a && b') returns ['a', 'b']. 
+    find_forbidden_substring('--pid=host') returns '--pid=host'.
+status: frozen

@@ -1,0 +1,64 @@
+concepts:
+- C-014
+- C-015
+depends_on: []
+name: terminal_run_host input schema
+operation: create_file
+parent_tactical_step: T-003
+priority: 1
+prompt: "Create the file `mcp_terminal/commands/terminal_run_host_schema.py`.\n\n\
+  Operation: create_file\n\n## Purpose\n\nDefines the JSON-Schema-like input schema
+  for the terminal_run_host MCP command.\nConforms to the adapter command standard
+  (metadatastd.md): type=object, all public\nparameters in properties, required matches
+  runtime requirements, additionalProperties\nexplicit. This schema is returned by
+  TerminalRunHostCommand.get_schema().\n\n## MRS concept excerpts\n\nC-014 PublicCommandSet:\n\
+  \  - All commands carry the terminal_ prefix; no aliases.\n  - Schema must declare
+  all parameters accepted by execute().\n\nC-015 ErrorContract:\n  - HOST_EXECUTION_DISABLED:
+  gate not open (enabled=false or empty allowlist).\n  - HOST_COMMAND_NOT_ALLOWED:
+  executable not on allowlist or empty command.\n  - HOST_FORBIDDEN_COMMAND: forbidden
+  substring or hard-blocked executable.\n  - INVALID_SESSION, INVALID_CWD, INVALID_COMMAND,
+  PROJECT_NOT_FOUND: pre-policy.\n\n## Module docstring\n\"\"\"Input schema for ``terminal_run_host``.\"\
+  \"\"\n\n## Imports (exact)\nfrom __future__ import annotations\n\nfrom typing import
+  Any, Dict\n\n## Constant\n_DEFAULT_TIMEOUT_S: int = 600\n\n## Function\n\n### def
+  get_terminal_run_host_schema() -> Dict[str, Any]\nDocstring: (no public docstring
+  needed; module docstring is sufficient)\nReturn value (exact dict):\n  {\n     \
+  \ \"type\": \"object\",\n      \"properties\": {\n          \"project_id\": {\n\
+  \              \"type\": \"string\",\n              \"description\": \"Project UUID.
+  Use list_projects or terminal_list_watch to discover valid values.\",\n        \
+  \  },\n          \"session_id\": {\n              \"type\": \"string\",\n      \
+  \        \"description\": \"Session UUID from terminal_session_create.\",\n    \
+  \      },\n          \"execution_kind\": {\n              \"type\": \"string\",\n\
+  \              \"enum\": [\"shell\", \"argv\"],\n              \"description\":
+  \"shell: command string. argv: explicit argument vector.\",\n          },\n    \
+  \      \"command\": {\n              \"type\": \"string\",\n              \"description\"\
+  : \"Shell command when execution_kind is shell.\",\n          },\n          \"argv\"\
+  : {\n              \"type\": \"array\",\n              \"items\": {\"type\": \"\
+  string\"},\n              \"description\": \"Argv list when execution_kind is argv.\"\
+  ,\n          },\n          \"cwd\": {\n              \"type\": \"string\",\n   \
+  \           \"description\": (\n                  \"Optional project-relative working
+  directory on the host project tree. \"\n                  \"Omitted: use shell_state.json
+  from the previous run.\"\n              ),\n          },\n          \"timeout_seconds\"\
+  : {\n              \"type\": \"integer\",\n              \"default\": _DEFAULT_TIMEOUT_S,\n\
+  \              \"minimum\": 1,\n              \"maximum\": 86400,\n            \
+  \  \"description\": \"Max seconds before the host process is killed.\",\n      \
+  \    },\n          \"use_venv\": {\n              \"type\": \"boolean\",\n     \
+  \         \"description\": (\n                  \"When omitted, uses session default
+  from shell_state.json. \"\n                  \"When true, prepends project/.venv/bin
+  to PATH on the host.\"\n              ),\n          },\n      },\n      \"required\"\
+  : [\"project_id\", \"session_id\", \"execution_kind\"],\n      \"additionalProperties\"\
+  : False,\n  }\n\n## Constraints\n- Create ONLY `mcp_terminal/commands/terminal_run_host_schema.py`.\n\
+  - The dict returned must be exactly as specified above; do not add or remove keys.\n\
+  - All type annotations must be present on the function.\n- File must not exceed
+  70 lines.\n- Line length <= 99. Must pass flake8.\n- No class definitions; only
+  the constant and one function.\n"
+status: frozen
+step_id: A-001
+target_file: mcp_terminal/commands/terminal_run_host_schema.py
+verification:
+  expected: from mcp_terminal.commands.terminal_run_host_schema import 
+    get_terminal_run_host_schema succeeds without error. 
+    get_terminal_run_host_schema() returns a dict with keys type, properties, 
+    required, additionalProperties. required == ['project_id', 'session_id', 
+    'execution_kind'].
+  target: mcp_terminal/commands/terminal_run_host_schema.py
+  type: import

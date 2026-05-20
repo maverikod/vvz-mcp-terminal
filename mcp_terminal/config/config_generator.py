@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from mcp_terminal.config.config_validator import validate_terminal_config
 from mcp_terminal.config.host_execution_schema import HOST_EXECUTION_CONFIG
+from mcp_terminal.config.terminal_admin_schema import TERMINAL_ADMIN_CONFIG
 from mcp_terminal.config.terminal_defaults_schema import TERMINAL_DEFAULTS_CONFIG
 
 TERMINAL_CONFIG_DEFAULTS: Dict[str, Any] = {
@@ -42,6 +43,7 @@ TERMINAL_CONFIG_DEFAULTS: Dict[str, Any] = {
             "delete_expired_sessions": True,
             "delete_running_sessions": False,
         },
+        "admin": copy.deepcopy(TERMINAL_ADMIN_CONFIG),
         "host_execution": copy.deepcopy(HOST_EXECUTION_CONFIG),
     },
     "runtime": {
@@ -118,6 +120,7 @@ def generate_terminal_config(
     terminal_defaults_workspace_write: Optional[bool] = None,
     terminal_defaults_pid_namespace: Optional[str] = None,
     terminal_defaults_keep_container: Optional[bool] = None,
+    terminal_admin_allow_purge_sessions: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Merge terminal-specific default sections into base_config.
 
@@ -163,6 +166,7 @@ def generate_terminal_config(
         terminal_defaults_workspace_write: Overrides ``terminal.defaults.workspace_write``.
         terminal_defaults_pid_namespace: Overrides ``terminal.defaults.pid_namespace``.
         terminal_defaults_keep_container: Overrides ``terminal.defaults.keep_container``.
+        terminal_admin_allow_purge_sessions: Overrides ``terminal.admin.allow_purge_sessions``.
 
     Returns:
         New dict containing adapter sections, ``terminal``, ``runtime``,
@@ -264,6 +268,17 @@ def generate_terminal_config(
             defaults_block = copy.deepcopy(TERMINAL_DEFAULTS_CONFIG)
             term["defaults"] = defaults_block
         defaults_block.update(td_updates)
+
+    if terminal_admin_allow_purge_sessions is not None:
+        term = result.setdefault("terminal", {})
+        if not isinstance(term, dict):
+            term = {}
+            result["terminal"] = term
+        admin_block = term.setdefault("admin", copy.deepcopy(TERMINAL_ADMIN_CONFIG))
+        if not isinstance(admin_block, dict):
+            admin_block = copy.deepcopy(TERMINAL_ADMIN_CONFIG)
+            term["admin"] = admin_block
+        admin_block["allow_purge_sessions"] = bool(terminal_admin_allow_purge_sessions)
 
     if overrides:
         for key, value in overrides.items():

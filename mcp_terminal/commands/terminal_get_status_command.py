@@ -7,7 +7,9 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Dict, Type
+import json
+from pathlib import Path
+from typing import Any, ClassVar, Dict, Optional, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
@@ -18,6 +20,24 @@ from mcp_terminal.commands.terminal_get_status_metadata import (
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.output_reader import OutputReader
+
+
+def _execution_target_from_meta(session_dir: Path, seq: int) -> Optional[str]:
+    """Read execution_target from NNNNNN.meta.json; map legacy ``container`` to ``sandbox``."""
+    prefix = CommandHistory.seq_to_prefix(seq)
+    meta_path = session_dir / f"{prefix}.meta.json"
+    if not meta_path.is_file():
+        return None
+    try:
+        raw = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    target = raw.get("execution_target")
+    if not isinstance(target, str):
+        return None
+    if target == "container":
+        return "sandbox"
+    return target
 
 
 class TerminalGetStatusCommand(Command):
@@ -77,20 +97,21 @@ class TerminalGetStatusCommand(Command):
             terminal_status = queue_status
         reader = OutputReader(record.session_dir)
         stat = reader.stat(seq)
-        return CommandResult(
-            success=True,
-            data={
-                "job_id": cmd_record.job_id,
-                "queue_status": queue_status,
-                "terminal_status": terminal_status,
-                "exit_code": exit_code,
-                "timed_out": timed_out,
-                "stdout_file": stat.stdout_file,
-                "stderr_file": stat.stderr_file,
-                "stdout_bytes": stat.stdout_bytes,
-                "stderr_bytes": stat.stderr_bytes,
-            },
-        )
+        execution_target = _execution_target_from_meta(record.session_dir, seq)
+        data: Dict[str, Any] = {
+            "job_id": cmd_record.job_id,
+            "queue_status": queue_status,
+            "terminal_status": terminal_status,
+            "exit_code": exit_code,
+            "timed_out": timed_out,
+            "stdout_file": stat.stdout_file,
+            "stderr_file": stat.stderr_file,
+            "stdout_bytes": stat.stdout_bytes,
+            "stderr_bytes": stat.stderr_bytes,
+        }
+        if execution_target is not None:
+            data["execution_target"] = execution_target
+        return CommandResult(success=True, data=data)
 
     @classmethod
     def metadata(cls) -> Dict[str, Any]:

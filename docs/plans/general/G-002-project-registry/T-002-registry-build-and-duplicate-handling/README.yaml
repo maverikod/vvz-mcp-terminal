@@ -1,7 +1,7 @@
 step_id: T-002
 parent_global_step: G-002
 name: Registry Build and Duplicate Handling
-status: draft
+status: frozen
 description: 'Defines how ProjectRegistry (C-001) builds the in-memory project index
   on startup and on explicit refresh. Scans direct subdirectories of projects.root_dir.
   For each candidate directory, reads the "projectid" marker file and applies C-002
@@ -33,4 +33,5 @@ outputs:
   description: Map from project_id (UUID4 string) to canonical host project root path.
     Disabled entries for conflicting duplicate ids are included with a "disabled"
     flag and a conflict reason. Used by runtime resolution.
-atomic_steps: []
+atomic_steps:
+- A-001

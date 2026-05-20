@@ -30,7 +30,15 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "**Workspace write policy:** at most **one** session per project_id has "
             "``workspace_write: true`` and may use ``terminal_run`` with "
             "``mode: workspace_write``. All other sessions for that project mount "
-            "/workspace read-only.\n\n"
+            "/workspace read-only. This is **not** controlled by setting "
+            "``terminal.defaults.workspace_write`` to false alone: an explicit "
+            "``workspace_write: true`` on create still fails if another session already "
+            "holds the writer slot. On failure, the response may include "
+            "``data.workspace_writer_session_id`` with the holder's session_id — "
+            "call ``terminal_delete`` on that session or reuse its session_id. "
+            "If the holder's ``.terminals/<session_id>/`` directory was removed "
+            "without ``terminal_delete`` (e.g. manual purge), the server clears a "
+            "stale in-memory lock on the next create.\n\n"
             "This command does **not** start the session Docker container. Containers are "
             "started on each ``terminal_run`` (see that command's lifecycle). Optional "
             "``bootstrap_python_env`` only queues a **runtime image build** under "
@@ -87,6 +95,19 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "required": False,
                 "default": "python_dev_3_12",
                 "enum": ["python_dev_3_12", "node_dev_20", "base_tools"],
+            },
+            "workspace_write": {
+                "description": (
+                    "Whether this session may mount /workspace read-write for "
+                    "``terminal_run``. Omitted: ``terminal.defaults.workspace_write`` from "
+                    "server config. At most one session per project may be true. If another "
+                    "session already holds write, creation fails with "
+                    "``WORKSPACE_WRITE_NOT_ALLOWED``; the error payload may include "
+                    "``workspace_writer_session_id``. ``terminal_run_host`` does not require "
+                    "this flag."
+                ),
+                "type": "boolean",
+                "required": False,
             },
             "use_venv": {
                 "description": (
@@ -230,6 +251,19 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "description": "pid_namespace is not container or host.",
                 "message": "INVALID_PID_NAMESPACE",
                 "solution": "Omit the field or use enum value container or host.",
+            },
+            "WORKSPACE_WRITE_NOT_ALLOWED": {
+                "description": (
+                    "Another session already holds the sole workspace-write slot for this "
+                    "project, or the in-memory lock was stale and has been cleared — retry "
+                    "once if you removed .terminals without terminal_delete."
+                ),
+                "message": "WORKSPACE_WRITE_NOT_ALLOWED",
+                "solution": (
+                    "Read data.workspace_writer_session_id if present; call terminal_delete "
+                    "with that session_id (or reuse that session_id for your tab). "
+                    "terminal_run_host does not require workspace_write."
+                ),
             },
         },
         "best_practices": [

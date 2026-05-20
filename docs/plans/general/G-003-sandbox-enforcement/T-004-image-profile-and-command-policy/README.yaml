@@ -1,7 +1,7 @@
 step_id: T-004
 parent_global_step: G-003
 name: Image Profile and Command Policy
-status: draft
+status: frozen
 description: 'Defines image profile selection and command policy enforced by SandboxPolicy
   (C-003) before ContainerRuntime (C-010) starts a container. Image profiles are defined
   server-side as an allowlist (e.g. python_dev_3_12, node_dev_20, base_tools); the
@@ -35,4 +35,5 @@ outputs:
   description: Concrete server-side image reference for the container, validated execution_kind,
     resolved argv or shell command, safe environment variables, and resolved executable
     path for audit. Merged into container_runtime_spec for use by ContainerRuntime.
-atomic_steps: []
+atomic_steps:
+- A-001

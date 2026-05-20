@@ -1,7 +1,8 @@
 """
 CLI: purge all terminal session directories and stop sandbox containers.
 
-Used by ``termgr purge-sessions`` (host-side only; no JSON-RPC / MCP).
+Used by ``termgr purge-sessions``. Requires ``terminal.admin.allow_purge_sessions``
+in the term server config (same gate as ``terminal_purge_sessions`` MCP command).
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -19,6 +21,7 @@ from typing import Any, List, Set
 
 from mcp_terminal.services.project_roots import merged_project_anchor_dirs
 from mcp_terminal.services.session_store import SessionStore
+from mcp_terminal.services.terminal_admin_config import purge_sessions_allowed
 from mcp_terminal.services.terminal_container_purge import remove_all_terminal_containers
 
 
@@ -30,6 +33,7 @@ class PurgeReport:
     session_dirs_removed: int = 0
     terminals_trees_removed: int = 0
     runtime_dirs_removed: int = 0
+    memory_sessions_dropped: int = 0
     errors: List[str] = field(default_factory=list)
 
 
@@ -121,6 +125,21 @@ def purge_all_terminal_sessions(
                     except OSError as exc:
                         report.errors.append(f"Cannot remove {runtime_dir}: {exc}")
 
+    if not dry_run and terminals_dirs:
+        try:
+            from mcp_terminal.runtime_context import get_session_store
+
+            report.memory_sessions_dropped = get_session_store().drop_sessions_for_purged_terminals(
+                terminals_dirs
+            )
+            if report.memory_sessions_dropped:
+                logging.getLogger(__name__).info(
+                    "Dropped %d in-memory session(s) after purge",
+                    report.memory_sessions_dropped,
+                )
+        except RuntimeError:
+            pass
+
     return report
 
 
@@ -128,7 +147,10 @@ def add_purge_sessions_parser(sub: Any) -> None:
     """Register ``purge-sessions`` on a ``termgr`` subparser group."""
     p = sub.add_parser(
         "purge-sessions",
-        help="Remove all terminal sandbox containers and delete .terminals/ session dirs",
+        help=(
+            "Remove terminal sandbox containers and .terminals/ session dirs "
+            "(requires terminal.admin.allow_purge_sessions in config)"
+        ),
     )
     p.add_argument(
         "--config",
@@ -144,7 +166,10 @@ def add_purge_sessions_parser(sub: Any) -> None:
     p.add_argument(
         "--no-kill-docker",
         action="store_true",
-        help="Skip docker rm for terminal sandbox containers (mcp-term-*, ghcr.io/mcp-terminal/*, …)",
+        help=(
+            "Skip docker rm for terminal sandbox containers "
+            "(mcp-term-*, ghcr.io/mcp-terminal/*, …)"
+        ),
     )
     p.add_argument(
         "--remove-runtime",
@@ -158,10 +183,23 @@ def cmd_purge_sessions(args: argparse.Namespace) -> int:
     from mcp_terminal.term_config import default_config_path
 
     cfg = args.config if args.config is not None else default_config_path()
-    if cfg is None or not Path(cfg).is_file():
-        print(f"Config not found: {cfg}")
-        return 1
     config_path = Path(cfg).resolve()
+    if not config_path.is_file():
+        print(f"Config not found: {config_path}")
+        return 1
+
+    try:
+        app_config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Cannot read config: {exc}", file=sys.stderr)
+        return 1
+    if not purge_sessions_allowed(app_config):
+        print(
+            "purge-sessions is disabled: set terminal.admin.allow_purge_sessions to true "
+            f"in {config_path}",
+            file=sys.stderr,
+        )
+        return 2
 
     report = purge_all_terminal_sessions(
         config_path,
@@ -175,7 +213,8 @@ def cmd_purge_sessions(args: argparse.Namespace) -> int:
         f"containers_killed={report.containers_killed} "
         f"session_dirs_removed={report.session_dirs_removed} "
         f"empty_terminals_trees_removed={report.terminals_trees_removed} "
-        f"runtime_dirs_removed={report.runtime_dirs_removed}"
+        f"runtime_dirs_removed={report.runtime_dirs_removed} "
+        f"memory_sessions_dropped={report.memory_sessions_dropped}"
     )
     for err in report.errors:
         print(f"  error: {err}", file=sys.stderr)

@@ -1,0 +1,7 @@
+step_id: A-005
+parent_tactical_step: T-001
+name: terminal-admin-schema
+target_file: mcp_terminal/config/terminal_admin_schema.py
+operation: document_existing
+status: frozen
+description: Documents TERMINAL_ADMIN_CONFIG schema shared by config generator and validator for terminal.admin gating.

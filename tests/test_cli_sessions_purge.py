@@ -72,7 +72,15 @@ def test_discover_and_purge_session_dirs(tmp_path: Path) -> None:
 
     cfg = tmp_path / "term_server.json"
     cfg.write_text(
-        json.dumps({"watch_dirs": {"directories": [str(anchor)]}}),
+        json.dumps(
+            {
+                "watch_dirs": {"directories": [str(anchor)]},
+                "terminal": {
+                    "sessions": {"ttl_seconds": 3600},
+                    "admin": {"allow_purge_sessions": True},
+                },
+            }
+        ),
         encoding="utf-8",
     )
     found = discover_terminals_dirs(cfg)
@@ -103,6 +111,10 @@ def test_discover_terminals_dirs_code_analysis_unreachable(tmp_path: Path, monke
             {
                 "watch_dirs": {"directories": [str(tools)]},
                 "code_analysis": {"enabled": True, "host": "127.0.0.1", "port": 1},
+                "terminal": {
+                    "sessions": {"ttl_seconds": 3600},
+                    "admin": {"allow_purge_sessions": True},
+                },
             }
         ),
         encoding="utf-8",

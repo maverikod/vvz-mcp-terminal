@@ -1,7 +1,7 @@
 step_id: T-005
 parent_global_step: G-004
 name: Command History Navigation Commands
-status: draft
+status: frozen
 description: 'Defines the history navigation subset of PublicCommandSet (C-014): terminal_list,
   terminal_get, terminal_search_commands, terminal_sessions, and terminal_get_status.
   terminal_list returns the most recent N commands for a given project_id + session_id
@@ -13,9 +13,11 @@ description: 'Defines the history navigation subset of PublicCommandSet (C-014):
   all sessions for a project_id with per-session summary: session_id, created_at,
   last_command_at, commands_count, status, expires_at. terminal_get_status applies
   QueueResultSemantics (C-011): returns job_id, queue_status, terminal_status derived
-  from exit_code and timed_out, exit_code, timed_out, output file names, and output
-  byte sizes. All commands require project_id and session_id (except terminal_sessions
-  which requires only project_id). All commands update last_activity_at.'
+  from exit_code and timed_out, exit_code, timed_out, output file names, output byte
+  sizes, and execution_target read from the command meta file (sandbox|host; legacy
+  meta value container is normalized to sandbox). All commands require project_id and
+  session_id (except terminal_sessions which requires only project_id). All commands
+  update last_activity_at.'
 concepts:
 - C-014
 - C-011
@@ -35,5 +37,11 @@ outputs:
     full CommandRecord for one seq. For terminal_search_commands: matching command
     records with matched fields. For terminal_sessions: list of session summaries
     for the project. For terminal_get_status: queue status, terminal status, exit_code,
-    timed_out, file names, and byte sizes.'
-atomic_steps: []
+    timed_out, execution_target, file names, and byte sizes.'
+atomic_steps:
+- A-001
+- A-002
+- A-003
+- A-004
+- A-005
+- A-006

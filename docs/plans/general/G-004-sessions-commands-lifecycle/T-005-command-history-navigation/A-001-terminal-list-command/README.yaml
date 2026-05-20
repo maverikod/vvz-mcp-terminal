@@ -61,4 +61,4 @@ verification:
   target: mcp_terminal/commands/terminal_list_command.py
   expected: After mcp_terminal/commands/__init__.py also exists, `from mcp_terminal.commands.terminal_list_command
     import TerminalListCommand` succeeds. TerminalListCommand.name == "terminal_list".
-status: draft
+status: frozen

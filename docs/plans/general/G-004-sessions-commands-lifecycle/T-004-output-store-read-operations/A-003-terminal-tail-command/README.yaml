@@ -1,0 +1,7 @@
+step_id: A-003
+parent_tactical_step: T-004
+name: terminal-tail-command
+target_file: mcp_terminal/commands/terminal_tail_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_tail public command (C-014, C-008) returning the last N lines of a command stream file.

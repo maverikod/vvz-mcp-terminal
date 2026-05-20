@@ -1,0 +1,7 @@
+step_id: A-002
+parent_tactical_step: T-006
+name: Command metadata modules
+target_file: mcp_terminal/commands/
+operation: document_existing
+status: frozen
+description: Documents seventeen public terminal_* command metadata modules (*_metadata.py) paired with schemas per ADP-01, separate from get_schema().

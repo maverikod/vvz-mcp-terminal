@@ -92,4 +92,4 @@ verification:
   expected: '`from mcp_terminal.services.session_store import SessionStore, SessionRecord`
     succeeds. Instantiating SessionStore() and calling list_sessions("any") returns
     an empty list.'
-status: draft
+status: frozen

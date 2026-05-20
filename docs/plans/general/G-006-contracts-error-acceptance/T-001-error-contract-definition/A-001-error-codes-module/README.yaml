@@ -54,4 +54,4 @@ verification:
   expected: '`from mcp_terminal.errors import ErrorCode, TerminalError, ALL_ERROR_CODES`
     succeeds. ErrorCode.PROJECT_NOT_FOUND == "PROJECT_NOT_FOUND". len(ALL_ERROR_CODES)
     == 15.'
-status: draft
+status: frozen

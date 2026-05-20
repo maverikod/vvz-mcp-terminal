@@ -1,0 +1,56 @@
+step_id: T-001
+parent_global_step: G-008
+name: Host Execution Policy
+status: frozen
+description: 'Creates HostExecutionPolicy (C-018): the validation object that checks
+  every terminal_run_host request before it is queued. Implements the gate (terminal.host_execution.enabled
+  + non-empty allowed_commands), the authorization model (static, config-driven, allowlist-based),
+  and the full 10-step check pipeline mandated by §28.4.4: (1) gate check, (2) session
+  existence, (3) project resolution through ProjectRegistry (C-001), (4) cwd well-formedness,
+  (5) shape validation, (6) shell-command decomposition along &&/||/;/| boundaries,
+  (7) allowlist check (basename, case-insensitive) for each segment leading executable
+  and each argv element, (8) hard-forbidden executables rejection (docker, podman,
+  kubectl, helm, sudo, su, mount, umount, iptables, nft, ip, ifconfig, tcpdump, nmap,
+  socat, nc, netcat), (9) forbidden-pattern scanning over command text, redirect targets,
+  here-string operands, and heredoc bodies, (10) forbidden-pattern scanning over argv
+  elements. Produces ErrorContract (C-015) codes HOST_EXECUTION_DISABLED, HOST_COMMAND_NOT_ALLOWED,
+  HOST_FORBIDDEN_COMMAND on policy violations. ConfigOverlay (C-013) owns the terminal.host_execution
+  section consumed by this policy at instantiation.'
+concepts:
+- C-018
+- C-001
+- C-015
+- C-013
+inputs:
+- description: 'terminal.host_execution section from ConfigOverlay (C-013): enabled
+    flag and allowed_commands list of basenames. Consumed at policy instantiation.'
+  name: host_execution_config
+  type: configuration object
+- description: Inbound terminal_run_host request carrying project_id, 
+    session_id, execution_kind, command or argv, cwd, use_venv, timeout_seconds.
+  name: execution_request
+  type: request object
+- description: ProjectRegistry (C-001) instance used to resolve project_id to 
+    the canonical project root path for cwd containment checks.
+  name: project_registry
+  type: domain object
+outputs:
+- description: "Either 'permitted' (all checks pass, request may be queued) or 'rejected'
+    with one of the ErrorContract (C-015) codes: HOST_EXECUTION_DISABLED, HOST_COMMAND_NOT_ALLOWED,
+    or HOST_FORBIDDEN_COMMAND, identifying the violated constraint."
+  name: validation_decision
+  type: binary decision with error code
+- description: Host-side absolute path to the project root obtained from 
+    ProjectRegistry (C-001), produced only when gate and project checks pass. 
+    Consumed by the host job lifecycle to resolve cwd on the host.
+  name: resolved_project_root
+  type: filesystem path
+- description: 'The effective cwd for the command: either the validated request cwd
+    or the cwd read from shell_state.json when the request omits cwd. Produced only
+    on permitted decisions.'
+  name: resolved_cwd
+  type: project-relative path string
+atomic_steps:
+- A-001
+- A-002
+- A-003

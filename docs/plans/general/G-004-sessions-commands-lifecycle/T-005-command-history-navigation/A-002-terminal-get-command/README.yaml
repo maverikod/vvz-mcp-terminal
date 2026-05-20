@@ -58,4 +58,4 @@ verification:
   target: mcp_terminal/commands/terminal_get_command.py
   expected: '`from mcp_terminal.commands.terminal_get_command import TerminalGetCommand`
     succeeds. TerminalGetCommand.name == "terminal_get".'
-status: draft
+status: frozen

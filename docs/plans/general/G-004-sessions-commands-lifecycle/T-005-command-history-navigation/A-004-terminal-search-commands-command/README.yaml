@@ -46,4 +46,4 @@ verification:
   target: mcp_terminal/commands/terminal_search_commands_command.py
   expected: '`from mcp_terminal.commands.terminal_search_commands_command import TerminalSearchCommandsCommand`
     succeeds. TerminalSearchCommandsCommand.name == "terminal_search_commands".'
-status: draft
+status: frozen

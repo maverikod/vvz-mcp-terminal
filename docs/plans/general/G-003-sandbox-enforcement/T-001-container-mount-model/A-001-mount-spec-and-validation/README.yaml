@@ -190,4 +190,4 @@ verification:
     succeeds. Calling SandboxPolicy().build_mount_spec( workspace_source=Path("/tmp/proj"),
     mode="read_only", cwd="tests") returns a MountSpec with workdir="/workspace/tests"
     and workspace_readonly=True.'
-status: draft
+status: frozen

@@ -1,0 +1,7 @@
+step_id: A-002
+parent_tactical_step: T-002
+name: Wire TTL cleanup in term_server
+target_file: mcp_terminal/term_server.py
+operation: document_existing
+status: frozen
+description: Documents TtlCleanupService startup wiring in term_server.py using terminal.sessions TTL and cleanup interval from validated config.

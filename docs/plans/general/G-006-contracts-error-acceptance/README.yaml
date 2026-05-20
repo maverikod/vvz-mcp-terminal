@@ -6,7 +6,10 @@ description: 'Covers the observable contracts the system must honour: the stable
   queue result semantics invariant (queue completed does not imply terminal success;
   callers must inspect exit_code and timed_out), and the MVP acceptance criteria that
   define when the implementation is complete. Also covers the safety invariants that
-  must be covered by tests, ensuring no escape path from the security boundary exists.'
+  must be covered by tests, ensuring no escape path from the security boundary exists.
+
+  Host-target stable codes: HOST_EXECUTION_DISABLED, HOST_COMMAND_NOT_ALLOWED, HOST_FORBIDDEN_COMMAND.
+  Attached-target codes are reserved (planned namespace) and not implemented until the G-009 gate.'
 concepts:
 - C-011
 - C-015
@@ -31,4 +34,7 @@ depends_on:
 - G-003
 - G-004
 - G-005
-tactical_steps: []
+tactical_steps:
+- T-001
+- T-002
+tactical_rework_tasks: []

@@ -1,7 +1,7 @@
 step_id: T-002
 parent_global_step: G-003
 name: Runtime Security Profile
-status: draft
+status: frozen
 description: 'Defines the mandatory security settings applied to every container by
   ContainerRuntime (C-010). Required settings: non-root user and group, --workdir
   /workspace, --cap-drop ALL, --security-opt no-new-privileges, --read-only root filesystem,
@@ -31,4 +31,5 @@ outputs:
     cap-drop, security options, read-only flag, tmpfs, resource limits, network placeholder
     (filled by network policy step), and mount spec. Consumed by the execution job
     when starting the container.'
-atomic_steps: []
+atomic_steps:
+- A-001

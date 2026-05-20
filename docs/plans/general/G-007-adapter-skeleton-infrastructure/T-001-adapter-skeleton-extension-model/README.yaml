@@ -1,7 +1,7 @@
 step_id: T-001
 parent_global_step: G-007
 name: Adapter Skeleton Extension Model
-status: draft
+status: frozen
 description: 'Defines how AdapterSkeleton (C-016) is extended with terminal domain
   modules without rewriting existing code. The existing server startup, config reader,
   and process manager are preserved intact. Extension proceeds in phases: Phase 1
@@ -10,9 +10,14 @@ description: 'Defines how AdapterSkeleton (C-016) is extended with terminal doma
   help. Phase 2 adds the ConfigOverlay (C-013) generator, validator, and CLI as overlays.
   Phase 3 adds project registry, session store, command history, and TTL cleanup services.
   Phase 4 adds the queue-only execution job. Phase 5 adds all reader and navigation
-  commands. Phase 6 adds container isolation enforcement. Each phase gate: existing
-  MCP help must not regress; new commands appear only after their schemas and validators
-  are complete. The internal execution job must never appear in MCP help. No intermediate
+  commands. Phase 6 adds container isolation enforcement. Phase 7 registers host execution
+  (terminal_run_host, HostExecutionPolicy, TerminalHostExecutionJob) and admin commands
+  per tech_spec §28.10 current code state module inventory (host_execution_config,
+  host_shell_scanner, host_run_service, host_session_executor, terminal_host_execution_job,
+  terminal_run_host command modules; terminal_kill, terminal_get_session_bootstrap,
+  terminal_list_watch, terminal_purge_sessions). Each phase gate: existing MCP help
+  must not regress; new commands appear only after their schemas and validators are
+  complete. The internal execution job must never appear in MCP help. No intermediate
   phase is published until it passes gate verification.'
 concepts:
 - C-016
@@ -31,6 +36,7 @@ outputs:
   type: incremental codebase state
   description: 'AdapterSkeleton extended with terminal domain modules phase by phase.
     At each gate: MCP help shows expected commands and no regressions; terminal_execute
-    is not visible. Final state: all 12 terminal_* commands registered and all domain
-    services active.'
-atomic_steps: []
+    is not visible. Final state: all 17 terminal_* commands registered per PublicCommandSet
+    (C-014) and all domain services active.'
+atomic_steps:
+- A-001

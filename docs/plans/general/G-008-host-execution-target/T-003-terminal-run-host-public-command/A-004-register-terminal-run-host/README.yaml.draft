@@ -1,0 +1,132 @@
+concepts:
+- C-014
+- C-016
+depends_on:
+- A-003
+name: Register TerminalRunHostCommand in term_server.py
+operation: modify_file
+parent_tactical_step: T-003
+priority: 1
+prompt: "Modify the file `mcp_terminal/term_server.py`.\n\nOperation: modify_file\n\
+  \n## Purpose\n\nEnsures TerminalRunHostCommand is imported and included in _TERMINAL_COMMAND_TYPES\n\
+  in mcp_terminal/term_server.py so it is registered via register_custom_commands_hook\n\
+  and appears in MCP help as \"terminal_run_host\". Realises PublicCommandSet (C-014)\n\
+  for the host target and extends AdapterSkeleton (C-016) per the extension-not-rewrite\n\
+  invariant.\n\n## MRS concept excerpts\n\nC-014 PublicCommandSet:\n  - All terminal_*
+  commands registered via register_custom_commands_hook.\n  - No short aliases; terminal_
+  prefix mandatory.\n  - TerminalRunHostCommand must appear in _TERMINAL_COMMAND_TYPES
+  list.\n\nC-016 AdapterSkeleton:\n  - term_server.py is the existing server entry
+  point; must not be rewritten.\n  - New commands are added incrementally to _TERMINAL_COMMAND_TYPES.\n\
+  \n## Current file content of mcp_terminal/term_server.py\n\n\"\"\"\nMCP Proxy Adapter
+  HTTP server for mcp_terminal (HTTPS).\n\nRegisters terminal_* MCP commands via the
+  adapter hook mechanism (C-014, C-016).\nExisting adapter built-in and queue commands
+  remain visible in MCP help.\n\nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\
+  \"\"\"\n\nfrom __future__ import annotations\n\nimport argparse\nimport json\nimport
+  sys\nfrom pathlib import Path\nfrom typing import Any, cast\n\nfrom mcp_proxy_adapter.api.app
+  import create_app\nfrom mcp_proxy_adapter.commands.base import Command\nfrom mcp_proxy_adapter.commands.command_registry
+  import CommandRegistry\nfrom mcp_proxy_adapter.commands.hooks import register_custom_commands_hook\n\
+  from mcp_proxy_adapter.config import get_config\nfrom mcp_proxy_adapter.core.app_factory.ssl_config
+  import build_server_ssl_config\nfrom mcp_proxy_adapter.core.server_engine import
+  ServerEngineFactory\nfrom mcp_terminal.commands.terminal_delete_command import TerminalDeleteCommand\n\
+  from mcp_terminal.commands.terminal_get_command import TerminalGetCommand\nfrom
+  mcp_terminal.commands.terminal_get_session_bootstrap_command import (\n    TerminalGetSessionBootstrapCommand,\n\
+  )\nfrom mcp_terminal.commands.terminal_get_status_command import TerminalGetStatusCommand\n\
+  from mcp_terminal.commands.terminal_kill_command import TerminalKillCommand\nfrom
+  mcp_terminal.commands.terminal_list_command import TerminalListCommand\nfrom mcp_terminal.commands.terminal_list_watch_command
+  import TerminalListWatchCommand\nfrom mcp_terminal.commands.terminal_read_command
+  import TerminalReadCommand\nfrom mcp_terminal.commands.terminal_run_command import
+  TerminalRunCommand\nfrom mcp_terminal.commands.terminal_purge_sessions_command import
+  TerminalPurgeSessionsCommand\nfrom mcp_terminal.commands.terminal_run_host_command
+  import TerminalRunHostCommand\nfrom mcp_terminal.commands.terminal_search_commands_command
+  import (\n    TerminalSearchCommandsCommand,\n)\nfrom mcp_terminal.commands.terminal_search_output_command
+  import (\n    TerminalSearchOutputCommand,\n)\nfrom mcp_terminal.commands.terminal_session_create_command
+  import (\n    TerminalSessionCreateCommand,\n)\nfrom mcp_terminal.commands.terminal_sessions_command
+  import TerminalSessionsCommand\nfrom mcp_terminal.commands.terminal_stat_command
+  import TerminalStatCommand\nfrom mcp_terminal.commands.terminal_tail_command import
+  TerminalTailCommand\nfrom mcp_terminal.paths import repo_root\nfrom mcp_terminal.runtime_context
+  import set_terminal_services\nfrom mcp_terminal.services.project_registry_refresh
+  import (\n    rebuild_project_registry,\n    start_project_registry_refresh_daemon,\n\
+  )\nfrom mcp_terminal.services.session_store import SessionStore\nfrom mcp_terminal.config.config_generator
+  import generate_terminal_config\nfrom mcp_terminal.services.host_execution_config
+  import (\n    warn_if_host_execution_enabled_without_commands,\n)\nfrom mcp_terminal.term_config
+  import (\n    DEFAULT_TERM_SERVER_LISTEN_PORT,\n    load_validated_term_simple_config,\n\
+  )\n\n_SESSION_STORE = SessionStore()\n\n\ndef _install_project_registry(app_config:
+  dict | None, config_path: Path | None) -> None:\n    \"\"\"Build ``ProjectRegistry``
+  from merged config + code-analysis anchor dirs.\"\"\"\n    path = (\n        config_path
+  if config_path is not None else (repo_root() / \"configs\" / \"term_server.json\"\
+  )\n    )\n    reg = rebuild_project_registry(app_config or {}, config_path=path)\n\
+  \    set_terminal_services(session_store=_SESSION_STORE, project_registry=reg)\n\
+  \n\n_install_project_registry({}, None)\n\n_TERMINAL_COMMAND_TYPES: list[type[Command]]
+  = [\n    TerminalSessionsCommand,\n    TerminalSessionCreateCommand,\n    TerminalGetSessionBootstrapCommand,\n\
+  \    TerminalRunCommand,\n    TerminalRunHostCommand,\n    TerminalListCommand,\n\
+  \    TerminalListWatchCommand,\n    TerminalGetCommand,\n    TerminalReadCommand,\n\
+  \    TerminalSearchCommandsCommand,\n    TerminalSearchOutputCommand,\n    TerminalTailCommand,\n\
+  \    TerminalStatCommand,\n    TerminalDeleteCommand,\n    TerminalGetStatusCommand,\n\
+  \    TerminalKillCommand,\n    TerminalPurgeSessionsCommand,\n]\n\n\ndef _register_terminal_commands(registry:
+  object) -> None:\n    \"\"\"Register all terminal_* commands via the adapter hook
+  mechanism.\n\n    Called by register_custom_commands_hook at adapter startup.\n\
+  \    No internal execution commands are exposed; only the terminal_* prefix\n  \
+  \  commands are registered (C-014).\n\n    Args:\n        registry: The adapter
+  command registry instance.\n    \"\"\"\n    reg = cast(CommandRegistry, registry)\n\
+  \    for cmd_cls in _TERMINAL_COMMAND_TYPES:\n        reg.register(cast(Any, cmd_cls),
+  \"custom\")\n\n\nregister_custom_commands_hook(_register_terminal_commands)\n\n\n\
+  def _die(msg: str, code: int = 1) -> None:\n    print(msg, file=sys.stderr)\n  \
+  \  raise SystemExit(code)\n\n\ndef main() -> None:\n    \"\"\"Load SimpleConfig,
+  validate, create FastAPI app, run Hypercorn (HTTPS if configured).\"\"\"\n    from
+  mcp_terminal.repo_venv import ensure_repo_venv_interpreter\n\n    ensure_repo_venv_interpreter()\n\
+  \    parser = argparse.ArgumentParser(description=\"MCP terminal minimal HTTPS server\"\
+  )\n    parser.add_argument(\n        \"--config\",\n        type=str,\n        default=str(repo_root()
+  / \"configs\" / \"term_server.json\"),\n        help=\"Path to SimpleConfig JSON
+  (see mcp_terminal/term_server.defaults.json)\",\n    )\n    args = parser.parse_args()\n\
+  \n    cfg_path = Path(args.config).resolve()\n    if not cfg_path.is_file():\n \
+  \       _die(f\"Configuration file not found: {cfg_path}\")\n\n    try:\n      \
+  \  app_config: dict = json.loads(cfg_path.read_text(encoding=\"utf-8\"))\n    except
+  Exception as exc:  # noqa: BLE001\n        _die(f\"Failed to read configuration:
+  {exc}\")\n\n    try:\n        simple_config, model = load_validated_term_simple_config(cfg_path)\n\
+  \    except ValueError as exc:\n        _die(str(exc))\n    for section, value in
+  simple_config.to_dict().items():\n        app_config[section] = value\n\n    try:\n\
+  \        app_config = generate_terminal_config(app_config)\n    except ValueError
+  as exc:\n        _die(str(exc))\n\n    warn_if_host_execution_enabled_without_commands(app_config)\n\
+  \n    _install_project_registry(app_config, cfg_path)\n\n    app_config.setdefault(\"\
+  server\", {})\n    app_config[\"server\"].setdefault(\"debug\", False)\n    app_config[\"\
+  server\"].setdefault(\"log_level\", \"INFO\")\n\n    cfg = get_config()\n    cfg.config_path
+  = str(cfg_path)\n    setattr(cfg, \"model\", model)\n    cfg.config_data = app_config\n\
+  \    if hasattr(cfg, \"feature_manager\"):\n        cfg.feature_manager.config_data
+  = cfg.config_data\n\n    watch_dirs_section = app_config.get(\"watch_dirs\")\n \
+  \   interval = 60.0\n    if isinstance(watch_dirs_section, dict):\n        raw_iv
+  = watch_dirs_section.get(\"refresh_interval_seconds\", 60)\n        if isinstance(raw_iv,
+  (int, float)) and not isinstance(raw_iv, bool):\n            interval = float(raw_iv)\n\
+  \    if interval > 0:\n\n        def _app_config_snapshot() -> dict:\n         \
+  \   data = getattr(get_config(), \"config_data\", None)\n            return data
+  if isinstance(data, dict) else {}\n\n        start_project_registry_refresh_daemon(cfg_path,
+  interval, _app_config_snapshot)\n\n    app = create_app(\n        title=\"MCP Terminal\"\
+  ,\n        description=(\n            \"Per-project sandboxed terminals: session-scoped
+  Docker containers, \"\n            \"shell_state.json for cwd, keep_container mode,
+  terminal_* MCP commands.\"\n        ),\n        version=\"0.1.0\",\n        app_config=app_config,\n\
+  \        config_path=str(cfg_path),\n    )\n\n    host = str(app_config.get(\"server\"\
+  , {}).get(\"host\", \"127.0.0.1\"))\n    port = int(app_config.get(\"server\", {}).get(\"\
+  port\", DEFAULT_TERM_SERVER_LISTEN_PORT))\n\n    server_config: dict = {\n     \
+  \   \"host\": host,\n        \"port\": port,\n        \"log_level\": \"info\",\n\
+  \        \"reload\": False,\n    }\n    try:\n        ssl_engine = build_server_ssl_config(app_config)\n\
+  \        if ssl_engine:\n            server_config.update(ssl_engine)\n    except
+  ValueError as exc:\n        _die(f\"SSL configuration invalid: {exc}\")\n\n    engine
+  = ServerEngineFactory.get_engine(\"hypercorn\")\n    assert engine is not None,
+  \"Hypercorn engine not available\"\n    engine.run_server(app, server_config)\n\n\
+  \nif __name__ == \"__main__\":\n    main()\n\n## Required action\n\nInspect the
+  file content above. The file already contains:\n  1. `from mcp_terminal.commands.terminal_run_host_command
+  import TerminalRunHostCommand`\n  2. `TerminalRunHostCommand,` in _TERMINAL_COMMAND_TYPES
+  list\n\nBoth required conditions are PRESENT. Make NO changes to the file.\nReturn
+  without modifying anything.\n\n## Constraints\n- Modify ONLY `mcp_terminal/term_server.py`.\n\
+  - If both conditions above are already met (as they are), make NO changes.\n- Do
+  not reorder, remove, or duplicate any imports or list entries.\n- File must remain
+  <= 200 lines.\n- Line length <= 99. Must pass flake8.\n"
+status: draft
+step_id: A-004
+target_file: mcp_terminal/term_server.py
+verification:
+  expected: "grep -n 'TerminalRunHostCommand' mcp_terminal/term_server.py shows at
+    least 2 lines: one import line and one usage in _TERMINAL_COMMAND_TYPES. python
+    -c 'from mcp_terminal.term_server import _TERMINAL_COMMAND_TYPES; assert any(c.name
+    == \"terminal_run_host\" for c in _TERMINAL_COMMAND_TYPES)' exits with code 0."
+  target: mcp_terminal/term_server.py
+  type: static_analysis

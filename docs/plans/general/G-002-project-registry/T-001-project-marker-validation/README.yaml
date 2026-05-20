@@ -1,7 +1,7 @@
 step_id: T-001
 parent_global_step: G-002
 name: Project Marker Validation
-status: draft
+status: frozen
 description: 'Defines the validation rules for ProjectMarker (C-002): the fixed-name
   file "projectid" at a project directory root. Validates that the marker exists,
   is valid JSON, contains the required field "id" of UUID4 format (when require_uuid4_id
@@ -26,4 +26,5 @@ outputs:
   description: 'On success: a validated C-002 record containing id (UUID4 string)
     and description. On failure: a structured rejection reason (invalid JSON, missing
     field, UUID4 format violation) used by the registry build step.'
-atomic_steps: []
+atomic_steps:
+- A-001

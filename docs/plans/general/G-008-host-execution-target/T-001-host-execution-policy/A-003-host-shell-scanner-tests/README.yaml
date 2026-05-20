@@ -1,0 +1,7 @@
+step_id: A-003
+parent_tactical_step: T-001
+name: Host shell scanner tests
+target_file: tests/test_host_shell_scanner.py
+operation: document_existing
+status: frozen
+description: Documents automated tests for host_shell_scanner shell decomposition and forbidden-pattern scanning extracted from host execution policy.

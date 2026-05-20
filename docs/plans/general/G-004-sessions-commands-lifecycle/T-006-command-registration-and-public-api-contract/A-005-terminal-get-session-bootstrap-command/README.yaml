@@ -1,0 +1,7 @@
+step_id: A-005
+parent_tactical_step: T-006
+name: terminal-get-session-bootstrap-command
+target_file: mcp_terminal/commands/terminal_get_session_bootstrap_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_get_session_bootstrap public command (C-014, C-005) reading session bootstrap job status and shell state.

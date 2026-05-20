@@ -1,7 +1,7 @@
 step_id: T-002
 parent_global_step: G-007
 name: Testing Strategy and Operational Defaults
-status: draft
+status: frozen
 description: 'Defines the testing strategy required by AdapterSkeleton (C-016) and
   the operational defaults of ConfigOverlay (C-013). Testing must include both normal
   and hostile cases. Unit tests cover: config generator produces adapter-valid config
@@ -10,14 +10,16 @@ description: 'Defines the testing strategy required by AdapterSkeleton (C-016) a
   seq allocation is monotonic; output reader rejects invalid stream names and path
   traversal; regex search enforces match limits; terminal_delete rejects running sessions
   without force. Integration tests cover: mcp-terminal visible in proxy server list;
-  MCP help shows all 12 terminal_* commands and no short aliases; session create/run/read/delete
+  MCP help shows all 17 terminal_* commands and no short aliases; session create/run/read/delete
   lifecycle end-to-end; queue status does not mask nested command failure; stdout
   and stderr written to separate files only. Hostile-input integration tests cover
   all safety invariants: cwd escape, Docker socket access, symlink escape, forbidden
   network mode, arbitrary image, privileged options, path traversal via seq, session
-  deletion outside .terminals. Operational defaults from source_spec section 25 are
-  the starting values for the ConfigOverlay generator: ttl_seconds=86400, cleanup_interval=3600,
-  max_sessions=50, timeout=60, memory=1g, max_concurrent_runs=4, cleanup_always=true.'
+  deletion outside .terminals. Host invariant matrix H-1..H-11 (tech_spec §28.7) is
+  the verification target in tests/test_host_invariants.py. Operational defaults from
+  source_spec section 25 are the starting values for the ConfigOverlay generator:
+  ttl_seconds=86400, cleanup_interval=3600, max_sessions=50, timeout=60, memory=1g,
+  max_concurrent_runs=4, cleanup_always=true.'
 concepts:
 - C-016
 - C-013
@@ -30,10 +32,48 @@ outputs:
 - name: test_suite_specification
   type: structured test plan
   description: Complete list of required unit and integration test cases including
-    hostile-input cases, organised by category. Serves as the verification target
-    for MVP acceptance.
+    hostile-input cases and H-1..H-11 host invariant cases in tests/test_host_invariants.py,
+    organised by category. Serves as the verification target for MVP acceptance.
 - name: default_config_values
   type: ConfigOverlay default values set
   description: Canonical set of operational default values for all ConfigOverlay (C-013)
     sections, as specified in source_spec section 25. Used as the generator baseline.
-atomic_steps: []
+delivered_test_inventory:
+- tests/test_imports.py
+- tests/test_extension_model.py
+- tests/test_domain_invariants.py
+- tests/test_queue_result_semantics.py
+- tests/test_host_invariants.py
+- tests/test_host_shell_scanner.py
+- tests/test_host_execution_config.py
+- tests/test_host_execution_integration.py
+- tests/test_host_session_executor.py
+- tests/test_terminal_run_host.py
+- tests/test_terminal_get_status_command.py
+- tests/test_ttl_cleanup_service.py
+- tests/test_running_terminal_jobs.py
+- tests/test_project_runtime_image.py
+- tests/test_workspace_bind_mount_user.py
+- tests/test_pid_namespace.py
+- tests/test_terminal_defaults_config.py
+- tests/test_terminal_admin_config.py
+- tests/test_terminal_list_watch.py
+- tests/test_cli_sessions_purge.py
+- tests/test_session_store_keys.py
+- tests/test_shell_state.py
+- tests/test_shell_state_venv.py
+- tests/test_session_bootstrap_queue.py
+- tests/test_repo_venv.py
+- tests/test_venv_activation.py
+- tests/test_docker_hosts.py
+- tests/test_session_container_names.py
+- tests/test_sandbox_mvp_acceptance.py
+- tests/test_sandbox_docker_e2e.py
+- tests/test_hostile_input_unit.py
+pytest_count: 195
+pytest_skipped: 0
+atomic_steps:
+- A-001
+- A-002
+- A-003
+- A-004

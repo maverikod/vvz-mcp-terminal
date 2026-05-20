@@ -1,0 +1,7 @@
+step_id: A-004
+parent_tactical_step: T-001
+name: session-container-service
+target_file: mcp_terminal/services/session_container.py
+operation: document_existing
+status: frozen
+description: Documents SessionContainer service for session-scoped Docker lifecycle (start, exec, stop, shell state).

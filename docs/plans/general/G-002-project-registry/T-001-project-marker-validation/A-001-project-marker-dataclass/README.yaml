@@ -80,4 +80,4 @@ verification:
   expected: '`from mcp_terminal.services.project_registry import ProjectMarker, MarkerValidationError,
     validate_marker_file` succeeds. Calling validate_marker_file on a non-existent
     path returns (None, MarkerValidationError) with code="not_a_file".'
-status: draft
+status: frozen

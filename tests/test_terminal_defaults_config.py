@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.config.config_validator import validate_terminal_config
 from mcp_terminal.config.create_config import build_term_server_config
@@ -57,7 +55,7 @@ def test_session_create_persists_api_or_config_defaults(tmp_path: Path) -> None:
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     store = SessionStore()
-    rec, created, err = store.ensure_session(
+    rec, created, err, _ = store.ensure_session(
         project_id="00000000-0000-4000-8000-000000000001",
         session_id="00000000-0000-4000-8000-000000000002",
         project_dir=project_dir,

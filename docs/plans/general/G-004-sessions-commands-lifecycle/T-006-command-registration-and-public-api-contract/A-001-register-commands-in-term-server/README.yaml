@@ -83,4 +83,4 @@ verification:
   expected: '`import mcp_terminal.term_server` succeeds (or raises ImportError only
     if adapter is not installed, not due to syntax errors). The file contains the
     string ''register_custom_commands_hook''. The file contains ''TerminalListCommand''.'
-status: draft
+status: frozen

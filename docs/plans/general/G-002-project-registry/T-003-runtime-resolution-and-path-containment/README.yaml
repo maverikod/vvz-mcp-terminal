@@ -1,7 +1,7 @@
 step_id: T-003
 parent_global_step: G-002
 name: Runtime Resolution and Path Containment
-status: draft
+status: frozen
 description: 'Defines how ProjectRegistry (C-001) resolves a caller-supplied project_id
   to a verified host path at request time. Looks up project_id in the project_registry
   index. Rejects: unknown project_id, project marked deleted, project disabled due
@@ -29,4 +29,5 @@ outputs:
     safe to use as /workspace mount source. On failure: a structured rejection containing
     a stable error code (one of PROJECT_NOT_FOUND, PROJECT_DELETED, PROJECT_PAUSED,
     PROJECT_PATH_OUT_OF_SCOPE as defined in C-015) and a reason string.'
-atomic_steps: []
+atomic_steps:
+- A-001

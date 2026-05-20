@@ -62,4 +62,4 @@ verification:
   expected: All 5 test functions pass. pytest reports 0 failures and 0 errors. This
     confirms the AdapterSkeleton extension model is intact (C-016) and all domain
     modules are importable.
-status: draft
+status: frozen

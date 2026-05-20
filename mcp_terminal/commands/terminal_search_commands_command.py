@@ -13,6 +13,9 @@ from typing import Any, ClassVar, Dict, List, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.terminal_search_commands_metadata import (
+    get_terminal_search_commands_metadata,
+)
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
 
@@ -44,6 +47,10 @@ class TerminalSearchCommandsCommand(Command):
             "required": ["project_id", "session_id", "pattern"],
             "additionalProperties": False,
         }
+
+    @classmethod
+    def metadata(cls) -> Dict[str, Any]:
+        return get_terminal_search_commands_metadata(cls)
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         """Search command metadata for lines matching pattern."""

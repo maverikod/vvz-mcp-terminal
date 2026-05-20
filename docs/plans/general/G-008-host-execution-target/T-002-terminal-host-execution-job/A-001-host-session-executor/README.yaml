@@ -1,0 +1,112 @@
+concepts:
+- C-019
+- C-018
+- C-008
+- C-006
+depends_on: []
+name: HostSessionExecutor — host-side command executor
+operation: create_file
+parent_tactical_step: T-002
+priority: 1
+prompt: "Create the file `mcp_terminal/services/host_session_executor.py`.\n\nOperation:
+  create_file\n\n## Purpose\n\nImplements HostSessionExecutor: the class that executes
+  one allowlisted command\ndirectly on the host filesystem (no Docker). Used exclusively
+  by\nTerminalHostExecutionJob (C-019). Writes stdout/stderr to per-seq OutputStore\n\
+  (C-008) files, updates shell_state.json cwd after each run, and returns\n(exit_code,
+  timed_out, status) to the caller.\n\n## MRS concept excerpts\n\nC-019 TerminalHostExecutionJob:\n\
+  \  - Executes a host-target command directly on the host filesystem and host\n \
+  \   process namespace, without Docker.\n  - Receives: project_id, session_id, seq,
+  execution_kind, command|argv,\n    cwd_resolved_on_host, timeout_seconds, use_venv_resolved.\n\
+  \  - Produces output into OutputStore (C-008) files using NNNNNN layout.\n  - Writes
+  final status into CommandRecord (C-006) entry.\n\nC-018 HostExecutionPolicy:\n \
+  \ - validate_host_run_request() is the gate; executor re-validates before run.\n\
+  \  - HOST_EXECUTION_DISABLED, HOST_COMMAND_NOT_ALLOWED, HOST_FORBIDDEN_COMMAND\n\
+  \    are the error codes on policy violations.\n\nC-008 OutputStore:\n  - Per-command
+  output files: NNNNNN.stdout.log, NNNNNN.stderr.log.\n  - Enforces path containment;
+  executor writes directly to these paths.\n\nC-006 CommandRecord:\n  - history.jsonl
+  entry; CommandHistory.seq_to_prefix(seq) yields NNNNNN prefix.\n\n## Module docstring\n\
+  \"\"\"\nHost-side terminal command execution (no Docker session container).\n\n\
+  Used when ``terminal.host_execution`` is enabled and the command is on the allowlist.\n\
+  \nAuthor: Vasiliy Zdanovskiy\nEmail: vasilyvz@gmail.com\n\"\"\"\n\n## Imports (exact)\n\
+  from __future__ import annotations\n\nimport logging\nimport shlex\nimport subprocess\n\
+  import textwrap\nfrom pathlib import Path\nfrom typing import List, Optional\n\n\
+  from mcp_terminal.services.command_history import CommandHistory\nfrom mcp_terminal.services.shell_state
+  import (\n    ShellState,\n    normalize_cwd,\n    read_shell_state,\n    write_shell_state,\n\
+  )\nfrom mcp_terminal.services.host_execution_config import (\n    get_host_execution_config,\n\
+  \    validate_host_run_request,\n)\nfrom mcp_terminal.services.venv_activation import
+  host_venv_activation_shell_block\n\n## Module-level constant\n_SAVE_CWD_PY: str\n\
+  Value: textwrap.dedent of the following Python script (verbatim):\n  import json,
+  os, sys\n  from pathlib import Path\n  project = Path(sys.argv[1]).resolve()\n \
+  \ state_path = Path(sys.argv[2])\n  try:\n      cur = Path(os.getcwd()).resolve()\n\
+  \      if cur == project:\n          rel = \".\"\n      elif project in cur.parents:\n\
+  \          rel = str(cur.relative_to(project))\n      else:\n          rel = \"\
+  .\"\n  except Exception:\n      rel = \".\"\n  data = {}\n  if state_path.is_file():\n\
+  \      try:\n          data = json.loads(state_path.read_text(encoding=\"utf-8\"\
+  ))\n      except Exception:\n          data = {}\n  data[\"version\"] = 1\n  data[\"\
+  cwd\"] = rel\n  state_path.write_text(json.dumps(data, indent=2), encoding=\"utf-8\"\
+  )\n\n## Private function\n\n### _write_host_exec_script\nSignature:\n  def _write_host_exec_script(\n\
+  \      session_dir: Path,\n      prefix: str,\n      *,\n      project_dir: Path,\n\
+  \      effective_cwd: str,\n      execution_kind: str,\n      command: Optional[str],\n\
+  \      argv: Optional[List[str]],\n      use_venv: bool = True,\n  ) -> Path:\n\
+  Docstring: \"\"\"Write a bash script under the session dir for one host-side execution.\"\
+  \"\"\nImplementation:\n  cwd = normalize_cwd(effective_cwd)\n  project = project_dir.resolve()\n\
+  \  if execution_kind == \"shell\":\n      user_body = command.strip() if command
+  and command.strip() else \"true\"\n  else:\n      parts = [shlex.quote(str(x)) for
+  x in (argv or [])]\n      user_body = \" \".join(parts) if parts else \"false\"\n\
+  \n  py_load = (\n      \"import json,sys;d=json.load(open(sys.argv[1]));\"\n   \
+  \   'print(d.get(\"cwd\",\".\") or \".\")'\n  )\n  state_file = session_dir / \"\
+  shell_state.json\"\n  load_cwd = (\n      f\"CWD=$(python3 -c {shlex.quote(py_load)}
+  {shlex.quote(str(state_file))} 2>/dev/null)\"\n      f\" || CWD={shlex.quote(cwd)}\"\
+  \n  )\n  venv_block = host_venv_activation_shell_block(project, use_venv=use_venv)\n\
+  \  script = textwrap.dedent(\n      f\"\"\"\\\n      #!/usr/bin/env bash\n     \
+  \ set -euo pipefail\n      PROJECT={shlex.quote(str(project))}\n      CWD={shlex.quote(cwd)}\n\
+  \      if [ -f {shlex.quote(str(state_file))} ]; then\n        {load_cwd}\n    \
+  \  fi\n      if [ \"$CWD\" = \".\" ]; then\n        cd \"$PROJECT\"\n      else\n\
+  \        cd \"$PROJECT/$CWD\" || cd \"$PROJECT\"\n      fi\n      {venv_block}{user_body}\n\
+  \      ec=$?\n      python3 -c {shlex.quote(_SAVE_CWD_PY)} \"$PROJECT\" {shlex.quote(str(state_file))}\n\
+  \      exit $ec\n      \"\"\"\n  )\n  path = session_dir / f\"{prefix}.host.exec.sh\"\
+  \n  path.write_text(script, encoding=\"utf-8\")\n  path.chmod(0o755)\n  return path\n\
+  \n## Class\n\n### class HostSessionExecutor\nDocstring: \"\"\"Run one command directly
+  on the host under the project workspace.\"\"\"\n\n__init__ signature:\n  def __init__(self)
+  -> None:\nBody:\n  self._logger = logging.getLogger(__name__)\n\n### run() method\n\
+  Signature:\n  def run(\n      self,\n      *,\n      project_id: str,\n      session_id:
+  str,\n      seq: int,\n      session_dir: Path,\n      project_dir: Path,\n    \
+  \  timeout_seconds: int,\n      effective_cwd: str,\n      execution_kind: str,\n\
+  \      command: Optional[str],\n      argv: Optional[List[str]],\n      use_venv:
+  bool = True,\n  ) -> tuple[Optional[int], bool, str]:\nDocstring: \"\"\"Return ``(exit_code,
+  timed_out, status)``.\"\"\"\nImplementation:\n  Gate check: if not get_host_execution_config().enabled
+  → log error → return (None, False, \"failed\")\n  Policy check: validation = validate_host_run_request(execution_kind,
+  command, argv)\n    if not validation.ok → log error with seq + error_code + detail
+  → return (None, False, \"failed\")\n\n  prefix = CommandHistory.seq_to_prefix(seq)\n\
+  \  script_path = _write_host_exec_script(session_dir, prefix, project_dir=project_dir,\n\
+  \    effective_cwd=effective_cwd, execution_kind=execution_kind,\n    command=command,
+  argv=argv, use_venv=use_venv)\n\n  stdout_path = session_dir / f\"{prefix}.stdout.log\"\
+  \n  stderr_path = session_dir / f\"{prefix}.stderr.log\"\n  exit_code: Optional[int]
+  = None\n  timed_out = False\n  status = \"failed\"\n  proc: Optional[subprocess.Popen]
+  = None\n\n  try:\n    with stdout_path.open(\"wb\") as out, stderr_path.open(\"\
+  wb\") as err:\n      proc = subprocess.Popen(  # noqa: S603\n          [\"/bin/bash\"\
+  , str(script_path)],\n          stdout=out,\n          stderr=err,\n          cwd=str(project_dir.resolve()),\n\
+  \      )\n      from mcp_terminal.services.running_terminal_jobs import register,
+  unregister  # noqa: PLC0415\n      register(session_id, seq, proc)\n      try:\n\
+  \          proc.wait(timeout=timeout_seconds)\n          exit_code = proc.returncode\n\
+  \          status = \"completed\"\n      except subprocess.TimeoutExpired:\n   \
+  \       proc.kill()\n          proc.wait()\n          timed_out = True\n       \
+  \   status = \"completed\"\n      finally:\n          unregister(session_id, seq)\n\
+  \  except Exception as exc:  # noqa: BLE001\n      self._logger.error(\"host exec
+  failed seq=%d: %s\", seq, exc)\n      status = \"failed\"\n\n  new_state = read_shell_state(session_dir)\n\
+  \  write_shell_state(session_dir, ShellState(cwd=new_state.cwd, use_venv=new_state.use_venv))\n\
+  \n  try:\n      script_path.unlink(missing_ok=True)\n  except OSError:\n      pass\n\
+  \n  return exit_code, timed_out, status\n\n## Constraints\n- Create ONLY `mcp_terminal/services/host_session_executor.py`.\n\
+  - All type annotations must be present on every method and function.\n- File must
+  not exceed 220 lines.\n- Line length <= 99. Must pass flake8.\n- subprocess.Popen
+  call must carry the # noqa: S603 comment.\n- Author header in module docstring:
+  Vasiliy Zdanovskiy / vasilyvz@gmail.com.\n"
+status: frozen
+step_id: A-001
+target_file: mcp_terminal/services/host_session_executor.py
+verification:
+  expected: from mcp_terminal.services.host_session_executor import 
+    HostSessionExecutor succeeds without error. HostSessionExecutor().run is 
+    callable.
+  target: mcp_terminal/services/host_session_executor.py
+  type: import

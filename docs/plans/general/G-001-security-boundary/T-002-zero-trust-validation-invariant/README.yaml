@@ -1,7 +1,7 @@
 step_id: T-002
 parent_global_step: G-001
 name: Zero-Trust Validation Invariant
-status: draft
+status: frozen
 description: 'Defines the zero-trust validation invariant of SandboxPolicy (C-003):
   every request arriving from the model is treated as untrusted regardless of session
   history, caller identity, or prior successful requests. No implicit trust accumulates.
@@ -17,7 +17,7 @@ concepts:
 - C-003
 - C-015
 inputs:
-- name: trust_classification_schema
+- name: trust_boundary_enumeration
   type: structured enumeration
   description: Exhaustive named enumeration of trusted components, untrusted input
     categories, and sensitive host resources that C-003 enforces. Derived from server-side
@@ -30,4 +30,5 @@ outputs:
   type: binary decision with error code
   description: Either "permitted" (all fields pass every check) or "rejected" with
     a specific ErrorContract (C-015) code identifying the violated constraint.
-atomic_steps: []
+atomic_steps:
+- A-001

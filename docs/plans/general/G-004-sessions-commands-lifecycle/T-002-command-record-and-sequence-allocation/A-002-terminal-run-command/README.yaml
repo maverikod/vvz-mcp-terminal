@@ -1,0 +1,7 @@
+step_id: A-002
+parent_tactical_step: T-002
+name: terminal-run-command
+target_file: mcp_terminal/commands/terminal_run_command.py
+operation: document_existing
+status: frozen
+description: Documents terminal_run public command (C-014, C-009) queuing sandbox execution via TerminalExecutionJob.

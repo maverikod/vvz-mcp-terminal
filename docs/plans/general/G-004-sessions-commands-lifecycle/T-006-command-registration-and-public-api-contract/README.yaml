@@ -1,19 +1,25 @@
 step_id: T-006
 parent_global_step: G-004
 name: Command Registration and Public API Contract
-status: draft
+status: frozen
 description: 'Defines the registration and public API contract of PublicCommandSet
-  (C-014). All 12 terminal commands carry the terminal_ prefix and are registered
-  via the adapter register_custom_commands_hook mechanism. No short aliases (list,
-  delete, grep, tail, head, stat) are exposed in MCP help under any circumstances.
-  Each command has a schema and a validate_params step following ADP-01 rules: get_schema()
-  and metadata() stay separate, validate_params() enforces required fields before
-  any domain logic runs. terminal_run returns job_id, seq, stdout_file, stderr_file,
-  meta_file. terminal_delete requires session_id; project_id is optional — when provided,
-  deletion is scoped to that project; when omitted, SessionStore (C-005) searches
-  all known projects via ProjectRegistry (C-001). terminal_delete must report every
-  deleted or skipped session using logical project/session identifiers, not raw host
-  paths. The internal execution job is not registered as a public command.'
+  (C-014). Registers the full public surface of 17 terminal_* commands via the adapter
+  register_custom_commands_hook mechanism: terminal_sessions, terminal_session_create,
+  terminal_run, terminal_run_host, terminal_list, terminal_get, terminal_read,
+  terminal_search_commands, terminal_search_output, terminal_tail, terminal_stat,
+  terminal_delete, terminal_get_status, terminal_kill, terminal_get_session_bootstrap,
+  terminal_list_watch, and terminal_purge_sessions (admin; gated by terminal.admin.allow_purge_sessions).
+  No short aliases (list, delete, grep, tail, head, stat) are exposed in MCP help under
+  any circumstances.   Each command has a schema and a validate_params step following
+  ADP-01 rules: get_schema() and metadata() stay separate (seventeen *_metadata.py modules
+  under mcp_terminal/commands/), validate_params() enforces
+  required fields before any domain logic runs. terminal_run and terminal_run_host
+  return job_id, seq, stdout_file, stderr_file, meta_file. terminal_delete requires
+  session_id; project_id is optional — when provided, deletion is scoped to that
+  project; when omitted, SessionStore (C-005) searches all known projects via ProjectRegistry
+  (C-001). terminal_delete must report every deleted or skipped session using logical
+  project/session identifiers, not raw host paths. The internal execution job is not
+  registered as a public command.'
 concepts:
 - C-014
 - C-005
@@ -25,7 +31,13 @@ inputs:
 outputs:
 - name: registered_public_commands
   type: set of registered command handlers
-  description: All 12 terminal_* commands registered in the adapter registry with
+  description: All 17 terminal_* commands registered in the adapter registry with
     their schemas, validators, and handlers. Visible in MCP help after registration.
     No internal or short-alias commands included.
-atomic_steps: []
+atomic_steps:
+- A-001
+- A-002
+- A-003
+- A-004
+- A-005
+- A-006
