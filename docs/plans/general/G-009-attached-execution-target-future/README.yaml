@@ -2,6 +2,10 @@ step_id: G-009
 name: Attached Execution Target (Future)
 status: draft
 planning_only: true
+orchestrator_status:
+  status: blocked_on_product_owner
+  note: No implementation until TRT-G009-T-001 sign-off; G-001..G-008 frozen and shipped on main; attached remains planning_only
+  next_action: "product owner opens gate → planner_auto for tactics"
 description: "Reserves the attached execution target for future implementation. Not
   implemented in the current revision. Excluded from TASK_SYNC plan-to-code alignment
   (G-001..G-008 only). Included so the execution-target axis (C-017)
