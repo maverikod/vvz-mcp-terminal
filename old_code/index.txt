@@ -1,62 +1,176 @@
 # UUID|File Path|Timestamp|Command|Related Files|Comment
+01ed189d-6b6c-4bf9-b3ae-48f2654fd83c|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml|2026-05-20T16-14-54|universal_file_write||
+05c5610f-d320-4527-a5ab-f98265015f5b|docs/plans/general/spec.yaml.draft|2026-05-20T03-02-08|universal_file_edit||
+0630453a-13c2-4b7f-822c-3df75b61b07b|docs/plans/general/G-007-adapter-skeleton-infrastructure/README.yaml|2026-05-20T03-05-04|universal_file_write||
+07266c5b-c664-423b-a3cb-34d1728e1631|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/README.yaml.draft|2026-05-20T16-13-13|universal_file_edit||
 07854b6a-0b18-4870-9264-623f8a965e6f|docs/plans/general/tech_spec.md|2026-05-15T10-08-25|write_project_text_lines||Before write_project_text_lines 1073-1148
 0a945399-3f68-41f4-a7b7-d5a8ce2c9e07|docs/plans/general/G-005-configuration-ttl-audit/T-001-config-overlay-generator-and-validator/A-001-config-generator/README.yaml|2026-05-15T14-37-25|yaml_handler_save||Before save docs/plans/general/G-005-configuration-ttl-audit/T-001-config-overlay-generator-and-validator/A-001-config-generator/README.yaml
+0beb4175-62b1-4265-bf85-3a12f16f5abd|docs/plans/general/G-008-host-execution-target/README.yaml.draft|2026-05-20T03-07-33|universal_file_edit||
+0d34bfe3-3662-49c5-bcf5-092dc3bb0355|.trees/docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml.tree|2026-05-20T17-55-22|universal_file_write||
 113aca34-4371-415b-a574-d23604deb35f|docs/plans/general/tech_spec.md|2026-05-15T01-47-13|write_project_text_lines||Before write_project_text_lines 168-170
+1231cfd4-2148-419b-8634-1f31f33d5dca|.trees/docs/plans/general/spec.yaml.tree|2026-05-20T03-02-24|universal_file_write||
+137d727b-1bcd-4df5-b34c-f8b7e42354ba|.trees/docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml.tree|2026-05-20T16-08-32|universal_file_write||
+15b27df3-f341-47ac-9a44-b3060bf95ccb|docs/plans/general/G-009-attached-execution-target-future/README.yaml|2026-05-20T02-43-36|universal_file_open||
+16e7997d-c149-4144-8fa9-493027159689|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml.draft|2026-05-20T16-07-50|universal_file_edit||
 17e5d3bc-aa59-4e1f-9f27-ea7f1f746eaa|docs/plans/general/spec.yaml|2026-05-15T12-29-02|yaml_handler_save||Before save docs/plans/general/spec.yaml
 180ee611-33eb-4208-b9ea-45c56e477ccf|docs/plans/general/tech_spec.md|2026-05-15T10-39-23|write_project_text_lines||Before write_project_text_lines 1103-1131
 183d8e1b-e35c-42a4-8ca7-91d064fb717c|docs/plans/general/tech_spec.md|2026-05-15T10-10-29|write_project_text_lines||Before write_project_text_lines 101-119
 1dd3ac05-7f9c-44c2-a50f-96d8f37d59f3|docs/plans/general/tech_spec.md|2026-05-15T11-29-47|write_project_text_lines||Before write_project_text_lines 496-516
+1e15469f-417e-4142-b3b7-7a5329d80b8b|docs/plans/general/tech_spec.md.draft|2026-05-15T11-31-03|universal_file_edit||
+1edca8fb-5f25-4fb9-8f37-d922066cbcf1|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-002-terminal-run-host-metadata/README.yaml|2026-05-20T17-40-05|universal_file_write||
+20519dc5-c88e-4661-b8e6-c104f751e1aa|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml.draft|2026-05-20T16-07-40|universal_file_edit||
+2340cfde-d4f5-4db6-bce9-9475dc1c1f12|docs/plans/general/spec.yaml.draft|2026-05-20T03-00-42|universal_file_edit||
 2800723f-ed45-4be8-b263-3a8397d2fb71|docs/plans/general/tech_spec.md|2026-05-15T09-40-42|write_project_text_lines||Before write_project_text_lines 723-739
 295e7f82-1d48-45ae-89a4-d9fac6f6d93f|docs/plans/general/spec.yaml|2026-05-15T12-26-58|yaml_handler_save||Before save docs/plans/general/spec.yaml
+2a66288f-34d9-4d2b-8a61-bee312c5a410|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-001-terminal-run-host-schema/README.yaml|2026-05-20T17-38-41|universal_file_open||
 2bdb859b-52b3-4999-90a7-71f489b2ec55|docs/plans/general/tech_spec.md|2026-05-15T10-26-21|write_project_text_lines||Before write_project_text_lines 1118-1129
+2ce90655-14fd-47fc-aa4e-d783fd5f3b4a|docs/plans/general/G-008-host-execution-target/README.yaml|2026-05-20T02-43-00|universal_file_write||
+2cf79998-b345-4236-a7f6-0e1a92a7708e|.trees/docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/README.yaml.tree|2026-05-20T16-14-15|universal_file_write||
+33cb9d19-6771-4b43-8504-21d89252b67a|.trees/docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml.tree|2026-05-20T17-29-37|universal_file_write||
+3499a690-2e17-4014-919b-44839846e8e4|docs/plans/general/G-003-sandbox-enforcement/README.yaml.draft|2026-05-20T02-44-31|universal_file_edit||
+3a1c0822-ffe4-4dc7-b857-0d70381e7de0|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml|2026-05-20T17-31-52|universal_file_write||
+3e1f5b96-7f6b-4317-b5c5-1965dea2fd59|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-003-terminal-run-host-command/README.yaml|2026-05-20T17-41-24|universal_file_write||
+3f6e0d45-bd87-4a34-ba33-c5575454f277|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml.draft|2026-05-20T17-43-55|universal_file_edit||
+4028bbc8-eb36-469c-80bf-0704cf343fe0|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-003-terminal-host-execution-job/README.yaml|2026-05-20T17-37-27|universal_file_write||
+4060a704-884b-45a0-8214-25d73d5817d8|.trees/docs/plans/general/G-003-sandbox-enforcement/README.yaml.tree|2026-05-20T02-44-54|universal_file_write||
+423fd5c1-faae-453a-97dd-fed36c9598b1|.trees/docs/plans/general/G-007-adapter-skeleton-infrastructure/README.yaml.tree|2026-05-20T03-05-04|universal_file_write||
+43ab31ac-f7ee-45f2-a0dd-e97d5c378e65|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-002-terminal-run-host-metadata/README.yaml.draft|2026-05-20T17-40-05|universal_file_edit||
+4609b80d-19dd-4c95-970c-8aebac345e15|docs/plans/general/spec.yaml|2026-05-20T03-01-40|universal_file_write||
 4769d7e0-d7e0-43bb-890e-6d65999b2b1e|docs/plans/general/tech_spec.md|2026-05-15T10-24-26|write_project_text_lines||Before write_project_text_lines 115-121
+480422cd-a03a-46f5-bc2a-8b85ee057cfe|docs/plans/general/G-001-security-boundary/README.yaml|2026-05-15T12-40-57|universal_file_open||
+4a3ab11b-edbb-44fa-8132-af031308cf69|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-003-terminal-host-execution-job/README.yaml|2026-05-20T17-37-27|universal_file_open||
+4a3cf85d-7891-4104-92c7-a514bf138ab6|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-001-terminal-run-host-schema/README.yaml|2026-05-20T17-38-41|universal_file_write||
 4aee169d-994b-459e-a94b-763730c1fa04|docs/plans/general/tech_spec.md|2026-05-15T09-54-48|write_project_text_lines||Before write_project_text_lines 591-703
+4b07cfc8-2053-4db8-9e3f-1a05b4070819|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml|2026-05-20T16-14-54|universal_file_open||
 4c305360-6260-43f6-b4a1-5bbf594f269a|docs/plans/general/tech_spec.md|2026-05-15T09-44-31|write_project_text_lines||Before write_project_text_lines 785-802
 4d59c290-3be0-4e19-8046-f9b107ff0c32|docs/plans/general/G-003-sandbox-enforcement/T-003-network-policy-enforcement/A-001-network-spec-and-validation/README.yaml|2026-05-15T14-29-58|yaml_handler_save||Before save docs/plans/general/G-003-sandbox-enforcement/T-003-network-policy-enforcement/A-001-network-spec-and-validation/README.yaml
+5139cab7-a83c-452a-a36c-80b20e0e0e51|docs/plans/general/G-008-host-execution-target/README.yaml.draft|2026-05-20T16-19-06|universal_file_edit||
+51d122fa-8782-43e4-a98a-ee0588040a58|docs/plans/general/G-004-sessions-commands-lifecycle/README.yaml|2026-05-15T12-41-55|universal_file_write||
 52dd5b56-62d5-4583-9fab-462d65ca7b74|docs/plans/general/G-003-sandbox-enforcement/T-004-image-profile-and-command-policy/A-001-image-command-spec/README.yaml|2026-05-15T14-57-28|yaml_handler_save||Before save docs/plans/general/G-003-sandbox-enforcement/T-004-image-profile-and-command-policy/A-001-image-command-spec/README.yaml
+5366b62c-1a1e-46d2-9e58-bd975234bd58|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml.draft|2026-05-20T17-45-33|universal_file_edit||
+593a2ecb-39dd-4a31-a80b-5b1734347333|.trees/docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml.tree|2026-05-20T16-15-37|universal_file_write||
+59f76723-a1d9-45c5-be47-2d1d5924ddd5|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml.draft|2026-05-20T17-30-29|universal_file_edit||
+5c8c01b6-b7fb-4494-b9b8-4db8c409c485|docs/plans/general/spec.yaml|2026-05-20T03-02-24|universal_file_write||
+5e956bfb-60b0-4c6e-a637-261ffe269835|docs/plans/general/G-006-contracts-error-acceptance/README.yaml.draft|2026-05-20T02-46-22|universal_file_edit||
+5fb86a10-984d-40b8-83c6-6cb25e0969ef|.trees/docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml.tree|2026-05-20T17-31-52|universal_file_write||
+60e731e7-29c0-487f-8e75-bf5c7af162ef|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-004-register-terminal-run-host/README.yaml.draft|2026-05-20T17-42-48|universal_file_edit||
+612bfb35-570c-4065-a68d-63985147db1a|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-001-host-session-executor/README.yaml.draft|2026-05-20T17-34-17|universal_file_edit||
 6255880e-7051-4dd0-b1bb-3aaee13ace21|docs/plans/general/G-004-sessions-commands-lifecycle/T-003-execution-job-and-queue-result-semantics/A-001-terminal-execution-job/README.yaml|2026-05-15T14-33-19|yaml_handler_save||Before save docs/plans/general/G-004-sessions-commands-lifecycle/T-003-execution-job-and-queue-result-semantics/A-001-terminal-execution-job/README.yaml
+62a227e4-4a1e-4c3c-a09c-bf6665149123|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml|2026-05-20T17-53-00|universal_file_write||
+634529e9-3a10-41c9-9b67-e5730dca17a6|docs/plans/general/G-004-sessions-commands-lifecycle/README.yaml.draft|2026-05-20T02-45-06|universal_file_edit||
+63cbfb5a-4d20-457a-b459-44e61af48135|docs/plans/general/tech_spec.md|2026-05-15T11-31-03|universal_file_write||
+660278fb-be90-4ec5-b096-5a02da9ec2af|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml.draft|2026-05-20T17-53-46|universal_file_edit||
+663144da-7e5a-4ffc-a286-6f2ddeada487|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml.draft|2026-05-20T16-14-54|universal_file_edit||
 668c7552-a99b-47ff-adbb-206540950072|docs/plans/general/tech_spec.md|2026-05-15T11-26-30|write_project_text_lines||Before write_project_text_lines 859-1083
+68f36826-3580-423d-a967-451393abb90f|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/README.yaml.draft|2026-05-20T17-44-49|universal_file_edit||
 6920e3f3-f387-48b8-baa9-3dfb8f3822f3|docs/plans/general/tech_spec.md|2026-05-15T02-29-30|write_project_text_lines||Before write_project_text_lines 235-255
+6aaf4ac3-d683-4a9b-a96d-1d64a42245ba|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml.draft|2026-05-20T18-02-15|universal_file_edit||
+6ad0ef58-9a2e-45b5-8547-7b9ee398408b|docs/PROJECT_RULES.md|2026-05-15T02-41-13|universal_file_open||
 6bb81108-4690-4422-81d3-c8457bd97166|docs/plans/general/tech_spec.md|2026-05-15T02-42-30|write_project_text_lines||Before write_project_text_lines 386-386
+6ccef61c-5363-46ec-8843-a9bf4588f2b4|docs/plans/general/spec.yaml|2026-05-20T02-41-53|universal_file_write||
+6e9ea58a-ee2f-4921-9133-57777db4416d|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/README.yaml|2026-05-20T16-14-15|universal_file_write||
 6ef9db70-b011-4f04-957f-16942d501ed6|docs/plans/general/tech_spec.md|2026-05-15T03-02-12|write_project_text_lines||Before write_project_text_lines 470-470
 7147471a-2b5f-4bb6-bde7-2379597ce1e1|docs/plans/general/tech_spec.md|2026-05-15T09-53-27|write_project_text_lines||Before write_project_text_lines 936-986
+71928463-b279-40cf-8697-061a40f7eb34|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-002-host-run-service/README.yaml|2026-05-20T17-36-02|universal_file_open||
+75f8f52e-7ead-4ccb-9b86-fd8188505bba|docs/plans/general/spec.yaml.draft|2026-05-20T15-20-50|universal_file_edit||
+76640fce-2c74-4b4c-8012-7d26a0670cfc|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-001-terminal-run-host-schema/README.yaml.draft|2026-05-20T17-38-41|universal_file_edit||
+76a2a312-692a-40f0-8fe7-95b87987d848|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-003-terminal-host-execution-job/README.yaml.draft|2026-05-20T17-37-27|universal_file_edit||
+76b30c4d-1328-4e59-afa1-3f2562256422|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml|2026-05-20T17-29-37|universal_file_write||
 7930a241-df7d-4e61-9906-2b03d4d32bb6|docs/plans/general/G-003-sandbox-enforcement/T-001-container-mount-model/A-001-mount-spec-and-validation/README.yaml|2026-05-15T14-56-13|yaml_handler_save||Before save docs/plans/general/G-003-sandbox-enforcement/T-001-container-mount-model/A-001-mount-spec-and-validation/README.yaml
 79fb5c6c-cb02-4ba1-993a-ddfb764b8234|docs/plans/general/tech_spec.md|2026-05-15T11-19-37|write_project_text_lines||Before write_project_text_lines 856-925
 7b1c2244-cc39-4335-a41c-34b15858daf9|docs/plans/general/tech_spec.md|2026-05-15T02-48-49|write_project_text_lines||Before write_project_text_lines 272-272
+7b3fd266-ef28-4776-9f7c-45dcb76c7ad2|.trees/docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-002-terminal-run-host-metadata/README.yaml.tree|2026-05-20T17-41-01|universal_file_write||
+7d71ff70-217d-4a9a-9c34-6027bacae67c|docs/plans/general/G-003-sandbox-enforcement/README.yaml|2026-05-15T12-41-37|universal_file_write||
+7e15368c-f621-4a92-a118-03f129f5bab8|.trees/docs/plans/general/spec.yaml.tree|2026-05-20T02-41-53|universal_file_write||
+815a039c-d561-461a-b95b-b058556f3551|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-002-terminal-run-host-metadata/README.yaml.draft|2026-05-20T17-56-36|universal_file_edit||
 81874c21-ec65-4f93-9c79-c5794be0b3c0|docs/plans/general/G-004-sessions-commands-lifecycle/T-005-command-history-navigation/A-001-terminal-list-command/README.yaml|2026-05-15T14-34-28|yaml_handler_save||Before save docs/plans/general/G-004-sessions-commands-lifecycle/T-005-command-history-navigation/A-001-terminal-list-command/README.yaml
+819dcac3-3b46-430a-b575-779e9692a7ff|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml|2026-05-20T16-06-42|universal_file_open||
+8386765e-41c9-4bf1-a034-8b3e6956bf46|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml|2026-05-20T17-30-29|universal_file_write||
 856adcab-b360-4f4c-831b-15da5deb996b|docs/plans/general/tech_spec.md|2026-05-15T02-32-37|write_project_text_lines||Before write_project_text_lines 371-371
 8625c99a-ac84-4ade-a6ab-da01f121cdbf|docs/plans/general/tech_spec.md|2026-05-15T09-54-14|write_project_text_lines||Before write_project_text_lines 928-934
+89b9a111-4b95-41b2-b3ee-f5b9fc335dc6|.trees/docs/plans/general/spec.yaml.tree|2026-05-20T03-01-40|universal_file_write||
 8a37c531-c490-47e2-a0cf-2b314cc31cb8|docs/plans/general/tech_spec.md|2026-05-15T02-34-40|write_project_text_lines||Before write_project_text_lines 473-473
+90da4d3a-44a9-44a5-96a3-408bf7dd2780|docs/plans/general/G-009-attached-execution-target-future/README.yaml.draft|2026-05-20T15-19-07|universal_file_edit||
+90dff5a0-6a97-45a8-b890-88d27cc31190|docs/plans/general/G-009-attached-execution-target-future/README.yaml|2026-05-20T02-43-36|universal_file_write||
 920cd6ce-c1e8-48bb-878f-b2d72c483384|docs/plans/general/G-003-sandbox-enforcement/T-004-image-profile-and-command-policy/A-001-image-command-spec/README.yaml|2026-05-15T14-30-33|yaml_handler_save||Before save docs/plans/general/G-003-sandbox-enforcement/T-004-image-profile-and-command-policy/A-001-image-command-spec/README.yaml
+923ce659-d242-42fa-b978-54036c437f61|docs/plans/general/spec.yaml|2026-05-15T12-38-41|universal_file_write||
+951c4954-cefa-4c67-9d8e-8aa4bbed3d69|docs/plans/general/G-006-contracts-error-acceptance/README.yaml|2026-05-15T12-42-33|universal_file_write||
+959c96c9-c02b-4337-affc-c247d5721989|docs/plans/general/G-008-host-execution-target/README.yaml|2026-05-20T03-07-51|universal_file_write||
 97dfbf7e-a4d9-4a1c-a20f-2b59aea9e5be|docs/plans/general/tech_spec.md|2026-05-15T10-25-31|write_project_text_lines||Before write_project_text_lines 98-128
+996db5f1-e7dc-45f9-a90d-3f6b1897a298|.trees/docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml.tree|2026-05-20T16-17-45|universal_file_write||
+9ce4dc27-2aac-4034-97ba-e73a0884d843|docs/plans/general/G-004-sessions-commands-lifecycle/README.yaml|2026-05-15T12-41-55|universal_file_open||
+9da1d0ff-ba82-4639-8bec-cba663f375f1|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-001-host-session-executor/README.yaml|2026-05-20T17-34-17|universal_file_write||
+9fa0c7b4-cbe2-45ee-be7f-581becd53329|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml.draft|2026-05-20T17-28-30|universal_file_edit||
+9ff807dc-7205-4945-9b7c-65df26bb959e|docs/plans/general/G-003-sandbox-enforcement/README.yaml|2026-05-15T12-41-37|universal_file_open||
 a0ee8fe7-7cea-441b-9bca-0b7ae8119ad2|docs/plans/general/tech_spec.md|2026-05-15T11-30-26|write_project_text_lines||Before write_project_text_lines 545-547
+a215f31c-140b-4782-950f-b950cca7ae8f|docs/plans/general/G-008-host-execution-target/README.yaml|2026-05-20T02-43-00|universal_file_open||
+a2be60ed-3abe-4c9b-ac89-453599a84b0a|docs/plans/general/spec.yaml.draft|2026-05-20T02-40-10|universal_file_edit||
+a40f1946-9411-425e-a4b0-bba4d0e849fa|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml|2026-05-20T17-30-29|universal_file_open||
+a4ce2d96-5956-401c-a2fb-3f881ab4db5b|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-002-terminal-run-host-metadata/README.yaml|2026-05-20T17-41-01|universal_file_write||
 a5669351-7546-474f-96ae-69bde4a4d828|docs/plans/general/G-004-sessions-commands-lifecycle/T-005-command-history-navigation/A-002-terminal-get-command/README.yaml|2026-05-15T14-35-05|yaml_handler_save||Before save docs/plans/general/G-004-sessions-commands-lifecycle/T-005-command-history-navigation/A-002-terminal-get-command/README.yaml
+a60d3c59-c66c-4b76-937d-5e2c5d38f793|docs/plans/general/G-003-sandbox-enforcement/README.yaml|2026-05-20T02-44-54|universal_file_write||
+a79a6e3c-7d61-4a0f-9af4-0a7605d2aa30|.trees/docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml.tree|2026-05-20T17-53-00|universal_file_write||
 a8739d2d-45f3-4005-9409-d65d78bd9ee6|docs/plans/general/tech_spec.md|2026-05-15T09-44-55|write_project_text_lines||Before write_project_text_lines 860-930
 ac96b34a-1cd1-42a3-8a14-e8d342cbd00b|docs/plans/general/tech_spec.md|2026-05-15T02-46-43|write_project_text_lines||Before write_project_text_lines 389-389
 ae1eb38d-ac63-41fc-8430-8a3932235bff|docs/plans/general/tech_spec.md|2026-05-15T11-29-13|write_project_text_lines||Before write_project_text_lines 276-299
+af984dbb-99e7-43c2-b201-6e2fea323419|docs/plans/general/G-005-configuration-ttl-audit/README.yaml|2026-05-15T12-42-21|universal_file_write||
 b07893eb-14ea-491d-a824-386eb57b7440|docs/plans/general/tech_spec.md|2026-05-15T09-44-00|write_project_text_lines||Before write_project_text_lines 794-794
+b0ed23ff-2eec-478c-8949-46cd91a9b3f6|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml|2026-05-20T16-17-45|universal_file_write||
+b15faa2a-576e-4117-a2a8-093f14a5b8aa|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml|2026-05-20T16-06-42|universal_file_write||
 b2c6a97a-7799-4638-aa10-ae140146df86|docs/plans/general/tech_spec.md|2026-05-15T11-28-41|write_project_text_lines||Before write_project_text_lines 132-133
 b4d48101-b6ed-4955-8a46-de1fba319ebe|docs/plans/general/tech_spec.md|2026-05-15T10-48-16|write_project_text_lines||Before write_project_text_lines 941-1074
 b5a08bd1-8efd-42bc-9a21-2668b9c33211|docs/plans/general/tech_spec.md|2026-05-15T09-26-23|write_project_text_lines||Before write_project_text_lines 655-662
 b76cbcdb-5924-4b9c-a542-58bc25bc27f7|docs/plans/general/G-003-sandbox-enforcement/T-003-network-policy-enforcement/A-001-network-spec-and-validation/README.yaml|2026-05-15T14-56-46|yaml_handler_save||Before save docs/plans/general/G-003-sandbox-enforcement/T-003-network-policy-enforcement/A-001-network-spec-and-validation/README.yaml
+b94365bf-04c7-4ec2-95ed-33dfdf6215f9|docs/plans/general/G-007-adapter-skeleton-infrastructure/README.yaml|2026-05-15T12-42-46|universal_file_write||
+b9645cae-2d17-43dc-a3cb-818d70769b0b|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-002-host-run-service/README.yaml.draft|2026-05-20T17-36-02|universal_file_edit||
+ba950b6e-1535-4d31-9f07-df5daebf2cbd|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml|2026-05-20T17-28-30|universal_file_open||
+bafa9ad3-0ba5-4ab0-b6e2-369dd186f403|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-004-register-terminal-run-host/README.yaml|2026-05-20T17-42-48|universal_file_open||
 bbcb86b1-f4db-4214-a8cb-172d34a7429b|docs/plans/general/spec.yaml|2026-05-15T11-47-08|yaml_handler_save||Before save docs/plans/general/spec.yaml
+bbdb50bd-564f-41bc-9a73-5af33f162017|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml.draft|2026-05-20T16-16-52|universal_file_edit||
+bcbb92ab-fd52-44bf-872d-90adabe6456b|.trees/docs/plans/general/G-008-host-execution-target/README.yaml.tree|2026-05-20T03-07-51|universal_file_write||
 bdd6a8a8-70e6-4ff4-bbc0-56b46d82d54b|docs/plans/general/tech_spec.md|2026-05-15T10-44-08|write_project_text_lines||Before write_project_text_lines 1134-1134
 c204c7b7-2ef7-41a6-869e-48a89a1dd482|docs/plans/general/tech_spec.md|2026-05-15T09-36-06|write_project_text_lines||Before write_project_text_lines 647-730
 c2baaf09-5c1e-40d2-b55b-4115f3f627c9|docs/plans/general/G-003-sandbox-enforcement/T-001-container-mount-model/A-001-mount-spec-and-validation/README.yaml|2026-05-15T14-28-34|yaml_handler_save||Before save docs/plans/general/G-003-sandbox-enforcement/T-001-container-mount-model/A-001-mount-spec-and-validation/README.yaml
+c31d957f-7be3-4b0b-9c21-5295e5b685d1|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/README.yaml|2026-05-20T16-15-37|universal_file_write||
 c4528c76-3e20-4dbc-868d-0a086b7d1cc3|docs/plans/general/tech_spec.md|2026-05-15T01-50-33|write_project_text_lines||Before write_project_text_lines 173-176
+c786135c-61a6-42f9-9f07-c95b8c85a56b|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-002-terminal-run-host-metadata/README.yaml|2026-05-20T17-40-05|universal_file_open||
+cb5afdc1-56b5-4f1a-b90b-78357e41b714|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-002-host-run-service/README.yaml|2026-05-20T17-36-02|universal_file_write||
 cda3e266-75e7-44fa-9de8-bbf9d8114ef8|docs/plans/general/tech_spec.md|2026-05-15T01-42-24|write_project_text_lines||Before write_project_text_lines 78-124
 ceee08aa-3e0d-4906-a732-5da45b6722eb|docs/plans/general/tech_spec.md|2026-05-15T10-44-32|write_project_text_lines||Before write_project_text_lines 1086-1150
 cf0df0b2-786f-43bb-b9ef-1a836cf5c58e|docs/plans/general/tech_spec.md|2026-05-15T03-05-08|write_project_text_lines||Before write_project_text_lines 471-590
 cf30a75d-8e25-4e8b-97c4-05ffe2e294e6|docs/plans/general/tech_spec.md|2026-05-15T11-26-09|write_project_text_lines||Before write_project_text_lines 855-942
+d1c8ad72-16c9-4630-bd1a-5c5ef7cd1188|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-003-terminal-run-host-command/README.yaml|2026-05-20T17-41-24|universal_file_open||
+d434b789-19de-482c-8668-a06474fa9971|docs/plans/general/G-007-adapter-skeleton-infrastructure/README.yaml|2026-05-15T12-42-46|universal_file_open||
+d4f612a2-5736-4c71-9c75-20b14ee48356|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-004-register-terminal-run-host/README.yaml.draft|2026-05-20T17-58-57|universal_file_edit||
 d76373b3-1b50-4d66-b796-7529fc0e359d|docs/plans/general/tech_spec.md|2026-05-15T10-03-05|write_project_text_lines||Before write_project_text_lines 925-1057
+d8bc4e08-a94b-4535-9351-4a2612cbe382|docs/plans/general/G-007-adapter-skeleton-infrastructure/README.yaml.draft|2026-05-20T03-05-20|universal_file_edit||
+d9015dda-02db-4b74-8ab0-f3c84cbe9aef|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml|2026-05-20T16-08-32|universal_file_write||
 da9f5732-758c-489b-95b0-c526ed34da9e|docs/plans/general/G-002-project-registry/T-001-project-marker-validation/A-001-project-marker-dataclass/README.yaml|2026-05-15T14-26-32|yaml_handler_save||Before save docs/plans/general/G-002-project-registry/T-001-project-marker-validation/A-001-project-marker-dataclass/README.yaml
+dca69094-41da-4bd9-87bd-196e32a472fa|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml.draft|2026-05-20T18-04-17|universal_file_edit||
 def9d516-80f9-48f7-8d2d-a3191a832b0f|docs/plans/general/tech_spec.md|2026-05-15T02-44-15|write_project_text_lines||Before write_project_text_lines 387-387
+e3181f0f-7bf3-479d-86a5-4131718b2665|docs/plans/general/G-003-sandbox-enforcement/README.yaml.draft|2026-05-20T15-19-54|universal_file_edit||
 e4df615b-c236-49ac-8e0c-8fdcbe59e00b|docs/plans/general/G-002-project-registry/T-003-runtime-resolution-and-path-containment/README.yaml|2026-05-15T13-57-01|yaml_handler_save||Before save docs/plans/general/G-002-project-registry/T-003-runtime-resolution-and-path-containment/README.yaml
 e4fb37cb-e709-4cfb-8fac-ca44eba6df16|docs/plans/general/G-005-configuration-ttl-audit/T-002-ttl-cleanup-service/A-001-ttl-cleanup/README.yaml|2026-05-15T14-38-57|yaml_handler_save||Before save docs/plans/general/G-005-configuration-ttl-audit/T-002-ttl-cleanup-service/A-001-ttl-cleanup/README.yaml
+e505b51f-d0c8-444a-8c7a-d0482a906c8b|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/A-001-host-session-executor/README.yaml|2026-05-20T17-34-17|universal_file_open||
 e5c1163b-7f80-4dbf-95e9-096735d74276|docs/plans/general/tech_spec.md|2026-05-15T11-28-05|write_project_text_lines||Before write_project_text_lines 26-40
 e762cd56-a3ad-4746-a338-d1436ab39cd5|docs/plans/general/tech_spec.md|2026-05-15T10-09-51|write_project_text_lines||Before write_project_text_lines 1152-1154
+e826e610-265c-4e53-b897-6f8278f5be94|docs/plans/general/G-005-configuration-ttl-audit/README.yaml.draft|2026-05-20T02-45-43|universal_file_edit||
+e9f80fc9-a919-4dff-9a22-553525657bdd|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-003-terminal-run-host-command/README.yaml.draft|2026-05-20T17-41-24|universal_file_edit||
+eb067ece-8a00-4729-a78c-ca0784465d07|docs/plans/general/G-001-security-boundary/README.yaml|2026-05-15T12-40-57|universal_file_write||
 ec9754d5-256d-4c04-ba58-3145a7169143|docs/plans/general/G-002-project-registry/T-002-registry-build-and-duplicate-handling/A-001-registry-build/README.yaml|2026-05-15T14-27-17|yaml_handler_save||Before save docs/plans/general/G-002-project-registry/T-002-registry-build-and-duplicate-handling/A-001-registry-build/README.yaml
 ed491e49-8601-49f3-9af0-6aebe1ae3407|docs/plans/general/G-002-project-registry/T-003-runtime-resolution-and-path-containment/A-001-runtime-resolution/README.yaml|2026-05-15T14-27-51|yaml_handler_save||Before save docs/plans/general/G-002-project-registry/T-003-runtime-resolution-and-path-containment/A-001-runtime-resolution/README.yaml
+f13c8f15-5cc4-47c7-9743-e968dd59374d|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-002-refactor-host-execution-config/README.yaml|2026-05-20T17-55-22|universal_file_write||
+f39ee262-4beb-4420-bd01-216e52e68785|docs/plans/general/G-008-host-execution-target/T-003-terminal-run-host-public-command/A-004-register-terminal-run-host/README.yaml|2026-05-20T17-42-48|universal_file_write||
+f445cd06-cb2b-47f6-b23f-598610559b52|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/README.yaml|2026-05-20T16-13-13|universal_file_open||
+f48a1f6c-25e4-472c-bcc6-993a8f75fef3|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml.draft|2026-05-20T17-51-09|universal_file_edit||
+f48f22fa-9f92-4a35-b3ed-83489fc48019|docs/plans/general/G-001-security-boundary/README.yaml.draft|2026-05-20T02-43-51|universal_file_edit||
+f4b32410-0c74-4ca0-850b-937dc5e05eba|docs/plans/general/G-007-adapter-skeleton-infrastructure/README.yaml.draft|2026-05-20T03-04-45|universal_file_edit||
 f7fe5358-373c-4117-81b3-af653015fdc0|docs/plans/general/tech_spec.md|2026-05-15T10-40-57|write_project_text_lines||Before write_project_text_lines 1102-1103
+f874343f-a493-405f-80f2-ff758a4670fc|docs/plans/general/G-006-contracts-error-acceptance/README.yaml|2026-05-15T12-42-33|universal_file_open||
+fa3bb7fb-58e3-4245-a282-c47742375726|docs/plans/general/G-005-configuration-ttl-audit/README.yaml|2026-05-15T12-42-21|universal_file_open||
+fb3d429d-bfbc-492a-9874-d24c0abb9a5b|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml.draft|2026-05-20T16-07-05|universal_file_edit||
+fd3c71b6-a282-4fb7-acd2-a5f97c3ee5a5|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/A-001-host-execution-policy-module/README.yaml|2026-05-20T17-28-30|universal_file_write||
 fd767729-ef04-42b9-975c-3c3075914c9b|docs/plans/general/G-001-security-boundary/T-002-zero-trust-validation-invariant/README.yaml|2026-05-15T13-55-16|yaml_handler_save||Before save docs/plans/general/G-001-security-boundary/T-002-zero-trust-validation-invariant/README.yaml
+ff49be92-a4fa-4618-be7f-eeb723b2fc21|docs/plans/general/G-008-host-execution-target/T-002-terminal-host-execution-job/README.yaml|2026-05-20T16-13-13|universal_file_write||
 ff77f3a0-1c44-4e7c-84f2-171817b5ba83|docs/plans/general/tech_spec.md|2026-05-15T10-23-35|write_project_text_lines||Before write_project_text_lines 99-119
+ffe76c55-f373-4c64-be3a-68418c856f0e|docs/plans/general/G-008-host-execution-target/T-001-host-execution-policy/README.yaml.draft|2026-05-20T16-06-42|universal_file_edit||
