@@ -50,9 +50,14 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "- ``pid_namespace`` — Docker PID namespace for this session's containers. "
             "``container`` (default): isolated. ``host``: ``docker run --pid=host`` so "
             "tools on the host (e.g. ``casmgr status``) see daemon PIDs; dev/debug only.\n\n"
-            "Typical agent flow: ``terminal_session_create`` → (poll bootstrap if needed) "
-            "→ ``terminal_run`` (possibly with ``keep_container: true`` for multi-step work) "
-            "→ ``terminal_get_status`` / ``terminal_tail`` → ``terminal_delete`` when done."
+            "Typical agent flow: create a **client session** on code-analysis-server "
+            "(``session_create`` → session_id), then ``terminal_session_create`` with the "
+            "**same session_id**. The server validates the client session and registers a "
+            "**subordinate link** (parent_session_id + this server's registration.instance_uuid). "
+            "Then: (poll bootstrap if needed) → ``terminal_run`` (possibly with "
+            "``keep_container: true`` for multi-step work) → ``terminal_get_status`` / "
+            "``terminal_tail`` → ``terminal_delete`` (unlinks subordinate) → later "
+            "``session_delete`` on casmgr when the editor session ends."
         ),
         "parameters": {
             "project_id": {
@@ -264,6 +269,16 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "with that session_id (or reuse that session_id for your tab). "
                     "terminal_run_host does not require workspace_write."
                 ),
+            },
+            "CLIENT_SESSION_NOT_FOUND": {
+                "description": "session_id is not registered on code-analysis-server.",
+                "message": "CLIENT_SESSION_NOT_FOUND",
+                "solution": "Call casmgr session_create first; reuse the returned session_id.",
+            },
+            "CODE_ANALYSIS_UNAVAILABLE": {
+                "description": "Cannot reach code-analysis-server or config is incomplete.",
+                "message": "CODE_ANALYSIS_UNAVAILABLE",
+                "solution": "Verify code_analysis host/port/ssl and casmgr availability.",
             },
         },
         "best_practices": [

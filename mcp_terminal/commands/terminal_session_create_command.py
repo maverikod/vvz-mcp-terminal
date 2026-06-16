@@ -14,8 +14,15 @@ import asyncio
 from typing import Any, ClassVar, Dict, Optional, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
+from mcp_proxy_adapter.config import get_config
 from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
 
+from mcp_terminal.code_analysis_rpc import CodeAnalysisRpcError
+from mcp_terminal.code_analysis_sessions import (
+    session_validate_sync,
+    subordinate_session_create_sync,
+)
+from mcp_terminal.errors import ErrorCode
 from mcp_terminal.jobs.session_bootstrap_job import SessionBootstrapJob, SessionBootstrapJobParams
 from mcp_terminal.runtime_context import registry_resolve_project, get_session_store
 from mcp_terminal.services.session_bootstrap import write_bootstrap_pending
@@ -146,6 +153,23 @@ class TerminalSessionCreateCommand(Command):
                 success=False,
                 error=resolved.error_code or "PROJECT_NOT_FOUND",
             )
+
+        app_config = getattr(get_config(), "config_data", None)
+        if not isinstance(app_config, dict):
+            return CommandResult(success=False, error=ErrorCode.CODE_ANALYSIS_UNAVAILABLE)
+        try:
+            session_validate_sync(app_config, session_id, touch=False)
+            subordinate_session_create_sync(
+                app_config,
+                parent_session_id=session_id,
+                comment=f"mcp-terminal project={project_id}",
+            )
+        except CodeAnalysisRpcError as exc:
+            if exc.code == "SESSION_NOT_FOUND":
+                return CommandResult(success=False, error=ErrorCode.CLIENT_SESSION_NOT_FOUND)
+            return CommandResult(success=False, error=ErrorCode.CODE_ANALYSIS_UNAVAILABLE)
+        except ValueError:
+            return CommandResult(success=False, error=ErrorCode.CODE_ANALYSIS_UNAVAILABLE)
 
         workspace_write_create: Optional[bool] = None
         if "workspace_write" in kwargs:

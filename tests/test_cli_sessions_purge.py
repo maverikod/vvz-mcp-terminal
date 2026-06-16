@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from mcp_terminal.cli_sessions_purge import discover_terminals_dirs, purge_all_terminal_sessions
+from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP
 from mcp_terminal.services.terminal_container_purge import (
     is_terminal_sandbox_container,
     remove_all_terminal_containers,
@@ -14,7 +15,7 @@ from mcp_terminal.services.terminal_container_purge import (
 
 def test_is_terminal_sandbox_container() -> None:
     assert is_terminal_sandbox_container(
-        image="ghcr.io/mcp-terminal/python-dev:3.12",
+        image=IMAGE_PROFILE_MAP["python_dev_3_12"],
         names="jolly_curie",
         session_label="",
     )
@@ -43,7 +44,7 @@ def test_is_terminal_sandbox_container() -> None:
 def test_remove_all_terminal_containers_dry_run(monkeypatch) -> None:
     monkeypatch.setattr(
         "mcp_terminal.services.terminal_container_purge.subprocess.check_output",
-        lambda *a, **k: "cid1\tghcr.io/mcp-terminal/python-dev:3.12\tmcp-term-abc\ttrue\ncid2\tnginx\tweb\t\n",
+        lambda *a, **k: f"cid1\t{IMAGE_PROFILE_MAP['python_dev_3_12']}\tmcp-term-abc\ttrue\ncid2\tnginx\tweb\t\n",
     )
 
     def _fail(*_a, **_k):

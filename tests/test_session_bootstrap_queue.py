@@ -28,13 +28,24 @@ class _FakeResolution:
     error_code: str | None = None
 
 
+@patch("mcp_terminal.commands.terminal_session_create_command.subordinate_session_create_sync")
+@patch("mcp_terminal.commands.terminal_session_create_command.session_validate_sync")
+@patch("mcp_terminal.commands.terminal_session_create_command.get_config")
 @patch("mcp_terminal.commands.terminal_session_create_command.enqueue_coroutine")
 @patch("mcp_terminal.commands.terminal_session_create_command.registry_resolve_project")
 def test_session_create_enqueues_bootstrap(
     mock_resolve,
     mock_enqueue,
+    mock_get_config,
+    mock_validate,
+    mock_sub_create,
     tmp_path: Path,
 ) -> None:
+    mock_get_config.return_value = type(
+        "Cfg",
+        (),
+        {"config_data": {"code_analysis": {}, "registration": {"instance_uuid": "x"}}},
+    )()
     mock_enqueue.side_effect = lambda coro: _mock_enqueue_coroutine(
         coro, job_id="bootstrap-job-abc"
     )

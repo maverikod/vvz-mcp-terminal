@@ -22,7 +22,7 @@ from typing import Any
 from mcp_proxy_adapter.core.config.simple_config import SimpleConfig, SimpleConfigModel
 from mcp_proxy_adapter.core.config.simple_config_validator import SimpleConfigValidator
 
-from mcp_terminal.paths import repo_root
+from mcp_terminal.paths import default_term_server_config_path, mtls_dir
 
 _DEFAULTS_PATH = Path(__file__).resolve().parent / "term_server.defaults.json"
 DEFAULT_TERM_SERVER_LISTEN_PORT = int(
@@ -112,23 +112,24 @@ def sanitize_registration_proxy_metadata(config_path: Path) -> None:
 
 def default_config_path() -> Path:
     """Path to the runtime SimpleConfig JSON (usually gitignored)."""
-    return repo_root() / "configs" / "term_server.json"
+    return default_term_server_config_path()
 
 
-def ensure_code_analysis_mtls_layout_symlinks(root: Path) -> None:
+def ensure_code_analysis_mtls_layout_symlinks() -> None:
     """
     Ensure ``mtls_certificates/mtls_certificates/{client,ca}/`` exists like code_analysis.
 
     Symlinks point at the flat ``mtls_certificates/client/mcp-proxy.*`` and ``ca/ca.crt``
     so paths in ``term_server.defaults.json`` resolve from ``configs/``.
     """
-    nested = root / "mtls_certificates" / "mtls_certificates"
+    mtls_root = mtls_dir()
+    nested = mtls_root / "mtls_certificates"
     client = nested / "client"
     ca_dir = nested / "ca"
     client.mkdir(parents=True, exist_ok=True)
     ca_dir.mkdir(parents=True, exist_ok=True)
-    flat_client = root / "mtls_certificates" / "client"
-    flat_ca = root / "mtls_certificates" / "ca" / "ca.crt"
+    flat_client = mtls_root / "client"
+    flat_ca = mtls_root / "ca" / "ca.crt"
     for name in ("mcp-proxy.crt", "mcp-proxy.key"):
         target = client / name
         if (flat_client / name).is_file() and not target.exists() and not target.is_symlink():
@@ -174,8 +175,7 @@ def ensure_term_server_config(
     Always validates the file at the end (same idea as ``code_analysis`` loading +
     ``SimpleConfigValidator``).
     """
-    root = repo_root()
-    ensure_code_analysis_mtls_layout_symlinks(root)
+    ensure_code_analysis_mtls_layout_symlinks()
     path = default_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 

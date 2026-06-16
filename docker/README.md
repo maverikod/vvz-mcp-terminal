@@ -1,0 +1,116 @@
+# MCP Terminal — Docker image and Debian package
+
+Build the production service image, push to Docker Hub, optionally publish sandbox
+worker images, and assemble the `mcp-terminal-docker` `.deb` package (same pattern
+as `embed` and `svo`).
+
+## Quick start (release build)
+
+From the repository root:
+
+```bash
+export MCP_TERMINAL_DOCKERHUB_USERNAME=youruser
+export MCP_TERMINAL_DOCKERHUB_TOKEN=...   # optional non-interactive login
+./docker/build.sh
+```
+
+Output:
+
+- Docker Hub: `<user>/mcp-terminal:<version>` and `:latest`
+- Sandbox images (Docker Hub `<user>/mcp-terminal-*`) when not using `--skip-sandbox`
+- `docker/dist/mcp-terminal-docker_<version>_amd64.deb`
+
+### Options
+
+| Flag | Effect |
+|------|--------|
+| `--skip-push` | Build images locally only |
+| `--skip-deb` | Skip `.deb` assembly |
+| `--skip-sandbox` | Skip sandbox worker image build/push |
+| `--dev-run` | After build, start `docker/run.sh` dev container |
+
+Environment:
+
+- `MCP_TERMINAL_DOCKERHUB_REPO` — override image repo (default `<docker-user>/mcp-terminal`)
+- `MCP_TERMINAL_SANDBOX_REPO_USER` — Docker Hub user for sandbox repos (default: same as service)
+- `MCP_TERMINAL_SANDBOX_IMAGE_*` — override full sandbox image refs (see `docker/sandbox_images.sh`)
+- `MCP_TERMINAL_DOCKER_NO_CACHE=1` — pass `--no-cache` to service image build
+
+Build only the `.deb` (image must already exist at the matching tag):
+
+```bash
+./docker/build-deb.sh 0.1.0
+```
+
+## Install on target host
+
+```bash
+sudo dpkg -i docker/dist/mcp-terminal-docker_0.1.0_amd64.deb
+sudo apt -f install
+mcp-terminal-info
+```
+
+`apt -f install` pulls `docker.io | docker-ce`, `adduser`, `python3`, `curl`, etc.
+
+The package:
+
+1. Creates system user/group `mcp-terminal`
+2. Creates `/etc/mcp-terminal`, `/var/log/mcp-terminal`, `/var/mcp-terminal`
+3. `docker pull` service image + sandbox worker images
+4. Creates and starts container `mcp-terminal` with `docker.sock` mounted
+5. Enables `mcp-terminal-docker.service`
+
+## Host layout
+
+| Path | Purpose |
+|------|---------|
+| `/etc/mcp-terminal/term_server.json` | Service JSON (conffile) |
+| `/etc/mcp-terminal/mtls_certificates/` | TLS material |
+| `/etc/default/mcp-terminal` | Port, paths, extra bind mounts |
+| `/var/log/mcp-terminal/` | Logs |
+| `/var/mcp-terminal/` | Application data |
+| `/var/lib/mcp-terminal/` | Package state (uninstall image ref) |
+
+## Operations
+
+```bash
+sudo systemctl status mcp-terminal-docker
+sudo mcp-terminal-docker recreate    # after config / cert changes
+sudo mcp-terminal-docker status
+man mcp-terminal-docker
+info mcp-terminal-docker
+```
+
+After editing `/etc/mcp-terminal/term_server.json`:
+
+```bash
+python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_server.json
+sudo mcp-terminal-docker recreate
+```
+
+## Project bind mounts
+
+`watch_dirs` paths must exist on the **host** Docker daemon. Bind the same paths
+into the service container via `/etc/default/mcp-terminal`:
+
+```bash
+MCP_TERMINAL_EXTRA_BINDS=/home/projects:/home/projects
+```
+
+Then `sudo mcp-terminal-docker recreate`.
+
+## Local dev container
+
+```bash
+./docker/build.sh --skip-push --skip-deb --skip-sandbox
+./docker/run.sh
+```
+
+Requires `configs/term_server.json` (create with `termgr create-config`).
+
+## Documentation
+
+- `man mcp-terminal-docker`, `man mcp-terminal-info`, `man mcp-terminal-config`
+- `info mcp-terminal-docker`
+
+Author: Vasiliy Zdanovskiy <vasilyvz@gmail.com>

@@ -1,0 +1,188 @@
+\input texinfo
+@setfilename mcp-terminal-docker.info
+@set VERSION @VERSION@
+@settitle MCP Terminal Docker Integration
+@documentencoding UTF-8
+@copying
+Copyright @copyright{} 2026 Vasiliy Zdanovskiy
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3.
+@end quotation
+@end copying
+
+@dircategory Individual utilities
+@direntry
+* mcp-terminal-docker: (mcp-terminal-docker). MCP Terminal Docker host integration
+* mcp-terminal-config: (mcp-terminal-docker)Configuration. JSON configuration reference
+@end direntry
+
+@finalout
+@titlepage
+@title MCP Terminal Docker Integration
+@subtitle Package mcp-terminal-docker @value{VERSION}
+@author Vasiliy Zdanovskiy
+@end titlepage
+
+@contents
+
+@node Top
+@top MCP Terminal Docker Integration
+
+This manual describes the @command{mcp-terminal-docker} Debian package
+(version @value{VERSION}), which installs host integration for the
+MCP Terminal HTTPS service running in Docker.
+
+@menu
+* Overview::                    What the package installs
+* Commands::                    mcp-terminal-docker and mcp-terminal-info
+* Configuration::               Host paths and JSON config
+* Service::                     systemd and container lifecycle
+* Sandbox::                     Worker images and project paths
+* Install::                     Installing on a clean host
+* Uninstall::                  remove and purge behavior
+@end menu
+
+@node Overview
+@chapter Overview
+
+The package:
+
+@itemize @bullet
+@item
+pulls the matching service image from Docker Hub on install or upgrade;
+@item
+pulls sandbox worker images (@code{python-dev}, @code{node-dev}, @code{base-tools});
+@item
+creates host user @code{mcp-terminal} for log and data directory ownership;
+@item
+starts container @code{mcp-terminal} publishing host port 3011 by default;
+@item
+mounts @file{/var/run/docker.sock} so the service can spawn sandbox containers;
+@item
+registers @command{man} and @command{info} documentation.
+@end itemize
+
+Host log and data directories are owned by @code{mcp-terminal:mcp-terminal}.
+
+@node Commands
+@chapter Commands
+
+@deffn {Command} mcp-terminal-docker @var{command}
+@anchor{mcp-terminal-docker-command}
+@end deffn
+
+@table @asis
+@item @code{start}
+Start @code{mcp-terminal-docker.service}.
+@item @code{stop}
+Stop the service and container.
+@item @code{restart}
+Restart the same container instance.
+@item @code{recreate}
+Remove and recreate the container (after config, certificate, or bind-mount changes).
+@item @code{status}
+Show systemd and container status.
+@item @code{info}
+Same summary as @command{mcp-terminal-info}.
+@end table
+
+@deffn {Command} mcp-terminal-info
+Print host integration summary (port, paths, image tag, container state).
+@end deffn
+
+See also @command{man mcp-terminal-docker}, @command{man mcp-terminal-info}, and
+@command{man mcp-terminal-config} (JSON schema and field dependencies).
+
+@node Configuration
+@chapter Configuration
+
+@strong{Service JSON} (main settings): @file{/etc/mcp-terminal/term_server.json}.
+Full reference: @command{man mcp-terminal-config}.
+
+@table @file
+@item /etc/default/mcp-terminal
+Host Docker settings: port, paths, optional network, extra project bind mounts.
+@item /etc/mcp-terminal/term_server.json
+Service configuration (conffile). Container path:
+@file{/etc/mcp-terminal/term_server.json}. Seed:
+@file{/usr/share/mcp-terminal/term_server.json}.
+@item /var/log/mcp-terminal
+Application logs (owned by @code{mcp-terminal}).
+@item /var/mcp-terminal
+Application data and caches.
+@item /etc/mcp-terminal/mtls_certificates
+TLS certificates; use absolute @file{/etc/mcp-terminal/...} paths inside JSON.
+@end table
+
+Validate before recreate:
+
+@example
+python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_server.json
+@end example
+
+Key JSON sections: @code{server}, @code{registration}, @code{queue_manager},
+@code{watch_dirs}, @code{terminal}, @code{code_analysis}.
+Set @code{server.log_dir} to @code{/var/log/mcp-terminal} and
+@code{server.host} to @code{0.0.0.0} in production.
+
+@node Service
+@chapter Service
+
+@example
+sudo systemctl start mcp-terminal-docker
+sudo systemctl stop mcp-terminal-docker
+sudo mcp-terminal-docker recreate
+@end example
+
+After configuration changes, run @code{mcp-terminal-docker recreate} or
+@code{systemctl start mcp-terminal-docker-recreate.service}.
+
+The container mounts the host Docker socket. Sandbox session containers are
+created on the host by the service process inside the container.
+
+@node Sandbox
+@chapter Sandbox worker images and project paths
+
+Sandbox images are listed in @file{/usr/lib/mcp-terminal/sandbox-images-spec}
+(default registry @code{<docker-user>/mcp-terminal-*} on Docker Hub).
+
+Project directories referenced in @code{watch_dirs} must exist on the host
+filesystem where the Docker daemon runs. Bind-mount the same paths into the
+service container using @code{MCP_TERMINAL_EXTRA_BINDS} in
+@file{/etc/default/mcp-terminal}, for example:
+
+@example
+MCP_TERMINAL_EXTRA_BINDS=/home/projects:/home/projects
+@end example
+
+@node Install
+@chapter Install
+
+On a clean Debian/Ubuntu host:
+
+@example
+sudo dpkg -i mcp-terminal-docker_@value{VERSION}_amd64.deb
+sudo apt -f install
+mcp-terminal-info
+@end example
+
+@code{apt -f install} resolves package dependencies including @code{docker.io}.
+
+Place TLS material under @file{/etc/mcp-terminal/mtls_certificates/} before
+first start if registration uses HTTPS.
+
+@node Uninstall
+@chapter Uninstall
+
+@example
+sudo apt remove mcp-terminal-docker
+sudo apt purge mcp-terminal-docker
+@end example
+
+On @code{apt purge}, maintainer scripts stop systemd, remove the container,
+and remove the saved service Docker image using @file{/usr/lib/mcp-terminal/image-spec}
+and/or a saved ref under @file{/var/lib/mcp-terminal/}.
+
+@bye

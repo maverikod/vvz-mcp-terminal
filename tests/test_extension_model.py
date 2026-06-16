@@ -37,7 +37,7 @@ def test_terminal_domain_modules_importable() -> None:
     from mcp_terminal.config.config_validator import validate_terminal_config  # noqa: F401
 
     assert SandboxPolicy is not None
-    assert len(ALL_ERROR_CODES) == 24
+    assert len(ALL_ERROR_CODES) == 27
 
 
 def test_command_modules_importable() -> None:
@@ -115,4 +115,7 @@ def test_error_codes_stable() -> None:
     assert "INVALID_SESSION" in ALL_ERROR_CODES
     assert "CONTAINER_CLEANUP_FAILED" in ALL_ERROR_CODES
     assert "PURGE_SESSIONS_DISABLED" in ALL_ERROR_CODES
-    assert len(ALL_ERROR_CODES) == 24
+    assert "CLIENT_SESSION_NOT_FOUND" in ALL_ERROR_CODES
+    assert "SUBORDINATE_SESSION_NOT_LINKED" in ALL_ERROR_CODES
+    assert "CODE_ANALYSIS_UNAVAILABLE" in ALL_ERROR_CODES
+    assert len(ALL_ERROR_CODES) == 27

@@ -1,0 +1,224 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3011,
+    "protocol": "https",
+    "servername": "mcp-terminal",
+    "advertised_host": "CHANGE_ME",
+    "ssl": {
+      "cert": "/etc/mcp-terminal/mtls_certificates/server/mcp-proxy.pem",
+      "key": "/etc/mcp-terminal/mtls_certificates/server/mcp-proxy.pem",
+      "ca": "/etc/mcp-terminal/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": null
+    },
+    "rules": null,
+    "log_dir": "/var/log/mcp-terminal",
+    "debug": false,
+    "log_level": "INFO"
+  },
+  "client": {
+    "enabled": false,
+    "protocol": "https",
+    "ssl": {
+      "cert": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
+      "key": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.key",
+      "ca": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    }
+  },
+  "registration": {
+    "enabled": true,
+    "protocol": "https",
+    "register_url": "https://MCP_PROXY_HOST:3004/register",
+    "unregister_url": "https://MCP_PROXY_HOST:3004/unregister",
+    "heartbeat_interval": 30,
+    "server_id": "mcp-terminal",
+    "server_name": "MCP Terminal",
+    "metadata": {
+      "server_id": "mcp-terminal",
+      "server_name": "MCP Terminal",
+      "description": "Sandboxed terminal sessions per project: Docker session containers (terminal_run), optional host allowlist (terminal_run_host), shell_state.json (persistent cwd), keep_container for multi-step work.",
+      "version": "@VERSION@"
+    },
+    "instance_uuid": "REPLACE_ON_INSTALL",
+    "auto_on_startup": true,
+    "auto_on_shutdown": true,
+    "ssl": {
+      "cert": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
+      "key": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.key",
+      "ca": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    },
+    "heartbeat": {
+      "url": "https://MCP_PROXY_HOST:3004/proxy/heartbeat",
+      "interval": 30
+    }
+  },
+  "server_validation": {
+    "enabled": false,
+    "protocol": "http",
+    "ssl": null,
+    "timeout": 10,
+    "use_token": false,
+    "use_roles": false,
+    "tokens": {},
+    "roles": {},
+    "auth_header": "X-API-Key",
+    "roles_header": "X-Roles",
+    "health_path": "/health",
+    "check_hostname": false
+  },
+  "auth": {
+    "use_token": false,
+    "use_roles": false,
+    "tokens": {},
+    "roles": {}
+  },
+  "queue_manager": {
+    "enabled": true,
+    "in_memory": true,
+    "registry_path": null,
+    "shutdown_timeout": 30.0,
+    "max_concurrent_jobs": 10,
+    "max_queue_size": null,
+    "per_job_type_limits": null,
+    "completed_job_retention_seconds": 21600,
+    "default_poll_interval": 0.0,
+    "default_max_wait_time": null,
+    "command_timeout": null,
+    "stop_job_wait_timeout": null
+  },
+  "orchestration": {
+    "discovery_enabled": false,
+    "polling_interval": 30.0,
+    "initial_poll_timeout": 60.0,
+    "stale_snapshot_behavior": "keep",
+    "mutex_lock_timeout": 5.0,
+    "static_servers": []
+  },
+  "terminal": {
+    "defaults": {
+      "workspace_write": true,
+      "pid_namespace": "host",
+      "keep_container": true,
+      "use_venv": true
+    },
+    "sessions": {
+      "ttl_seconds": 86400,
+      "cleanup_interval_seconds": 3600,
+      "max_sessions_per_project": 50,
+      "max_commands_per_session": 1000
+    },
+    "output": {
+      "max_stdout_file_bytes": 100000000,
+      "max_stderr_file_bytes": 100000000,
+      "default_read_bytes": 65536,
+      "max_read_bytes": 262144
+    },
+    "commands": {
+      "default_history_limit": 25,
+      "max_history_limit": 200,
+      "default_tail_lines": 100,
+      "max_tail_lines": 5000
+    },
+    "cleanup": {
+      "delete_expired_sessions": true,
+      "delete_running_sessions": false
+    },
+    "admin": {
+      "allow_purge_sessions": true
+    },
+    "host_execution": {
+      "enabled": true,
+      "allowed_commands": [
+        "bash",
+        "sh",
+        "python",
+        "python3",
+        "pip",
+        "pip3",
+        "pytest",
+        "uv",
+        "ruff",
+        "mypy",
+        "black",
+        "casmgr",
+        "termgr",
+        "node",
+        "npm",
+        "npx",
+        "yarn",
+        "pnpm",
+        "git",
+        "make",
+        "rg",
+        "grep",
+        "sed",
+        "awk",
+        "cat",
+        "ls",
+        "cp",
+        "mv",
+        "mkdir",
+        "rm",
+        "find",
+        "head",
+        "tail",
+        "wc",
+        "sort",
+        "diff",
+        "tee",
+        "true",
+        "false",
+        "test",
+        "which",
+        "env",
+        "printenv",
+        "pwd",
+        "cd",
+        "echo"
+      ]
+    }
+  },
+  "runtime": {
+    "default_image_profile": "python_dev_3_12",
+    "default_network": "none",
+    "timeout_seconds": 60,
+    "max_timeout_seconds": 300,
+    "memory": "1g",
+    "cpus": 1.0,
+    "pids_limit": 256,
+    "max_concurrent_runs": 4,
+    "cleanup_always": true
+  },
+  "watch_dirs": {
+    "directories": [
+      "WATCH_DIRS_ROOT"
+    ],
+    "refresh_interval_seconds": 60
+  },
+  "code_analysis": {
+    "enabled": true,
+    "protocol": "https",
+    "host": "CODE_ANALYSIS_HOST",
+    "port": 15010,
+    "jsonrpc_path": "/api/jsonrpc",
+    "timeout_seconds": 30,
+    "watch_dir_index": 0,
+    "ssl": {
+      "cert": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
+      "key": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.key",
+      "ca": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    }
+  },
+  "_term_config_format": 5
+}

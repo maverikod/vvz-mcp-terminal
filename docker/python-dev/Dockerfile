@@ -1,5 +1,5 @@
 # Sandbox image profile: python_dev_3_12
-# Published as ghcr.io/mcp-terminal/python-dev:3.12
+# Published as <docker-user>/mcp-terminal-python-dev:3.12 (see docker/sandbox_images.sh)
 #
 # procps provides ps/pgrep/pkill required for host-PID discovery (e.g. casmgr status
 # with pid_namespace=host) and for in-sandbox process diagnostics (tech_spec §13.1).

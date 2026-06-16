@@ -16,7 +16,7 @@
     "log_dir": "/home/vasilyvz/projects/tools/mcp_terminal/logs",
     "debug": false,
     "log_level": "INFO",
-    "advertised_host": null
+    "advertised_host": "CHANGE_ME"
   },
   "client": {
     "enabled": false,
@@ -24,20 +24,32 @@
     "ssl": null
   },
   "registration": {
-    "enabled": false,
-    "protocol": "http",
-    "register_url": "http://localhost:3005/register",
-    "unregister_url": "http://localhost:3005/unregister",
+    "enabled": true,
+    "protocol": "https",
+    "register_url": "https://MCP_PROXY_HOST:3004/register",
+    "unregister_url": "https://MCP_PROXY_HOST:3004/unregister",
     "heartbeat_interval": 30,
-    "ssl": null,
-    "server_id": null,
-    "server_name": null,
-    "instance_uuid": null,
-    "auto_on_startup": true,
-    "auto_on_shutdown": true,
-    "metadata": null,
+    "server_id": "mcp-terminal-test",
+    "server_name": "MCP Terminal (adapter-only test)",
+    "metadata": {
+      "server_id": "mcp-terminal-test",
+      "server_name": "MCP Terminal (adapter-only test)",
+      "description": "Minimal adapter config for HTTPS/registration tests — no terminal, runtime, or code_analysis sections.",
+      "version": "0.1.0"
+    },
+    "instance_uuid": "REPLACE_ON_INSTALL",
+    "auto_on_startup": false,
+    "auto_on_shutdown": false,
+    "ssl": {
+      "cert": "/home/vasilyvz/projects/tools/mcp_terminal/mtls_certificates/client/primitive-server.crt",
+      "key": "/home/vasilyvz/projects/tools/mcp_terminal/mtls_certificates/client/primitive-server.key",
+      "ca": "/home/vasilyvz/projects/tools/mcp_terminal/mtls_certificates/ca/ca.crt",
+      "crl": null,
+      "dnscheck": false,
+      "check_hostname": false
+    },
     "heartbeat": {
-      "url": "http://localhost:3005/proxy/heartbeat",
+      "url": "https://MCP_PROXY_HOST:3004/proxy/heartbeat",
       "interval": 30
     }
   },

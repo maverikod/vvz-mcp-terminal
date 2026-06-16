@@ -1,0 +1,31 @@
+# MCP Terminal Docker defaults (host-visible settings).
+# Managed by package mcp-terminal-docker.
+# restart:  systemctl restart mcp-terminal-docker   (stop + start, same container)
+# recreate: mcp-terminal-docker recreate             (remove + create; after config edits)
+
+MCP_TERMINAL_USER=mcp-terminal
+MCP_TERMINAL_GROUP=mcp-terminal
+
+# Host TCP port published to container port 3011 (HTTPS).
+MCP_TERMINAL_PORT=3011
+
+# Host paths (bind-mounted into the container).
+MCP_TERMINAL_CONFIG_DIR=/etc/mcp-terminal
+MCP_TERMINAL_CONFIG_FILE=term_server.json
+MCP_TERMINAL_LOG_DIR=/var/log/mcp-terminal
+MCP_TERMINAL_DATA_DIR=/var/mcp-terminal
+MCP_TERMINAL_MTLS_DIR=/etc/mcp-terminal/mtls_certificates
+
+# Container name and optional Docker network (e.g. smart-assistant for MCP proxy).
+MCP_TERMINAL_CONTAINER=mcp-terminal
+# MCP_TERMINAL_NETWORK=smart-assistant
+
+# Extra bind mounts (space-separated docker -v specs). Use the same host paths that
+# watch_dirs / project registry reference so sandbox containers can bind projects.
+# MCP_TERMINAL_EXTRA_BINDS=/home/projects:/home/projects
+
+# Pull sandbox worker images on manual recreate (install/upgrade always pulls).
+MCP_TERMINAL_PULL_SANDBOX_ON_RECREATE=1
+
+# Set to 0 to skip docker pull on manual recreate (package install/upgrade always pulls).
+MCP_TERMINAL_PULL_ON_RECREATE=1

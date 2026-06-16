@@ -96,12 +96,38 @@ def cmd_generate(args: argparse.Namespace) -> None:
 def cmd_validate(args: argparse.Namespace) -> None:
     """Validate a terminal config file and report errors."""
     path = Path(args.config)
-    config = json.loads(path.read_text(encoding="utf-8"))
+    text = path.read_text(encoding="utf-8")
+    from mcp_terminal.config.config_placeholders import assert_config_placeholders_resolved
+
+    try:
+        assert_config_placeholders_resolved(config_path=str(path), text=text)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    config = json.loads(text)
     errors = validate_terminal_config(config)
     if errors:
         for err in errors:
             print(f"ERROR [{err.field}]: {err.message}", file=sys.stderr)
         raise SystemExit(1)
+
+    from mcp_terminal.config.config_generator import generate_terminal_config
+
+    try:
+        merged = generate_terminal_config(config)
+    except ValueError as exc:
+        print(f"ERROR [generate_terminal_config]: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    from mcp_terminal.config.config_runtime_checks import assert_config_runtime_ready
+
+    try:
+        assert_config_runtime_ready(merged, config_path=path.resolve())
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
+
     print("Config is valid.")
 
 
@@ -125,7 +151,7 @@ def main() -> None:
         "--code-analysis-protocol",
         type=str,
         default=None,
-        choices=("http", "https"),
+        choices=("http", "https", "mtls"),
         help="code_analysis.protocol",
     )
     gen.add_argument("--code-analysis-host", type=str, default=None, help="code_analysis.host")

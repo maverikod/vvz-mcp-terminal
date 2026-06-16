@@ -1,5 +1,5 @@
 # Sandbox image profile: node_dev_20
-# Published as ghcr.io/mcp-terminal/node-dev:20
+# Published as <docker-user>/mcp-terminal-node-dev:20 (see docker/sandbox_images.sh)
 
 FROM node:20-bookworm-slim
 

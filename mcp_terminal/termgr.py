@@ -20,7 +20,7 @@ import ssl
 from pathlib import Path
 
 from mcp_terminal.cli_sessions_purge import add_purge_sessions_parser
-from mcp_terminal.paths import repo_root
+from mcp_terminal.paths import log_dir, mtls_dir, repo_root
 from mcp_terminal.config.config_cli import _collect_all_generate_kwargs, _optional_bool
 from mcp_terminal.config.create_config import (
     default_create_config_name,
@@ -35,11 +35,11 @@ from mcp_terminal.term_config import (
 
 
 def _pid_path() -> Path:
-    return repo_root() / "logs" / "term_server.pid"
+    return log_dir() / "term_server.pid"
 
 
 def _log_path() -> Path:
-    return repo_root() / "logs" / "term_server.log"
+    return log_dir() / "term_server.log"
 
 
 def _read_server_port(config_path: Path) -> int:
@@ -51,7 +51,7 @@ def _read_server_port(config_path: Path) -> int:
 
 
 def _ca_bundle_path() -> Path:
-    return repo_root() / "mtls_certificates" / "ca" / "ca.crt"
+    return mtls_dir() / "ca" / "ca.crt"
 
 
 def _is_pid_alive(pid: int) -> bool:

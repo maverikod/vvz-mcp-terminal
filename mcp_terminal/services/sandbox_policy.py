@@ -9,6 +9,7 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
@@ -138,10 +139,27 @@ class ImageAndCommandSpec:
     """First element of resolved_argv for audit logging; None for shell kind."""
 
 
+def _sandbox_image(env_name: str, default: str) -> str:
+    """Return sandbox image ref from env override or *default*."""
+    val = os.environ.get(env_name, "").strip()
+    return val if val else default
+
+
+_SANDBOX_REPO_USER = os.environ.get("MCP_TERMINAL_SANDBOX_REPO_USER", "vasilyvz")
+
 IMAGE_PROFILE_MAP: Dict[str, str] = {
-    "python_dev_3_12": "ghcr.io/mcp-terminal/python-dev:3.12",
-    "node_dev_20": "ghcr.io/mcp-terminal/node-dev:20",
-    "base_tools": "ghcr.io/mcp-terminal/base-tools:latest",
+    "python_dev_3_12": _sandbox_image(
+        "MCP_TERMINAL_SANDBOX_IMAGE_PYTHON_DEV_3_12",
+        f"{_SANDBOX_REPO_USER}/mcp-terminal-python-dev:3.12",
+    ),
+    "node_dev_20": _sandbox_image(
+        "MCP_TERMINAL_SANDBOX_IMAGE_NODE_DEV_20",
+        f"{_SANDBOX_REPO_USER}/mcp-terminal-node-dev:20",
+    ),
+    "base_tools": _sandbox_image(
+        "MCP_TERMINAL_SANDBOX_IMAGE_BASE_TOOLS",
+        f"{_SANDBOX_REPO_USER}/mcp-terminal-base-tools:latest",
+    ),
 }
 
 

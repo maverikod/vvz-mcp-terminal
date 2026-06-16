@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from mcp_terminal.config.tls_protocol import is_tls_protocol
+
 
 @dataclass
 class ValidationError:
@@ -255,6 +257,12 @@ def _validate_code_analysis(section: Any) -> List[ValidationError]:
     """Validate optional top-level ``code_analysis`` (Code Analysis Server client)."""
     errors: List[ValidationError] = []
     if section is None:
+        errors.append(
+            ValidationError(
+                field="code_analysis",
+                message="code_analysis section is required (casmgr session gate)",
+            )
+        )
         return errors
     if not isinstance(section, dict):
         errors.append(
@@ -276,25 +284,22 @@ def _validate_code_analysis(section: Any) -> List[ValidationError]:
         enabled = False
 
     proto = section.get("protocol", "https")
-    if proto is not None and str(proto).lower() not in ("http", "https"):
+    if proto is not None and str(proto).lower() not in ("http", "https", "mtls"):
         errors.append(
             ValidationError(
                 field="code_analysis.protocol",
-                message="code_analysis.protocol must be 'http' or 'https'",
+                message="code_analysis.protocol must be 'http', 'https', or 'mtls'",
             )
         )
 
     host = section.get("host")
-    if enabled:
-        if not isinstance(host, str) or not host.strip():
-            errors.append(
-                ValidationError(
-                    field="code_analysis.host",
-                    message=(
-                        "code_analysis.host is required and must be a non-empty string when enabled"
-                    ),
-                )
+    if not isinstance(host, str) or not host.strip():
+        errors.append(
+            ValidationError(
+                field="code_analysis.host",
+                message="code_analysis.host is required (casmgr session gate)",
             )
+        )
 
     port = section.get("port")
     if port is not None and (
@@ -306,11 +311,11 @@ def _validate_code_analysis(section: Any) -> List[ValidationError]:
                 message="code_analysis.port must be an integer in 1..65535",
             )
         )
-    if enabled and port is None:
+    if port is None:
         errors.append(
             ValidationError(
                 field="code_analysis.port",
-                message="code_analysis.port is required when enabled",
+                message="code_analysis.port is required",
             )
         )
 
@@ -336,11 +341,11 @@ def _validate_code_analysis(section: Any) -> List[ValidationError]:
                 message="code_analysis.timeout_seconds must be a positive number",
             )
         )
-    if enabled and timeout is None:
+    if timeout is None:
         errors.append(
             ValidationError(
                 field="code_analysis.timeout_seconds",
-                message="code_analysis.timeout_seconds is required when enabled",
+                message="code_analysis.timeout_seconds is required",
             )
         )
 
@@ -355,25 +360,26 @@ def _validate_code_analysis(section: Any) -> List[ValidationError]:
 
     proto_s = str(proto).lower() if proto is not None else "https"
     ssl_block = section.get("ssl")
-    if enabled and proto_s == "https":
+    if is_tls_protocol(proto_s):
         if not isinstance(ssl_block, dict):
             errors.append(
                 ValidationError(
                     field="code_analysis.ssl",
                     message=(
-                        "code_analysis.ssl object is required when enabled and protocol is https"
+                        "code_analysis.ssl object is required when protocol is https or mtls"
                     ),
                 )
             )
         else:
-            for key in ("cert", "key", "ca"):
+            required_ssl = ("cert", "key", "ca") if proto_s == "mtls" else ("cert", "key", "ca")
+            for key in required_ssl:
                 val = ssl_block.get(key)
                 if not isinstance(val, str) or not val.strip():
                     errors.append(
                         ValidationError(
                             field=f"code_analysis.ssl.{key}",
                             message=(
-                                f"code_analysis.ssl.{key} must be a non-empty string when enabled"
+                                f"code_analysis.ssl.{key} must be a non-empty string"
                             ),
                         )
                     )
@@ -398,8 +404,7 @@ def _validate_code_analysis(section: Any) -> List[ValidationError]:
                         )
                     )
     elif (
-        enabled
-        and proto_s == "http"
+        proto_s == "http"
         and ssl_block
         not in (
             None,

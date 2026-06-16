@@ -48,7 +48,7 @@ from mcp_terminal.commands.terminal_session_create_command import (
 from mcp_terminal.commands.terminal_sessions_command import TerminalSessionsCommand
 from mcp_terminal.commands.terminal_stat_command import TerminalStatCommand
 from mcp_terminal.commands.terminal_tail_command import TerminalTailCommand
-from mcp_terminal.paths import repo_root
+from mcp_terminal.paths import default_term_server_config_path
 from mcp_terminal.runtime_context import set_terminal_services
 from mcp_terminal.services.project_registry_refresh import (
     rebuild_project_registry,
@@ -71,7 +71,7 @@ _SESSION_STORE = SessionStore()
 def _install_project_registry(app_config: dict | None, config_path: Path | None) -> None:
     """Build ``ProjectRegistry`` from merged config + code-analysis anchor dirs."""
     path = (
-        config_path if config_path is not None else (repo_root() / "configs" / "term_server.json")
+        config_path if config_path is not None else default_term_server_config_path()
     )
     reg = rebuild_project_registry(app_config or {}, config_path=path)
     set_terminal_services(session_store=_SESSION_STORE, project_registry=reg)
@@ -132,7 +132,7 @@ def main() -> None:
     parser.add_argument(
         "--config",
         type=str,
-        default=str(repo_root() / "configs" / "term_server.json"),
+        default=str(default_term_server_config_path()),
         help="Path to SimpleConfig JSON (see mcp_terminal/term_server.defaults.json)",
     )
     args = parser.parse_args()
@@ -141,8 +141,16 @@ def main() -> None:
     if not cfg_path.is_file():
         _die(f"Configuration file not found: {cfg_path}")
 
+    cfg_text = cfg_path.read_text(encoding="utf-8")
+    from mcp_terminal.config.config_placeholders import assert_config_placeholders_resolved
+
     try:
-        app_config: dict = json.loads(cfg_path.read_text(encoding="utf-8"))
+        assert_config_placeholders_resolved(config_path=str(cfg_path), text=cfg_text)
+    except ValueError as exc:
+        _die(str(exc))
+
+    try:
+        app_config: dict = json.loads(cfg_text)
     except Exception as exc:  # noqa: BLE001
         _die(f"Failed to read configuration: {exc}")
 
@@ -155,6 +163,13 @@ def main() -> None:
 
     try:
         app_config = generate_terminal_config(app_config)
+    except ValueError as exc:
+        _die(str(exc))
+
+    from mcp_terminal.config.config_runtime_checks import assert_config_runtime_ready
+
+    try:
+        assert_config_runtime_ready(app_config, config_path=cfg_path)
     except ValueError as exc:
         _die(str(exc))
 

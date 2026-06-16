@@ -1,0 +1,268 @@
+#!/bin/bash
+set -u
+
+# shellcheck source=/dev/null
+[ -f /etc/default/mcp-terminal ] && . /etc/default/mcp-terminal
+
+MCP_TERMINAL_USER="${MCP_TERMINAL_USER:-mcp-terminal}"
+MCP_TERMINAL_GROUP="${MCP_TERMINAL_GROUP:-mcp-terminal}"
+CONFIG_DIR="${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}"
+LOG_DIR="${MCP_TERMINAL_LOG_DIR:-/var/log/mcp-terminal}"
+DATA_DIR="${MCP_TERMINAL_DATA_DIR:-/var/mcp-terminal}"
+MTLS_DIR="${MCP_TERMINAL_MTLS_DIR:-/etc/mcp-terminal/mtls_certificates}"
+DEFAULT_CONFIG="${CONFIG_DIR}/term_server.json"
+CONFIG_TEMPLATE="/usr/share/mcp-terminal/term_server.json.template"
+INSTALL_CONFIG="/usr/lib/mcp-terminal/install-server-config.sh"
+ENSURE_MTLS="/usr/lib/mcp-terminal/ensure-mtls-certificates.sh"
+DOCKER_RUN="/usr/lib/mcp-terminal/docker-run.sh"
+IMAGE_SPEC="/usr/lib/mcp-terminal/image-spec"
+PULL_SANDBOX="/usr/lib/mcp-terminal/pull-sandbox-images.sh"
+DEFAULT_FILE="/etc/default/mcp-terminal"
+
+ensure_user() {
+  # shellcheck source=/usr/lib/mcp-terminal/ensure-host-user.sh
+  . /usr/lib/mcp-terminal/ensure-host-user.sh
+  ensure_mcp_terminal_host_user
+}
+
+ensure_dirs() {
+  install -d -o root -g root -m 755 "$CONFIG_DIR"
+  install -d -o "$MCP_TERMINAL_USER" -g "$MCP_TERMINAL_GROUP" -m 755 "$LOG_DIR"
+  install -d -o "$MCP_TERMINAL_USER" -g "$MCP_TERMINAL_GROUP" -m 755 "$DATA_DIR"
+  install -d -o root -g root -m 755 "$MTLS_DIR"
+  install -d -o "$MCP_TERMINAL_USER" -g "$MCP_TERMINAL_GROUP" -m 755 /var/lib/mcp-terminal
+
+  if [ -x "$ENSURE_MTLS" ]; then
+    "$ENSURE_MTLS" "$MTLS_DIR" "$MCP_TERMINAL_GROUP" || true
+  fi
+
+  if [ -x "$INSTALL_CONFIG" ] && [ -f "$CONFIG_TEMPLATE" ]; then
+    "$INSTALL_CONFIG" "$CONFIG_DIR" "$CONFIG_TEMPLATE" "$MCP_TERMINAL_GROUP"
+  elif [ -f "$DEFAULT_CONFIG" ]; then
+    chown root:root "$DEFAULT_CONFIG"
+    chmod 644 "$DEFAULT_CONFIG"
+  fi
+}
+
+config_has_unresolved_placeholders() {
+  [ -f "$DEFAULT_CONFIG" ] || return 0
+  grep -qE 'CHANGE_ME|MCP_PROXY_HOST|REPLACE_ON_INSTALL|CODE_ANALYSIS_HOST|WATCH_DIRS_ROOT' \
+    "$DEFAULT_CONFIG" 2>/dev/null
+}
+
+mtls_ready() {
+  local cert
+  for cert in \
+    "${MTLS_DIR}/server/mcp-proxy.pem" \
+    "${MTLS_DIR}/ca/ca.crt" \
+    "${MTLS_DIR}/mtls_certificates/client/mcp-proxy.crt" \
+    "${MTLS_DIR}/mtls_certificates/client/mcp-proxy.key" \
+    "${MTLS_DIR}/mtls_certificates/ca/ca.crt"; do
+    if [ ! -f "$cert" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+config_ready_for_container() {
+  [ -f "$DEFAULT_CONFIG" ] || return 1
+  if config_has_unresolved_placeholders; then
+    return 1
+  fi
+  mtls_ready
+}
+
+upgrade_container_to_package_image() {
+  if [ ! -x "$DOCKER_RUN" ]; then
+    echo "[mcp-terminal-docker] docker-run.sh missing or not executable: $DOCKER_RUN" >&2
+    return 1
+  fi
+  if [ -x "$PULL_SANDBOX" ]; then
+    MCP_TERMINAL_PULL_SANDBOX_ON_RECREATE=1 "$PULL_SANDBOX" || true
+  fi
+  if ! "$DOCKER_RUN" recreate; then
+    echo "[mcp-terminal-docker] docker-run.sh recreate failed (see messages above)" >&2
+    return 1
+  fi
+  return 0
+}
+
+print_post_install_banner() {
+  local container_started="${1:-0}"
+  local config_pending=()
+  local cert missing_mtls=""
+  local image_ref="unknown"
+
+  if [ -f "$IMAGE_SPEC" ]; then
+    # shellcheck source=/dev/null
+    . "$IMAGE_SPEC"
+    image_ref="${DOCKERHUB_REPO:-?}:${IMAGE_TAG:-?}"
+  fi
+
+  if [ -f "$DEFAULT_CONFIG" ]; then
+    grep -q 'CHANGE_ME' "$DEFAULT_CONFIG" 2>/dev/null \
+      && config_pending+=("server.advertised_host (CHANGE_ME)")
+    grep -q 'MCP_PROXY_HOST' "$DEFAULT_CONFIG" 2>/dev/null \
+      && config_pending+=("registration URLs (MCP_PROXY_HOST)")
+    grep -q 'REPLACE_ON_INSTALL' "$DEFAULT_CONFIG" 2>/dev/null \
+      && config_pending+=("registration.instance_uuid (REPLACE_ON_INSTALL — run install-server-config or set UUID)")
+    grep -q 'CODE_ANALYSIS_HOST' "$DEFAULT_CONFIG" 2>/dev/null \
+      && config_pending+=("code_analysis.host (CODE_ANALYSIS_HOST — casmgr-server, port 15010 production / 15000 dev)")
+    grep -q 'WATCH_DIRS_ROOT' "$DEFAULT_CONFIG" 2>/dev/null \
+      && config_pending+=("watch_dirs.directories (WATCH_DIRS_ROOT — bind-mount via MCP_TERMINAL_EXTRA_BINDS)")
+    if grep -q '"watch_dirs"' "$DEFAULT_CONFIG" 2>/dev/null \
+      && grep -q '"directories"[[:space:]]*:[[:space:]]*\[\]' "$DEFAULT_CONFIG" 2>/dev/null; then
+      config_pending+=("watch_dirs.directories (empty — add project roots)")
+    fi
+  else
+    config_pending+=("missing ${DEFAULT_CONFIG}")
+  fi
+
+  if ! mtls_ready; then
+    for cert in \
+      server/mcp-proxy.pem \
+      ca/ca.crt \
+      mtls_certificates/client/mcp-proxy.crt \
+      mtls_certificates/client/mcp-proxy.key \
+      mtls_certificates/ca/ca.crt; do
+      [ -f "${MTLS_DIR}/${cert}" ] || missing_mtls="${missing_mtls} ${cert}"
+    done
+  fi
+
+  echo ""
+  echo "================================================================================"
+  echo "mcp-terminal-docker installed — configure before production use"
+  echo "================================================================================"
+  echo ""
+  echo "Paths:"
+  echo "  Config:   ${DEFAULT_CONFIG}"
+  echo "  Template: ${CONFIG_TEMPLATE}"
+  echo "  Host env: ${DEFAULT_FILE}"
+  echo "  mTLS:     ${MTLS_DIR}/"
+  echo "  Logs:     ${LOG_DIR}/"
+  echo "  Data:     ${DATA_DIR}/"
+  echo "  Image:    ${image_ref}"
+  echo "  Docs:     man mcp-terminal-docker   info mcp-terminal-docker"
+  echo ""
+  echo "1) mTLS certificates under ${MTLS_DIR}/:"
+  if [ -n "$missing_mtls" ]; then
+    echo "     MISSING:${missing_mtls}"
+    echo "     Run: sudo ${ENSURE_MTLS:-ensure-mtls-certificates.sh} ${MTLS_DIR} (or copy MCP bundle)."
+  else
+    echo "     OK: required server and client files present"
+  fi
+  echo ""
+  echo "2) Edit ${DEFAULT_CONFIG}:"
+  if [ "${#config_pending[@]}" -gt 0 ]; then
+    local item
+    for item in "${config_pending[@]}"; do
+      echo "     - ${item}"
+    done
+  else
+    echo "     - registration URLs, advertised_host, watch_dirs (review if not set yet)"
+  fi
+  echo "     - server.port default: 3011 (host publish: MCP_TERMINAL_PORT in ${DEFAULT_FILE})"
+  echo ""
+  echo "3) Project bind mounts (${DEFAULT_FILE}):"
+  if [ -z "${MCP_TERMINAL_EXTRA_BINDS:-}" ]; then
+    echo "     MCP_TERMINAL_EXTRA_BINDS is unset — add host paths for watch_dirs, e.g.:"
+    echo "       MCP_TERMINAL_EXTRA_BINDS=/home/you/projects:/home/you/projects"
+    echo "     Paths must exist on the host Docker daemon (same path inside service container)."
+  else
+    echo "     MCP_TERMINAL_EXTRA_BINDS=${MCP_TERMINAL_EXTRA_BINDS}"
+  fi
+  if [ -z "${MCP_TERMINAL_NETWORK:-}" ]; then
+    echo "     Optional: MCP_TERMINAL_NETWORK=smart-assistant (MCP proxy Docker network)"
+  else
+    echo "     Docker network: ${MCP_TERMINAL_NETWORK}"
+  fi
+  echo ""
+  if [ "$container_started" = "1" ]; then
+    echo "4) mcp-terminal-docker.service is running."
+    echo "     mcp-terminal-info"
+    echo "     sudo systemctl status mcp-terminal-docker"
+  else
+    echo "4) Start after steps 1–3:"
+    echo "     sudo mcp-terminal-docker recreate"
+    echo "     sudo systemctl start mcp-terminal-docker"
+    echo "     mcp-terminal-info"
+  fi
+  echo ""
+  echo "After config edits:"
+  echo "  sudo mcp-terminal-docker recreate"
+  echo "  sudo systemctl restart mcp-terminal-docker"
+  echo ""
+  echo "================================================================================"
+  echo ""
+}
+
+show_host_info() {
+  if command -v mcp-terminal-info >/dev/null 2>&1; then
+    mcp-terminal-info || true
+  fi
+}
+
+update_documentation_index() {
+  if command -v mandb >/dev/null 2>&1; then
+    mandb -q /usr/share/man 2>/dev/null || true
+  fi
+  if command -v install-info >/dev/null 2>&1 \
+    && [ -f /usr/share/info/mcp-terminal-docker.info ]; then
+    install-info --quiet /usr/share/info/mcp-terminal-docker.info /usr/share/info/dir \
+      2>/dev/null || true
+  fi
+}
+
+case "${1:-}" in
+  configure)
+    OLD_VERSION="${2:-}"
+    CONTAINER_STARTED=0
+    rm -f /var/lib/mcp-terminal/uninstall-image-ref
+    ensure_user
+    ensure_dirs
+    if [ -n "$OLD_VERSION" ]; then
+      NEW_TAG=""
+      if [ -f "$IMAGE_SPEC" ]; then
+        # shellcheck source=/dev/null
+        . "$IMAGE_SPEC"
+        NEW_TAG="${IMAGE_TAG:-}"
+      fi
+      echo "[mcp-terminal-docker] Upgrade ${OLD_VERSION} -> mcp-terminal-docker ${NEW_TAG:-unknown}"
+    else
+      echo "[mcp-terminal-docker] Initial install"
+    fi
+    systemctl daemon-reload
+    systemctl enable mcp-terminal-docker.service 2>/dev/null || true
+    systemctl enable mcp-terminal-docker-recreate.service 2>/dev/null || true
+    if config_ready_for_container; then
+      if upgrade_container_to_package_image \
+        && systemctl start mcp-terminal-docker.service 2>/dev/null; then
+        CONTAINER_STARTED=1
+      fi
+    else
+      echo "[mcp-terminal-docker] Skipping container start until placeholders, mTLS, and config are ready"
+      if command -v docker >/dev/null 2>&1; then
+        if [ -x "$PULL_SANDBOX" ]; then
+          MCP_TERMINAL_PULL_SANDBOX_ON_RECREATE=1 "$PULL_SANDBOX" || true
+        fi
+        if [ -x "$DOCKER_RUN" ]; then
+          "$DOCKER_RUN" pull 2>/dev/null || true
+        fi
+      fi
+    fi
+    update_documentation_index
+    print_post_install_banner "$CONTAINER_STARTED"
+    if [ "$CONTAINER_STARTED" = "1" ]; then
+      show_host_info
+    fi
+    ;;
+  abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+  *)
+    echo "postinst called with unknown argument: ${1:-}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

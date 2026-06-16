@@ -1,5 +1,5 @@
 # Sandbox image profile: base_tools
-# Published as ghcr.io/mcp-terminal/base-tools:latest
+# Published as <docker-user>/mcp-terminal-base-tools:latest (see docker/sandbox_images.sh)
 
 FROM debian:bookworm-slim
 

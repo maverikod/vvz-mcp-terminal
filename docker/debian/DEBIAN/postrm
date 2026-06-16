@@ -1,0 +1,64 @@
+#!/bin/bash
+set -u
+
+# shellcheck source=/dev/null
+[ -f /etc/default/mcp-terminal ] && . /etc/default/mcp-terminal
+MCP_TERMINAL_CONTAINER="${MCP_TERMINAL_CONTAINER:-mcp-terminal}"
+MCP_TERMINAL_STATE_DIR="/var/lib/mcp-terminal"
+MCP_TERMINAL_IMAGE_REF_FILE="${MCP_TERMINAL_STATE_DIR}/uninstall-image-ref"
+
+mcp_terminal_cleanup_stop_service() {
+  systemctl stop mcp-terminal-docker.service 2>/dev/null || true
+  systemctl disable mcp-terminal-docker.service 2>/dev/null || true
+  systemctl stop mcp-terminal-docker-recreate.service 2>/dev/null || true
+  systemctl disable mcp-terminal-docker-recreate.service 2>/dev/null || true
+  systemctl reset-failed mcp-terminal-docker.service 2>/dev/null || true
+}
+
+mcp_terminal_cleanup_remove_container() {
+  if command -v docker >/dev/null 2>&1; then
+    docker rm -f "${MCP_TERMINAL_CONTAINER}" 2>/dev/null || true
+  fi
+}
+
+mcp_terminal_cleanup_remove_images() {
+  local image_ref=""
+  if ! command -v docker >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ -f "$MCP_TERMINAL_IMAGE_REF_FILE" ]; then
+    image_ref="$(tr -d '[:space:]' <"$MCP_TERMINAL_IMAGE_REF_FILE")"
+    rm -f "$MCP_TERMINAL_IMAGE_REF_FILE"
+    if [ -n "$image_ref" ]; then
+      echo "[mcp-terminal-docker] Removing Docker image ${image_ref} ..."
+      docker rmi -f "$image_ref" 2>/dev/null || true
+    fi
+  fi
+}
+
+unregister_info_doc() {
+  if command -v install-info >/dev/null 2>&1; then
+    install-info --quiet --remove /usr/share/info/mcp-terminal-docker.info /usr/share/info/dir \
+      2>/dev/null || true
+  fi
+}
+
+case "${1:-}" in
+  purge)
+    mcp_terminal_cleanup_stop_service
+    mcp_terminal_cleanup_remove_container
+    mcp_terminal_cleanup_remove_images
+    unregister_info_doc
+    rm -rf "$MCP_TERMINAL_STATE_DIR" 2>/dev/null || true
+    ;;
+  remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    unregister_info_doc
+    ;;
+  *)
+    echo "postrm called with unknown argument: ${1:-}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

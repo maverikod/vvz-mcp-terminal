@@ -1,0 +1,90 @@
+.TH MCP-TERMINAL-DOCKER 1 "@VERSION@" "mcp-terminal-docker" "User Commands"
+.SH NAME
+mcp-terminal-docker \- control the MCP Terminal Docker container on the host
+.SH SYNOPSIS
+.B mcp-terminal-docker
+.I command
+.SH DESCRIPTION
+.B mcp-terminal-docker
+manages the \fBmcp-terminal\fR container and the \fBmcp-terminal-docker.service\fR
+systemd unit.
+.PP
+Service JSON configuration:
+.BR mcp-terminal-config (5)
+(or
+.BR "man 5 mcp-terminal-config" ).
+.PP
+The package pulls a versioned service image from Docker Hub, pulls sandbox worker
+images (\fBpython-dev\fR, \fBnode-dev\fR, \fBbase-tools\fR), bind-mounts host
+configuration and data directories, mounts the host Docker socket so the service
+can spawn sandbox session containers, and starts the MCP Terminal HTTPS server
+on port 3011 by default.
+.PP
+On \fBdpkg -i\fR / \fBapt install\fR / \fBapt upgrade\fR, maintainer scripts
+automatically \fBdocker pull\fR the image tag from \fB/usr/lib/mcp-terminal/image-spec\fR,
+pull sandbox images, and recreate the container so the running service matches
+the installed package version.
+.PP
+Host log and data directories are owned by \fBmcp-terminal:mcp-terminal\fR
+(see \fB/etc/default/mcp-terminal\fR). The service container runs with access
+to \fB/var/run/docker.sock\fR to orchestrate sandbox containers on the host.
+.SH COMMANDS
+.TP
+.B start
+Start the systemd service (\fBsystemctl start mcp-terminal-docker.service\fR).
+.TP
+.B stop
+Stop the systemd service.
+.TP
+.B restart
+Restart the existing container instance without recreating it.
+.TP
+.B recreate
+Stop, remove, and create the container. Use after changes to
+\fB/etc/default/mcp-terminal\fR, \fB/etc/mcp-terminal/term_server.json\fR, TLS
+certificates, extra project bind mounts, or Docker network settings. Pulls the
+package service image and sandbox images before recreate unless disabled in
+\fB/etc/default/mcp-terminal\fR.
+.TP
+.B status
+Show systemd unit status and \fBmcp-terminal-info\fR output.
+.TP
+.B info
+Show host paths, Docker image tag, and container state.
+.TP
+.B help
+Print usage (\fB\-h\fR, \fB\-\-help\fR).
+.SH PURGE
+On \fBapt purge mcp-terminal-docker\fR, maintainer scripts stop systemd, remove the
+container, and remove the saved Docker service image using
+\fB/usr/lib/mcp-terminal/image-spec\fR.
+.SH FILES
+.TP
+.B /etc/default/mcp-terminal
+Host-visible settings (port, paths, networks, extra bind mounts).
+.TP
+.B /etc/mcp-terminal/term_server.json
+Service configuration bind-mounted read-only into the container.
+.TP
+.B /var/log/mcp-terminal
+Application logs.
+.TP
+.B /var/mcp-terminal
+Application data (session metadata, caches).
+.TP
+.B /etc/mcp-terminal/mtls_certificates
+TLS certificates for HTTPS and MCP proxy registration.
+.TP
+.B /usr/lib/mcp-terminal/image-spec
+Docker service image repository and tag baked at package build time.
+.TP
+.B /usr/lib/mcp-terminal/sandbox-images-spec
+Sandbox worker image references pulled on install/upgrade.
+.SH SEE ALSO
+.BR mcp-terminal-config (5),
+.BR mcp-terminal-info (1),
+.BR info (1),
+.BR docker (1),
+.BR systemctl (1)
+.SH AUTHOR
+Vasiliy Zdanovskiy <vasilyvz@gmail.com>

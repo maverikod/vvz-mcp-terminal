@@ -7,13 +7,19 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
+import logging
 from typing import Any, ClassVar, Dict, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
+from mcp_proxy_adapter.config import get_config
 
+from mcp_terminal.code_analysis_rpc import CodeAnalysisRpcError
+from mcp_terminal.code_analysis_sessions import subordinate_session_delete_sync
 from mcp_terminal.commands.terminal_delete_metadata import get_terminal_delete_metadata
 from mcp_terminal.runtime_context import get_session_store, registry_resolve_project
 from mcp_terminal.services.session_ids import validate_uuid4_field
+
+_logger = logging.getLogger(__name__)
 
 
 class TerminalDeleteCommand(Command):
@@ -74,6 +80,22 @@ class TerminalDeleteCommand(Command):
             return CommandResult(success=False, error="SESSION_RUNNING")
         if not ok:
             return CommandResult(success=False, error="INVALID_SESSION")
+
+        app_config = getattr(get_config(), "config_data", None)
+        if isinstance(app_config, dict):
+            try:
+                subordinate_session_delete_sync(app_config, parent_session_id=session_id)
+            except CodeAnalysisRpcError as exc:
+                _logger.warning(
+                    "subordinate_session_delete failed after local delete: %s",
+                    exc,
+                )
+            except ValueError as exc:
+                _logger.warning(
+                    "subordinate_session_delete skipped (config): %s",
+                    exc,
+                )
+
         return CommandResult(
             success=True,
             data={"deleted": True, "session_id": session_id, "project_id": project_id},

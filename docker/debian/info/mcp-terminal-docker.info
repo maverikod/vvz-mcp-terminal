@@ -1,0 +1,200 @@
+This is mcp-terminal-docker.info, produced by makeinfo version 7.2 from
+stdin.
+
+Copyright © 2026 Vasiliy Zdanovskiy
+
+     Permission is granted to copy, distribute and/or modify this
+     document under the terms of the GNU Free Documentation License,
+     Version 1.3.
+INFO-DIR-SECTION Individual utilities
+START-INFO-DIR-ENTRY
+* mcp-terminal-docker: (mcp-terminal-docker). MCP Terminal Docker host integration
+* mcp-terminal-config: (mcp-terminal-docker)Configuration. JSON configuration reference
+END-INFO-DIR-ENTRY
+
+
+File: mcp-terminal-docker.info,  Node: Top,  Next: Overview,  Up: (dir)
+
+MCP Terminal Docker Integration
+*******************************
+
+This manual describes the ‘mcp-terminal-docker’ Debian package (version
+0.1.0), which installs host integration for the MCP Terminal HTTPS
+service running in Docker.
+
+* Menu:
+
+* Overview::                    What the package installs
+* Commands::                    mcp-terminal-docker and mcp-terminal-info
+* Configuration::               Host paths and JSON config
+* Service::                     systemd and container lifecycle
+* Sandbox::                     Worker images and project paths
+* Install::                     Installing on a clean host
+* Uninstall::                  remove and purge behavior
+
+
+File: mcp-terminal-docker.info,  Node: Overview,  Next: Commands,  Prev: Top,  Up: Top
+
+1 Overview
+**********
+
+The package:
+
+   • pulls the matching service image from Docker Hub on install or
+     upgrade;
+   • pulls sandbox worker images (‘python-dev’, ‘node-dev’,
+     ‘base-tools’);
+   • creates host user ‘mcp-terminal’ for log and data directory
+     ownership;
+   • starts container ‘mcp-terminal’ publishing host port 3011 by
+     default;
+   • mounts ‘/var/run/docker.sock’ so the service can spawn sandbox
+     containers;
+   • registers ‘man’ and ‘info’ documentation.
+
+   Host log and data directories are owned by
+‘mcp-terminal:mcp-terminal’.
+
+
+File: mcp-terminal-docker.info,  Node: Commands,  Next: Configuration,  Prev: Overview,  Up: Top
+
+2 Commands
+**********
+
+ -- Command: mcp-terminal-docker COMMAND
+
+‘start’
+     Start ‘mcp-terminal-docker.service’.
+‘stop’
+     Stop the service and container.
+‘restart’
+     Restart the same container instance.
+‘recreate’
+     Remove and recreate the container (after config, certificate, or
+     bind-mount changes).
+‘status’
+     Show systemd and container status.
+‘info’
+     Same summary as ‘mcp-terminal-info’.
+
+ -- Command: mcp-terminal-info
+     Print host integration summary (port, paths, image tag, container
+     state).
+
+   See also ‘man mcp-terminal-docker’, ‘man mcp-terminal-info’, and ‘man
+mcp-terminal-config’ (JSON schema and field dependencies).
+
+
+File: mcp-terminal-docker.info,  Node: Configuration,  Next: Service,  Prev: Commands,  Up: Top
+
+3 Configuration
+***************
+
+*Service JSON* (main settings): ‘/etc/mcp-terminal/term_server.json’.
+Full reference: ‘man mcp-terminal-config’.
+
+‘/etc/default/mcp-terminal’
+     Host Docker settings: port, paths, optional network, extra project
+     bind mounts.
+‘/etc/mcp-terminal/term_server.json’
+     Service configuration (conffile).  Container path:
+     ‘/etc/mcp-terminal/term_server.json’.  Seed:
+     ‘/usr/share/mcp-terminal/term_server.json’.
+‘/var/log/mcp-terminal’
+     Application logs (owned by ‘mcp-terminal’).
+‘/var/mcp-terminal’
+     Application data and caches.
+‘/etc/mcp-terminal/mtls_certificates’
+     TLS certificates; use absolute ‘/etc/mcp-terminal/...’ paths inside
+     JSON.
+
+   Validate before recreate:
+
+     python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_server.json
+
+   Key JSON sections: ‘server’, ‘registration’, ‘queue_manager’,
+‘watch_dirs’, ‘terminal’, ‘code_analysis’.  Set ‘server.log_dir’ to
+‘/var/log/mcp-terminal’ and ‘server.host’ to ‘0.0.0.0’ in production.
+
+
+File: mcp-terminal-docker.info,  Node: Service,  Next: Sandbox,  Prev: Configuration,  Up: Top
+
+4 Service
+*********
+
+     sudo systemctl start mcp-terminal-docker
+     sudo systemctl stop mcp-terminal-docker
+     sudo mcp-terminal-docker recreate
+
+   After configuration changes, run ‘mcp-terminal-docker recreate’ or
+‘systemctl start mcp-terminal-docker-recreate.service’.
+
+   The container mounts the host Docker socket.  Sandbox session
+containers are created on the host by the service process inside the
+container.
+
+
+File: mcp-terminal-docker.info,  Node: Sandbox,  Next: Install,  Prev: Service,  Up: Top
+
+5 Sandbox worker images and project paths
+*****************************************
+
+Sandbox images are listed in ‘/usr/lib/mcp-terminal/sandbox-images-spec’
+(default registry ‘ghcr.io/mcp-terminal’).
+
+   Project directories referenced in ‘watch_dirs’ must exist on the host
+filesystem where the Docker daemon runs.  Bind-mount the same paths into
+the service container using ‘MCP_TERMINAL_EXTRA_BINDS’ in
+‘/etc/default/mcp-terminal’, for example:
+
+     MCP_TERMINAL_EXTRA_BINDS=/home/projects:/home/projects
+
+
+File: mcp-terminal-docker.info,  Node: Install,  Next: Uninstall,  Prev: Sandbox,  Up: Top
+
+6 Install
+*********
+
+On a clean Debian/Ubuntu host:
+
+     sudo dpkg -i mcp-terminal-docker_0.1.0_amd64.deb
+     sudo apt -f install
+     mcp-terminal-info
+
+   ‘apt -f install’ resolves package dependencies including ‘docker.io’.
+
+   Place TLS material under ‘/etc/mcp-terminal/mtls_certificates/’
+before first start if registration uses HTTPS.
+
+
+File: mcp-terminal-docker.info,  Node: Uninstall,  Prev: Install,  Up: Top
+
+7 Uninstall
+***********
+
+     sudo apt remove mcp-terminal-docker
+     sudo apt purge mcp-terminal-docker
+
+   On ‘apt purge’, maintainer scripts stop systemd, remove the
+container, and remove the saved service Docker image using
+‘/usr/lib/mcp-terminal/image-spec’ and/or a saved ref under
+‘/var/lib/mcp-terminal/’.
+
+
+Tag Table:
+Node: Top521
+Node: Overview1277
+Node: Commands1984
+Ref: mcp-terminal-docker-command2148
+Node: Configuration2794
+Node: Service4013
+Node: Sandbox4544
+Node: Install5166
+Node: Uninstall5617
+
+End Tag Table
+
+
+Local Variables:
+coding: utf-8
+End:

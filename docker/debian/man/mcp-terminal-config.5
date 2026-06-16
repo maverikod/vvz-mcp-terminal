@@ -1,0 +1,177 @@
+.\" Author: Vasiliy Zdanovskiy <vasilyvz@gmail.com>
+.TH MCP-TERMINAL-CONFIG 5 "@VERSION@" "mcp-terminal-docker" "File Formats"
+.SH NAME
+mcp-terminal-config \- MCP Terminal term server JSON configuration
+.SH DESCRIPTION
+The MCP Terminal service reads a single JSON file in SimpleConfig shape
+(compatible with \fBmcp-proxy-adapter\fR). On a production host installed via
+the \fBmcp-terminal-docker\fR package the active file is:
+.PP
+.RS
+.B /etc/mcp-terminal/term_server.json
+.RE
+.PP
+It is a \fIconffile\fR: package upgrades do not overwrite an existing file.
+The seed template is also shipped as
+.IR /usr/share/mcp-terminal/term_server.json .
+.PP
+Inside the Docker container the same file is mounted read-only at
+.IR /etc/mcp-terminal/term_server.json .
+.PP
+Validate syntax and cross-field rules before restart (inside the container or
+dev venv with \fBmcp-terminal\fR installed):
+.PP
+.RS
+.EX
+python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_server.json
+.EE
+.RE
+.PP
+After edits: \fBsudo mcp-terminal-docker recreate\fR.
+.SH PRODUCTION PLACEHOLDERS
+On first install the package seeds \fB/etc/mcp-terminal/term_server.json\fR from
+\fB/usr/share/mcp-terminal/term_server.json.template\fR with placeholders that
+must be replaced before the service starts (same convention as casmgr-server):
+.TP
+.B CHANGE_ME
+\fBserver.advertised_host\fR — this host's IP or DNS name for MCP proxy registration.
+.TP
+.B MCP_PROXY_HOST
+\fBregistration.register_url\fR, \fBunregister_url\fR, \fBheartbeat.url\fR — MCP proxy hostname/IP.
+.TP
+.B REPLACE_ON_INSTALL
+\fBregistration.instance_uuid\fR — replaced with a new UUID4 on first install by
+\fBinstall-server-config.sh\fR.
+.TP
+.B CODE_ANALYSIS_HOST
+\fBcode_analysis.host\fR when \fBcode_analysis.enabled\fR is true — hostname or IP of
+\fBcasmgr-server\fR (production package port \fB15010\fR; dev checkout \fB15000\fR).
+.TP
+.B WATCH_DIRS_ROOT
+\fBwatch_dirs.directories\fR — parent directory whose subdirectories are project roots.
+Must be bind-mounted into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR
+in \fI/etc/default/mcp-terminal\fR (same host path inside the container).
+.PP
+The service and \fBmcp-terminal-docker.service\fR will not start while any placeholder
+remains. After edits: \fBsudo mcp-terminal-docker recreate\fR.
+.SH EXECUTION MODES
+Two command paths share sessions and shell state but differ in where processes run:
+.TP
+.B terminal_run
+Container/sandbox execution. Uses \fBruntime\fR (image profile, network, limits) and
+spawns per-session Docker containers on the host daemon (via mounted \fBdocker.sock\fR).
+.TP
+.B terminal_run_host
+Host execution. Uses \fBterminal.host_execution\fR (\fBenabled\fR plus
+\fBallowed_commands\fR allowlist). Commands run directly on the host filesystem
+outside session containers — use only when sandbox isolation is not required.
+.PP
+Configure both sections in production; disable \fBhost_execution.enabled\fR or empty
+the allowlist to reject all host-side runs.
+.SH PRODUCTION PATHS
+.TP
+.B Configuration
+.RS
+/etc/mcp-terminal/term_server.json
+.RE
+.TP
+.B TLS certificates (server HTTPS)
+.RS
+/etc/mcp-terminal/mtls_certificates/
+.br
+In JSON use absolute container paths, e.g.
+.BR /etc/mcp-terminal/mtls_certificates/server/mcp-proxy.pem
+for server cert/key and
+.BR /etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt
+for outbound client TLS to the MCP proxy.
+.RE
+.TP
+.B Logs
+.RS
+Host: \fB/var/log/mcp-terminal/\fR → container \fB/var/log/mcp-terminal\fR
+.br
+Set \fBserver.log_dir\fR to \fB/var/log/mcp-terminal\fR in JSON.
+.RE
+.TP
+.B Data
+.RS
+Host: \fB/var/mcp-terminal/\fR → container \fB/var/mcp-terminal\fR
+.RE
+.SH TOP-LEVEL SECTIONS
+.TP
+.B server
+(required) Listen address (\fB0.0.0.0\fR inside container), port (\fB3011\fR),
+\fBadvertised_host\fR (IP or hostname registered with MCP proxy), \fBprotocol\fR
+(\fBhttps\fR in production), \fBservername\fR (TLS SNI), \fBlog_dir\fR.
+.TP
+.B registration
+Proxy registration. When \fBenabled\fR is true, set \fBregister_url\fR,
+\fBunregister_url\fR, \fBheartbeat.url\fR, \fBserver_id\fR, \fBserver_name\fR.
+Use \fBregistration.ssl\fR for outbound TLS to the proxy.
+.TP
+.B queue_manager
+Job queue for terminal commands (\fBenabled\fR, \fBmax_concurrent_jobs\fR, etc.).
+.TP
+.B watch_dirs
+Project registry refresh: \fBdirectories\fR (host paths that must be bind-mounted
+into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR in
+.IR /etc/default/mcp-terminal ),
+\fBrefresh_interval_seconds\fR.
+.TP
+.B terminal
+Terminal domain: session TTL, output limits, cleanup, admin flags, and
+\fBhost_execution\fR (allowlist for \fBterminal_run_host\fR).
+.TP
+.B runtime
+Sandbox defaults for \fBterminal_run\fR: image profile, network mode, timeouts,
+resource limits, concurrent run cap.
+.TP
+.B code_analysis
+Client to \fBcasmgr-server\fR for project registry refresh via \fBwatch_dirs\fR.
+When \fBenabled\fR is true, set \fBhost\fR and \fBport\fR (production \fB15010\fR).
+.SH SANDBOX IMAGES
+Session containers use pre-published worker images on Docker Hub (default
+\fB<user>/mcp-terminal-python-dev:3.12\fR, \fB<user>/mcp-terminal-node-dev:20\fR,
+\fB<user>/mcp-terminal-base-tools:latest\fR). The package pulls these on install/upgrade; paths in
+project registry must exist on the \fBhost\fR Docker daemon (bind-mount the same
+paths into the service container).
+.SH EXAMPLE (PRODUCTION FRAGMENTS)
+.nf
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3011,
+    "protocol": "https",
+    "log_dir": "/var/log/mcp-terminal",
+    "advertised_host": "192.168.1.10"
+  },
+  "registration": {
+    "enabled": true,
+    "register_url": "https://PROXY:3004/register",
+    "server_id": "mcp-terminal"
+  },
+  "watch_dirs": {
+    "directories": ["/home/projects"],
+    "refresh_interval_seconds": 60
+  },
+  "queue_manager": { "enabled": true, "max_concurrent_jobs": 10 }
+}
+.fi
+.SH FILES
+.TP
+.B /etc/mcp-terminal/term_server.json
+Active configuration (conffile).
+.TP
+.B /etc/default/mcp-terminal
+Host Docker settings (port, paths, networks, extra binds); not the service JSON.
+.TP
+.B /usr/share/mcp-terminal/term_server.json.template
+Package seed template (placeholders CHANGE_ME, MCP_PROXY_HOST, CODE_ANALYSIS_HOST,
+WATCH_DIRS_ROOT).
+.SH SEE ALSO
+.BR mcp-terminal-docker (1),
+.BR mcp-terminal-info (1),
+.BR info (1) \fBmcp-terminal-docker\fR,
+.BR docker (1)
+.SH AUTHOR
+Vasiliy Zdanovskiy <vasilyvz@gmail.com>

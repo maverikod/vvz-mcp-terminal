@@ -1,0 +1,4 @@
+# Baked at package build time — sandbox worker images pulled on install/upgrade.
+SANDBOX_IMAGE_python_dev_3_12=@SANDBOX_IMAGE_PYTHON_DEV@
+SANDBOX_IMAGE_node_dev_20=@SANDBOX_IMAGE_NODE_DEV@
+SANDBOX_IMAGE_base_tools=@SANDBOX_IMAGE_BASE_TOOLS@

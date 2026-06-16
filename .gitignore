@@ -95,6 +95,7 @@ adapter-examples/
 mtls_certificates/
 certs/
 docker/data/
+docker/dist/
 
 # --- Generated local term server SimpleConfig ---
 configs/term_server.json
@@ -103,3 +104,4 @@ old_code//.mcp_terminal/
 .mcp_terminal/
 .trees/
 old_code/
+*.tree

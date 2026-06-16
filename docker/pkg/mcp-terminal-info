@@ -1,0 +1,59 @@
+#!/bin/bash
+# Display host-visible mcp-terminal user, port, image, and container status.
+set -e
+
+# shellcheck source=/dev/null
+[ -f /etc/default/mcp-terminal ] && . /etc/default/mcp-terminal
+
+MCP_TERMINAL_USER="${MCP_TERMINAL_USER:-mcp-terminal}"
+MCP_TERMINAL_GROUP="${MCP_TERMINAL_GROUP:-mcp-terminal}"
+PORT="${MCP_TERMINAL_PORT:-3011}"
+CONTAINER="${MCP_TERMINAL_CONTAINER:-mcp-terminal}"
+CONFIG_DIR="${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}"
+LOG_DIR="${MCP_TERMINAL_LOG_DIR:-/var/log/mcp-terminal}"
+DATA_DIR="${MCP_TERMINAL_DATA_DIR:-/var/mcp-terminal}"
+IMAGE_SPEC="/usr/lib/mcp-terminal/image-spec"
+
+if [ -f "$IMAGE_SPEC" ]; then
+  # shellcheck source=/dev/null
+  . "$IMAGE_SPEC"
+fi
+IMAGE="${DOCKERHUB_REPO:-unknown}:${IMAGE_TAG:-unknown}"
+
+uid=""
+gid=""
+if getent passwd "$MCP_TERMINAL_USER" >/dev/null 2>&1; then
+  uid="$(id -u "$MCP_TERMINAL_USER")"
+  gid="$(id -g "$MCP_TERMINAL_GROUP" 2>/dev/null || id -g "$MCP_TERMINAL_USER")"
+fi
+
+echo "MCP Terminal (mcp-terminal-docker)"
+echo "  system user: ${MCP_TERMINAL_USER}:${MCP_TERMINAL_GROUP} (uid=${uid:-n/a}, gid=${gid:-n/a})"
+echo "  host port:   ${PORT} -> container 3011"
+echo "  config file: ${CONFIG_DIR}/term_server.json"
+echo "  log dir:     ${LOG_DIR}"
+echo "  data dir:    ${DATA_DIR}"
+echo "  docker image: ${IMAGE}"
+
+if command -v docker >/dev/null 2>&1; then
+  if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+    state="$(docker inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null || echo unknown)"
+    published="$(docker port "$CONTAINER" 3011/tcp 2>/dev/null | head -1 || true)"
+    echo "  container:   ${CONTAINER} (${state})"
+    if [ -n "$published" ]; then
+      echo "  published:   ${published}"
+    fi
+  else
+    echo "  container:   ${CONTAINER} (not created)"
+  fi
+else
+  echo "  container:   docker CLI not available"
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  if systemctl is-active mcp-terminal-docker.service >/dev/null 2>&1; then
+    echo "  systemd:     mcp-terminal-docker.service active"
+  else
+    echo "  systemd:     mcp-terminal-docker.service inactive"
+  fi
+fi

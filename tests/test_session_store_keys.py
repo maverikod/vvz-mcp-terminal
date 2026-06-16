@@ -4,11 +4,27 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.errors import ErrorCode
 from mcp_terminal.runtime_context import set_terminal_services
 from mcp_terminal.services.session_ids import validate_uuid4_field
 from mcp_terminal.services.session_store import SessionStore
+
+
+def _mock_casmgr_gate() -> patch:
+    config = MagicMock()
+    config.config_data = {
+        "code_analysis": {"host": "127.0.0.1", "port": 15000},
+        "registration": {"instance_uuid": "00000000-0000-4000-8000-000000000099"},
+    }
+    return patch.multiple(
+        "mcp_terminal.commands.session_resolve",
+        get_config=MagicMock(return_value=config),
+        session_validate_sync=MagicMock(return_value={}),
+        subordinate_session_get_sync=MagicMock(return_value={"linked": True}),
+    )
 
 
 def test_ensure_session_composite_key_and_single_writer(tmp_path: Path) -> None:
@@ -63,10 +79,11 @@ def test_resolve_session_requires_pair(tmp_path: Path) -> None:
         session_id=session_id,
         project_dir=tmp_path,
     )
-    rec, err = resolve_session(project_id, session_id)
-    assert err is None and rec is not None
-    _, missing = resolve_session(project_id, "00000000-0000-4000-8000-000000000099")
-    assert missing == "INVALID_SESSION"
+    with _mock_casmgr_gate():
+        rec, err = resolve_session(project_id, session_id)
+        assert err is None and rec is not None
+        _, missing = resolve_session(project_id, "00000000-0000-4000-8000-000000000099")
+        assert missing == ErrorCode.INVALID_SESSION
 
 
 def test_second_workspace_writer_rejected_with_holder_id(tmp_path: Path) -> None:

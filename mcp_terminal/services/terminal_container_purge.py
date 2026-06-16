@@ -18,6 +18,9 @@ _SESSION_LABEL_VALUE = "true"
 _SESSION_NAME_PREFIX = "mcp-term-"
 _IMAGE_PREFIXES = (
     "mcp-terminal:pid-",
+    "mcp-terminal-python-dev:",
+    "mcp-terminal-node-dev:",
+    "mcp-terminal-base-tools:",
     "ghcr.io/mcp-terminal/",
 )
 _STOCK_IMAGES = frozenset(IMAGE_PROFILE_MAP.values())

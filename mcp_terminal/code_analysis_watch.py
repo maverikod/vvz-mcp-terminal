@@ -12,61 +12,16 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import Any, Dict, List
 
 from mcp_proxy_adapter.client.jsonrpc_client.exceptions import ClientError
 
-from code_analysis_client import CodeAnalysisAsyncClient
-
-
-def term_code_analysis_to_server_config(section: Dict[str, Any]) -> Dict[str, Any]:
-    """Shape ``term_server.json`` ``code_analysis`` like code-analysis ``server`` config."""
-    ssl_block = section.get("ssl")
-    server: Dict[str, Any] = {
-        "host": str(section.get("host", "127.0.0.1")).strip(),
-        "port": int(section.get("port", 15000)),
-        "protocol": str(section.get("protocol", "https")).lower(),
-    }
-    if isinstance(ssl_block, dict) and ssl_block:
-        server["ssl"] = ssl_block
-    return {"server": server}
-
-
-def _run_coro_sync(coro: Any) -> Any:
-    """Run ``async`` coroutine from sync code (refresh thread / startup)."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+from mcp_terminal.code_analysis_rpc import call_code_analysis_async, run_coro_sync
 
 
 async def _list_watch_dirs_async(section: Dict[str, Any]) -> List[Dict[str, Any]]:
-    wrapped = term_code_analysis_to_server_config(section)
-    ssl_block = section.get("ssl")
-    check_hostname = False
-    if isinstance(ssl_block, dict):
-        check_hostname = bool(ssl_block.get("check_hostname", ssl_block.get("dnscheck", False)))
-    timeout = float(section.get("timeout_seconds", 30) or 30)
-    client = CodeAnalysisAsyncClient.from_server_config(
-        wrapped,
-        timeout=timeout,
-        check_hostname=check_hostname,
-    )
-    try:
-        inner = await client.call("list_watch_dirs", {})
-    finally:
-        await client.close()
-
-    if not isinstance(inner, dict) or not inner.get("success"):
-        raise ValueError(f"list_watch_dirs failed: {inner!r}")
-    data = inner.get("data") or {}
+    data = await call_code_analysis_async(section, "list_watch_dirs", {})
     watch_dirs = data.get("watch_dirs")
     if not isinstance(watch_dirs, list):
         raise ValueError("list_watch_dirs: missing data.watch_dirs list")
@@ -91,7 +46,7 @@ def list_watch_dirs_sync(section: Dict[str, Any], *, config_path: Path) -> List[
     """
     _ = config_path
     try:
-        return _run_coro_sync(_list_watch_dirs_async(section))
+        return run_coro_sync(_list_watch_dirs_async(section))
     except ClientError as exc:
         raise ValueError(f"code_analysis list_watch_dirs: {exc}") from exc
     except Exception as exc:
