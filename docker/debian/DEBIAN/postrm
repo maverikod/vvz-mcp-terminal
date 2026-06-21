@@ -50,6 +50,7 @@ case "${1:-}" in
     mcp_terminal_cleanup_remove_container
     mcp_terminal_cleanup_remove_images
     unregister_info_doc
+    rm -f /etc/sudoers.d/mcp-terminal 2>/dev/null || true
     rm -rf "$MCP_TERMINAL_STATE_DIR" 2>/dev/null || true
     ;;
   remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

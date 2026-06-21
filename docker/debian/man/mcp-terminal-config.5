@@ -11,9 +11,10 @@ the \fBmcp-terminal-docker\fR package the active file is:
 .B /etc/mcp-terminal/term_server.json
 .RE
 .PP
-It is a \fIconffile\fR: package upgrades do not overwrite an existing file.
-The seed template is also shipped as
-.IR /usr/share/mcp-terminal/term_server.json .
+It is created on first install by \fBinstall-server-config.sh\fR (postinst) and is
+never overwritten on package upgrade or reinstall when the file already exists.
+The seed template is shipped as
+.IR /usr/share/mcp-terminal/term_server.json.template .
 .PP
 Inside the Docker container the same file is mounted read-only at
 .IR /etc/mcp-terminal/term_server.json .
@@ -63,8 +64,19 @@ spawns per-session Docker containers on the host daemon (via mounted \fBdocker.s
 .TP
 .B terminal_run_host
 Host execution. Uses \fBterminal.host_execution\fR (\fBenabled\fR plus
-\fBallowed_commands\fR allowlist). Commands run directly on the host filesystem
-outside session containers — use only when sandbox isolation is not required.
+\fBallowed_commands\fR allowlist). Commands run on the host via passwordless
+\fBsudo\fR as the project directory owner, or as an explicit user from
+\fBrun_as.sudo\fR (e.g. \fBcasmgr\fR → \fBcasuser\fR). The service container runs
+as \fBmcp-terminal\fR; \fBsync-host-sudo.sh\fR (root) generates
+\fB/etc/sudoers.d/mcp-terminal\fR from the allowlist before start.
+.PP
+After changing \fBallowed_commands\fR or \fBrun_as\fR:
+.RS
+.EX
+sudo /usr/lib/mcp-terminal/sync-host-sudo.sh
+sudo mcp-terminal-docker recreate
+.EE
+.RE
 .PP
 Configure both sections in production; disable \fBhost_execution.enabled\fR or empty
 the allowlist to reject all host-side runs.
@@ -120,7 +132,8 @@ into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR in
 .TP
 .B terminal
 Terminal domain: session TTL, output limits, cleanup, admin flags, and
-\fBhost_execution\fR (allowlist for \fBterminal_run_host\fR).
+\fBhost_execution\fR (allowlist for \fBterminal_run_host\fR, \fBservice_user\fR,
+\fBrun_as.default\fR, \fBrun_as.command_paths\fR, \fBrun_as.sudo\fR overrides).
 .TP
 .B runtime
 Sandbox defaults for \fBterminal_run\fR: image profile, network mode, timeouts,
@@ -129,6 +142,90 @@ resource limits, concurrent run cap.
 .B code_analysis
 Client to \fBcasmgr-server\fR for project registry refresh via \fBwatch_dirs\fR.
 When \fBenabled\fR is true, set \fBhost\fR and \fBport\fR (production \fB15010\fR).
+.SH WATCH DIRECTORIES AND PROJECT WRITE ACCESS
+\fBwatch_dirs.directories\fR lists parent paths scanned for projects (each entry
+must contain subdirectories with a \fBprojectid\fR file). With casmgr-server, use
+UUID anchor paths returned by casmgr \fBlist_watch_dirs\fR, not the catalog root:
+.PP
+.RS
+.EX
+"directories": [
+  "/var/casmgr/watch_catalog/550e8400-e29b-41d4-a716-446655440001"
+]
+.EE
+.RE
+.PP
+Paths must be bind-mounted into the service container read-write (auto-bind when
+\fBMCP_TERMINAL_AUTO_BIND_WATCH_DIRS=1\fR). The service user must traverse each
+path (\fBMCP_TERMINAL_EXTRA_GROUPS=casgrp\fR when directories are mode \fB750\fR)
+and create \fB.terminals/\fR under project roots (group write on project dirs
+or owner-compatible layout).
+.SH CODE ANALYSIS TLS (CASmgr)
+When \fBcode_analysis.enabled\fR is true, the server validates client sessions via
+JSON-RPC to \fBcasmgr-server\fR (\fBterminal_session_create\fR).
+.PP
+\fBcode_analysis.ssl.ca\fR must trust the \fBcasmgr-server\fR certificate issuer
+(typically \fBMCP-Proxy-Root-CA\fR from the MCP proxy PKI bundle at
+\fB/etc/ai-editor/mtls_certificates/mtls_certificates/ca/ca.crt\fR).
+.PP
+Install-time CA (\fBCN=mcp-terminal-install-ca\fR under
+\fB/etc/mcp-terminal/mtls_certificates/\fR) is sufficient for this server's HTTPS
+and MCP proxy registration, but \fBnot\fR for verifying casmgr. Copy the MCP
+Proxy CA and client cert/key into the nested paths referenced by
+\fBcode_analysis.ssl\fR, or point \fBcode_analysis.ssl.ca\fR at the MCP Proxy CA
+file while keeping \fBregistration.ssl\fR on the install bundle.
+.SH RUNTIME PREFLIGHT (STARTUP)
+On every start, \fBmcp_terminal\fR runs runtime preflight and logs all findings to
+\fBserver.log_dir\fR. Error-level issues abort startup; warnings are logged only.
+.PP
+Checks include:
+.RS
+.IP \(bu
+TLS material present and readable for active HTTPS sections
+.IP \(bu
+\fBcode_analysis\fR transport and optional install-CA warning for casmgr
+.IP \(bu
+Each \fBwatch_dirs.directories\fR entry visible, traversable, and (warn) writable
+.IP \(bu
+Sample project roots writable for \fB.terminals/\fR
+.IP \(bu
+\fBserver.log_dir\fR and \fB/var/mcp-terminal\fR writable
+.IP \(bu
+\fB/var/run/docker.sock\fR accessible; Docker CLI API \(\fGe\fR 1.44 (mount host
+\fB/usr/bin/docker\fR when \fBMCP_TERMINAL_MOUNT_HOST_DOCKER=1\fR)
+.IP \(bu
+\fB/etc/sudoers.d/mcp-terminal\fR when \fBterminal.host_execution.enabled\fR
+.IP \(bu
+\fBregistration.instance_uuid\fR finalized (not \fBREPLACE_ON_INSTALL\fR)
+.RE
+.PP
+Run the same checks manually:
+.PP
+.RS
+.EX
+mcp-terminal-preflight
+.EE
+.RE
+.SH COMMON STARTUP ERRORS
+.TP
+.B code_analysis.ssl.* CERTIFICATE_VERIFY_FAILED
+\fBcode_analysis.ssl.ca\fR does not trust casmgr (install CA vs MCP-Proxy CA).
+.TP
+.B CODE_ANALYSIS_UNAVAILABLE
+Cannot reach casmgr (network, TLS, or async RPC failure). Check preflight log.
+.TP
+.B watch_dirs.directories[N] not visible inside container
+Missing bind mount; set \fBMCP_TERMINAL_EXTRA_BINDS\fR or enable auto-bind.
+.TP
+.B Permission denied: .../.terminals
+Project directory not group-writable for service user; set \fBMCP_TERMINAL_EXTRA_GROUPS\fR
+and \fBchmod g+w\fR on project roots.
+.TP
+.B docker client API 1.41 is too old
+Enable \fBMCP_TERMINAL_MOUNT_HOST_DOCKER=1\fR and recreate container.
+.TP
+.B terminal.host_execution ... sudoers missing
+Run \fBsudo /usr/lib/mcp-terminal/sync-host-sudo.sh\fR then recreate.
 .SH SANDBOX IMAGES
 Session containers use pre-published worker images on Docker Hub (default
 \fB<user>/mcp-terminal-python-dev:3.12\fR, \fB<user>/mcp-terminal-node-dev:20\fR,
@@ -169,6 +266,7 @@ Host Docker settings (port, paths, networks, extra binds); not the service JSON.
 Package seed template (placeholders CHANGE_ME, MCP_PROXY_HOST, CODE_ANALYSIS_HOST,
 WATCH_DIRS_ROOT).
 .SH SEE ALSO
+.BR mcp-terminal-preflight (1),
 .BR mcp-terminal-docker (1),
 .BR mcp-terminal-info (1),
 .BR info (1) \fBmcp-terminal-docker\fR,

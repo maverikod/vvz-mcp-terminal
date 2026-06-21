@@ -62,7 +62,7 @@ class TerminalHostExecutionJob:
         meta_path = p.session_dir / f"{prefix}.meta.json"
         start_time = datetime.now(timezone.utc)
 
-        exit_code, timed_out, status = self._executor.run(
+        run_result = self._executor.run(
             project_id=p.project_id,
             session_id=p.session_id,
             seq=p.seq,
@@ -75,6 +75,10 @@ class TerminalHostExecutionJob:
             argv=p.argv,
             use_venv=p.use_venv,
         )
+        exit_code = run_result.exit_code
+        timed_out = run_result.timed_out
+        status = run_result.status
+        identity = run_result.identity
 
         meta = {
             "seq": p.seq,
@@ -83,6 +87,14 @@ class TerminalHostExecutionJob:
             "timed_out": timed_out,
             "execution_target": "host",
         }
+        if identity is not None:
+            meta["run_as_mode"] = identity.run_as_mode
+            if identity.effective_uid is not None:
+                meta["effective_uid"] = identity.effective_uid
+            if identity.effective_gid is not None:
+                meta["effective_gid"] = identity.effective_gid
+        if run_result.error_code is not None:
+            meta["error_code"] = run_result.error_code
         meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
         history = CommandHistory(p.session_dir)
@@ -117,11 +129,14 @@ class TerminalHostExecutionJob:
             stdout_bytes=stdout_path.stat().st_size if stdout_path.exists() else 0,
             stderr_bytes=stderr_path.stat().st_size if stderr_path.exists() else 0,
             policy_decision="executed" if status == "completed" else "failed",
-            error_code=None,
+            error_code=run_result.error_code,
             execution_target="host",
             resolved_cwd_on_host=p.effective_cwd,
             use_venv_resolved=p.use_venv,
             allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(he.allowed_commands),
+            run_as_mode=identity.run_as_mode if identity else None,
+            effective_uid=identity.effective_uid if identity else None,
+            effective_gid=identity.effective_gid if identity else None,
         )
 
         self._logger.info(

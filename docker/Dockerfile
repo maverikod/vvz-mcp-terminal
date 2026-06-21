@@ -16,7 +16,10 @@ RUN apt-get update && \
     ca-certificates \
     curl \
     docker.io \
+    git \
+    jq \
     procps \
+    sudo \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -26,6 +29,9 @@ COPY pyproject.toml LICENSE ./
 COPY mcp_terminal/ mcp_terminal/
 
 RUN pip install --no-cache-dir --default-timeout=300 .
+
+RUN mkdir -p /var/log/mcp-terminal /var/mcp-terminal \
+    && ln -sfn /var/log/mcp-terminal /app/logs
 
 EXPOSE 3011
 

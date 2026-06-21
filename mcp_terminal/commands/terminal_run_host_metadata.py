@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
 _EXAMPLE_SESSION = "46ce9394-01ca-4440-9c03-c4a7466c4ec5"
 
@@ -184,8 +189,9 @@ def get_terminal_run_host_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 ),
             },
         ],
-        "error_cases": {
-            "HOST_EXECUTION_DISABLED": {
+        "error_cases": merge_error_cases(
+            {
+                "HOST_EXECUTION_DISABLED": {
                 "description": (
                     "terminal.host_execution.enabled is false or allowed_commands is empty."
                 ),
@@ -242,7 +248,9 @@ def get_terminal_run_host_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "message": "PROJECT_NOT_FOUND",
                 "solution": "Call terminal_list_watch and use a valid project_id.",
             },
-        },
+            },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Keep terminal.host_execution.enabled false by default; enable only for dev/debug host daemon workflows.",
             "Use terminal_run for normal project work inside the Docker sandbox.",

@@ -66,6 +66,9 @@ class AuditWriter:
         use_venv_resolved: Optional[bool] = None,
         allowed_commands_snapshot_hash: Optional[str] = None,
         policy_code: Optional[str] = None,
+        run_as_mode: Optional[str] = None,
+        effective_uid: Optional[int] = None,
+        effective_gid: Optional[int] = None,
     ) -> str:
         """Write an immutable AuditRecord to the audit log.
 
@@ -119,6 +122,12 @@ class AuditWriter:
             record["allowed_commands_snapshot_hash"] = allowed_commands_snapshot_hash
         if policy_code is not None:
             record["policy_code"] = policy_code
+        if run_as_mode is not None:
+            record["run_as_mode"] = run_as_mode
+        if effective_uid is not None:
+            record["effective_uid"] = effective_uid
+        if effective_gid is not None:
+            record["effective_gid"] = effective_gid
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         with self._log_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")

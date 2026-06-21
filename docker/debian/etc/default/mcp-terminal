@@ -2,9 +2,19 @@
 # Managed by package mcp-terminal-docker.
 # restart:  systemctl restart mcp-terminal-docker   (stop + start, same container)
 # recreate: mcp-terminal-docker recreate             (remove + create; after config edits)
+#
+# Package scripts (postinst, docker-run, systemd) run as root on the host.
+# Bind-mounting watch_dirs and chown on project .terminals/ requires root.
+#
+# After editing term_server.json (especially terminal.host_execution):
+#   sudo mcp-terminal-docker recreate
 
 MCP_TERMINAL_USER=mcp-terminal
 MCP_TERMINAL_GROUP=mcp-terminal
+
+# Process user inside the service container (default root).
+# Root can bind-mount foreign paths, chown session dirs, and invoke docker.
+MCP_TERMINAL_CONTAINER_USER=root
 
 # Host TCP port published to container port 3011 (HTTPS).
 MCP_TERMINAL_PORT=3011
@@ -20,9 +30,14 @@ MCP_TERMINAL_MTLS_DIR=/etc/mcp-terminal/mtls_certificates
 MCP_TERMINAL_CONTAINER=mcp-terminal
 # MCP_TERMINAL_NETWORK=smart-assistant
 
-# Extra bind mounts (space-separated docker -v specs). Use the same host paths that
-# watch_dirs / project registry reference so sandbox containers can bind projects.
-# MCP_TERMINAL_EXTRA_BINDS=/home/projects:/home/projects
+# Extra bind mounts (space-separated docker -v specs).
+# watch_dirs from term_server.json are auto-bound read-write when
+# MCP_TERMINAL_AUTO_BIND_WATCH_DIRS=1 (default).
+# MCP_TERMINAL_EXTRA_BINDS=
+
+# Mount host /usr/bin/docker into the service container (default 1).
+# Required on Docker Engine 29+ where the embedded CLI API 1.41 is rejected.
+MCP_TERMINAL_MOUNT_HOST_DOCKER=1
 
 # Pull sandbox worker images on manual recreate (install/upgrade always pulls).
 MCP_TERMINAL_PULL_SANDBOX_ON_RECREATE=1

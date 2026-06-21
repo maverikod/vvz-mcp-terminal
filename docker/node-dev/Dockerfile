@@ -4,7 +4,7 @@
 FROM node:20-bookworm-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends procps \
+    && apt-get install -y --no-install-recommends procps jq \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

@@ -56,8 +56,14 @@ install -m 755 "$SCRIPT_DIR/pkg/ensure-mtls-certificates.sh" "$PKG_WORK/usr/lib/
 install -m 755 "$SCRIPT_DIR/pkg/docker-run.sh" "$PKG_WORK/usr/lib/mcp-terminal/docker-run.sh"
 install -m 755 "$SCRIPT_DIR/pkg/pull-sandbox-images.sh" "$PKG_WORK/usr/lib/mcp-terminal/pull-sandbox-images.sh"
 install -m 755 "$SCRIPT_DIR/pkg/ensure-host-user.sh" "$PKG_WORK/usr/lib/mcp-terminal/ensure-host-user.sh"
+install -m 755 "$SCRIPT_DIR/pkg/prepare_project_layout.py" "$PKG_WORK/usr/lib/mcp-terminal/prepare_project_layout.py"
+install -m 755 "$SCRIPT_DIR/pkg/ensure-host-permissions.sh" "$PKG_WORK/usr/lib/mcp-terminal/ensure-host-permissions.sh"
+install -m 755 "$SCRIPT_DIR/pkg/sync-host-sudo.sh" "$PKG_WORK/usr/lib/mcp-terminal/sync-host-sudo.sh"
+install -m 644 "$SCRIPT_DIR/pkg/sync_host_sudo_lib.py" "$PKG_WORK/usr/lib/mcp-terminal/sync_host_sudo_lib.py"
+install -m 644 "$SCRIPT_DIR/pkg/watch_dir_bind_specs.py" "$PKG_WORK/usr/lib/mcp-terminal/watch_dir_bind_specs.py"
 install -m 755 "$SCRIPT_DIR/pkg/mcp-terminal-info" "$PKG_WORK/usr/bin/mcp-terminal-info"
 install -m 755 "$SCRIPT_DIR/pkg/mcp-terminal-docker" "$PKG_WORK/usr/bin/mcp-terminal-docker"
+install -m 755 "$SCRIPT_DIR/pkg/mcp-terminal-preflight" "$PKG_WORK/usr/bin/mcp-terminal-preflight"
 install -m 644 "$SCRIPT_DIR/pkg/image-spec.in" "$PKG_WORK/usr/lib/mcp-terminal/image-spec"
 sed -i "s|@DOCKERHUB_REPO@|${DOCKERHUB_REPO}|g; s|@IMAGE_TAG@|${VERSION}|g" \
   "$PKG_WORK/usr/lib/mcp-terminal/image-spec"
@@ -71,16 +77,15 @@ sed -i \
 
 TEMPLATE_SRC="$SCRIPT_DIR/packaging/term_server.json.template"
 TEMPLATE_WORK="$PKG_WORK/usr/share/mcp-terminal/term_server.json.template"
-mkdir -p "$(dirname "$TEMPLATE_WORK")" "$PKG_WORK/etc/mcp-terminal"
+mkdir -p "$(dirname "$TEMPLATE_WORK")"
 sed "s|@VERSION@|${VERSION}|g" "$TEMPLATE_SRC" >"$TEMPLATE_WORK"
-install -m 644 "$TEMPLATE_WORK" "$PKG_WORK/etc/mcp-terminal/term_server.json"
 install -m 644 "$TEMPLATE_WORK" "$PKG_WORK/usr/share/doc/mcp-terminal-docker/term_server.json.example"
 install -m 644 "$SCRIPT_DIR/README.md" "$PKG_WORK/usr/share/doc/mcp-terminal-docker/README.md"
 
 MAN_SRC="$DEBIAN_SRC/man"
 INFO_SRC="$DEBIAN_SRC/info"
 mkdir -p "$PKG_WORK/usr/share/man/man1" "$PKG_WORK/usr/share/man/man5" "$PKG_WORK/usr/share/info"
-for man_page in mcp-terminal-docker.1 mcp-terminal-info.1; do
+for man_page in mcp-terminal-docker.1 mcp-terminal-info.1 mcp-terminal-preflight.1; do
   sed "s|@VERSION@|${VERSION}|g" "$MAN_SRC/$man_page" | gzip -9 -n >"$PKG_WORK/usr/share/man/man1/${man_page}.gz"
 done
 sed "s|@VERSION@|${VERSION}|g" "$MAN_SRC/mcp-terminal-config.5" | gzip -9 -n >"$PKG_WORK/usr/share/man/man5/mcp-terminal-config.5.gz"

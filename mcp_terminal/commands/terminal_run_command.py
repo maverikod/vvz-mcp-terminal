@@ -25,12 +25,16 @@ from mcp_terminal.jobs.terminal_execution_job import JobParams, TerminalExecutio
 from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import registry_resolve_project, get_session_store
 from mcp_terminal.services.command_history import CommandHistory, CommandRecord
-from mcp_terminal.services.container_runner import ContainerSpec, workspace_bind_mount_user
+from mcp_terminal.services.container_runner import ContainerSpec, sandbox_container_user
 from mcp_terminal.services.project_runtime_image import resolve_execution_image
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
 from mcp_terminal.services.terminal_defaults import (
     resolve_default_keep_container,
     resolve_run_mode,
+)
+from mcp_terminal.commands.schema_common import (
+    schema_project_id,
+    schema_session_id,
 )
 from mcp_terminal.commands.terminal_run_metadata import get_terminal_run_metadata
 from mcp_terminal.services.audit_writer import AuditWriter, session_audit_log_path
@@ -59,9 +63,13 @@ class TerminalRunCommand(Command):
         return {
             "type": "object",
             "properties": {
-                "project_id": {"type": "string"},
-                "session_id": {"type": "string"},
-                "execution_kind": {"type": "string", "enum": ["shell", "argv"]},
+                "project_id": schema_project_id(),
+                "session_id": schema_session_id(),
+                "execution_kind": {
+                    "type": "string",
+                    "enum": ["shell", "argv"],
+                    "description": "shell: run command string. argv: explicit argument vector.",
+                },
                 "command": {
                     "type": "string",
                     "description": "Shell command string when execution_kind is shell.",
@@ -101,19 +109,20 @@ class TerminalRunCommand(Command):
                 },
                 "keep_container": {
                     "type": "boolean",
-                    "default": False,
                     "description": (
                         "When true, leave the session container running after the command "
-                        "(for long multi-step work). When false (default), stop the container "
-                        "after saving shell_state."
+                        "(for long multi-step work). When false, stop the container after "
+                        "saving shell_state. When omitted, uses "
+                        "terminal.defaults.keep_container from server config."
                     ),
                 },
                 "use_venv": {
                     "type": "boolean",
                     "description": (
-                        "When omitted, uses the session default from terminal_session_create "
-                        "(true when project has .venv). When true, prepends /workspace/.venv/bin "
-                        "to PATH before the command (no activate). Set false for system Python."
+                        "When omitted, uses the session default from shell_state.json "
+                        "(set by terminal_session_create). When true, prepends "
+                        "/workspace/.venv/bin to PATH before the command (no activate). "
+                        "Set false for system Python."
                     ),
                 },
             },
@@ -287,7 +296,7 @@ class TerminalRunCommand(Command):
             image=exec_image,
             mount_spec=mount,
             network_spec=network,
-            user=workspace_bind_mount_user(mount.workspace_source),
+            user=sandbox_container_user(),
             memory_limit="512m",
             cpu_limit=1.0,
             pids_limit=256,

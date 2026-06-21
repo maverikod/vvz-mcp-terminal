@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
 _EXAMPLE_SESSION = "46ce9394-01ca-4440-9c03-c4a7466c4ec5"
 
@@ -128,8 +133,9 @@ def get_terminal_get_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 ),
             },
         ],
-        "error_cases": {
-            "INVALID_PROJECT_ID": {
+        "error_cases": merge_error_cases(
+            {
+                "INVALID_PROJECT_ID": {
                 "description": "project_id is not a valid UUID4.",
                 "message": "INVALID_PROJECT_ID",
                 "solution": "Use a valid project UUID4.",
@@ -152,7 +158,9 @@ def get_terminal_get_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "terminal_run returns a seq."
                 ),
             },
-        },
+            },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Discover seq with terminal_list, then terminal_get for full fields.",
             (

@@ -7,7 +7,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
         ca-certificates \
+        curl \
+        gawk \
+        grep \
+        jq \
         procps \
+        sed \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

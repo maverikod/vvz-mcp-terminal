@@ -16,6 +16,10 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+from mcp_terminal.adapter_log_bootstrap import ensure_adapter_log_dir
+
+ensure_adapter_log_dir()
+
 from mcp_proxy_adapter.api.app import create_app
 from mcp_proxy_adapter.commands.base import Command
 from mcp_proxy_adapter.commands.command_registry import CommandRegistry
@@ -59,6 +63,7 @@ from mcp_terminal.services.ttl_cleanup import TtlCleanupService
 from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.services.host_execution_config import (
     warn_if_host_execution_enabled_without_commands,
+    warn_if_host_sudo_not_configured,
 )
 from mcp_terminal.term_config import (
     DEFAULT_TERM_SERVER_LISTEN_PORT,
@@ -166,7 +171,17 @@ def main() -> None:
     except ValueError as exc:
         _die(str(exc))
 
-    from mcp_terminal.config.config_runtime_checks import assert_config_runtime_ready
+    import logging
+
+    from mcp_terminal.config.config_runtime_checks import (
+        assert_config_runtime_ready,
+        collect_config_runtime_issues,
+        log_config_runtime_issues,
+    )
+
+    preflight_logger = logging.getLogger("mcp_terminal.config.runtime")
+    issues = collect_config_runtime_issues(app_config, config_path=cfg_path)
+    log_config_runtime_issues(preflight_logger, issues, config_path=cfg_path)
 
     try:
         assert_config_runtime_ready(app_config, config_path=cfg_path)
@@ -174,6 +189,7 @@ def main() -> None:
         _die(str(exc))
 
     warn_if_host_execution_enabled_without_commands(app_config)
+    warn_if_host_sudo_not_configured(app_config)
 
     _install_project_registry(app_config, cfg_path)
 

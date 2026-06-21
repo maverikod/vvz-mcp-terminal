@@ -15,7 +15,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends procps \
+    && apt-get install -y --no-install-recommends procps jq \
     && ln -sf /usr/local/bin/python3 /usr/bin/python3 \
     && ln -sf /usr/local/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*

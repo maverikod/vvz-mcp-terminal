@@ -4,7 +4,7 @@ Architecture: amd64
 Maintainer: Vasiliy Zdanovskiy <vasilyvz@gmail.com>
 Section: utils
 Priority: optional
-Depends: docker.io | docker-ce, adduser, python3, curl, ca-certificates, openssl
+Depends: docker.io | docker-ce, adduser, python3, curl, ca-certificates, openssl, sudo
 Suggests: man-db, install-info, texinfo
 Description: MCP Terminal service (Docker image + host integration)
  Installs systemd unit, host directories, pulls the matching Docker Hub service

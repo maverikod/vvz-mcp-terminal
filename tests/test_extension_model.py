@@ -37,7 +37,7 @@ def test_terminal_domain_modules_importable() -> None:
     from mcp_terminal.config.config_validator import validate_terminal_config  # noqa: F401
 
     assert SandboxPolicy is not None
-    assert len(ALL_ERROR_CODES) == 27
+    assert len(ALL_ERROR_CODES) == 28
 
 
 def test_command_modules_importable() -> None:
@@ -57,6 +57,7 @@ def test_command_modules_importable() -> None:
     )
     from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
     from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
+    from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand
     from mcp_terminal.commands.terminal_search_commands_command import (  # noqa: F401
         TerminalSearchCommandsCommand,
     )
@@ -78,6 +79,7 @@ def test_command_modules_importable() -> None:
 
     assert TerminalGetStatusCommand.name == "terminal_get_status"
     assert TerminalRunCommand.name == "terminal_run"
+    assert TerminalRunHostCommand.name == "terminal_run_host"
     assert TerminalSessionCreateCommand.name == "terminal_session_create"
     assert TerminalGetSessionBootstrapCommand.name == "terminal_get_session_bootstrap"
     assert TerminalReadCommand.name == "terminal_read"
@@ -118,4 +120,5 @@ def test_error_codes_stable() -> None:
     assert "CLIENT_SESSION_NOT_FOUND" in ALL_ERROR_CODES
     assert "SUBORDINATE_SESSION_NOT_LINKED" in ALL_ERROR_CODES
     assert "CODE_ANALYSIS_UNAVAILABLE" in ALL_ERROR_CODES
-    assert len(ALL_ERROR_CODES) == 27
+    assert "HOST_SUDO_NOT_CONFIGURED" in ALL_ERROR_CODES
+    assert len(ALL_ERROR_CODES) == 28

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
 _EXAMPLE_SESSION = "46ce9394-01ca-4440-9c03-c4a7466c4ec5"
 
@@ -94,29 +99,36 @@ def get_terminal_kill_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 ),
             },
         ],
-        "error_cases": {
+        "error_cases": merge_error_cases(
+            {
             "INVALID_PROJECT_ID": {
                 "description": "project_id is not a UUID4.",
+                "message": "INVALID_PROJECT_ID",
                 "solution": "Use a UUID4 from terminal_list_watch.",
             },
             "INVALID_SESSION_ID": {
                 "description": "session_id is not a UUID4.",
+                "message": "INVALID_SESSION_ID",
                 "solution": "Use the session_id from terminal_session_create.",
             },
             "INVALID_SESSION": {
                 "description": "No session for (project_id, session_id).",
+                "message": "INVALID_SESSION",
                 "solution": "terminal_session_create, then retry.",
             },
             "INVALID_SEQ": {
                 "description": "seq is missing, not an integer, or less than 1.",
+                "message": "INVALID_SEQ",
                 "solution": "Pass the seq from terminal_run.",
             },
             "NOT_FOUND": {
                 "description": "No command record for this seq in session history.",
+                "message": "NOT_FOUND",
                 "solution": "Verify seq with terminal_list or terminal_get.",
             },
             "NOT_RUNNING": {
                 "description": "Command status is not pending (already finished).",
+                "message": "NOT_RUNNING",
                 "solution": "Use terminal_get_status; no kill needed.",
             },
             "KILL_NOT_APPLIED": {
@@ -124,12 +136,15 @@ def get_terminal_kill_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "History shows pending but no subprocess was registered (race or "
                     "host run without docker client)."
                 ),
+                "message": "KILL_NOT_APPLIED",
                 "solution": (
                     "Poll terminal_get_status; retry only if still pending. Host runs "
                     "use terminal_run_host — this command targets sandbox subprocesses."
                 ),
             },
-        },
+            },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Confirm seq status is pending via terminal_get_status before killing.",
             "Poll terminal_get_status after kill to see final exit_code.",

@@ -15,11 +15,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Optional
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional
 
 from mcp_terminal.config.host_execution_schema import (
     HOST_EXECUTION_CONFIG,
     HOST_EXECUTION_EMPTY_ALLOWLIST_LOG,
+    HOST_EXECUTION_SUDO_WARN_LOG,
 )
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.host_shell_scanner import (
@@ -38,6 +39,7 @@ from mcp_terminal.services.host_shell_scanner import (
 _logger = logging.getLogger(__name__)
 
 __all__ = [
+    "HOST_EXECUTION_SUDO_WARN_LOG",
     "HOST_FORBIDDEN_EXECUTABLES",
     "HOST_FORBIDDEN_SUBSTRINGS",
     "HostCommandValidation",
@@ -66,6 +68,16 @@ class HostExecutionConfig:
 
     enabled: bool
     allowed_commands: FrozenSet[str]
+    service_user: str = "mcp-terminal"
+    run_as_default: str = "project_owner"
+    sudo_overrides: Mapping[str, Dict[str, Optional[str]]] = None  # type: ignore[assignment]
+    command_paths: Mapping[str, str] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.sudo_overrides is None:
+            object.__setattr__(self, "sudo_overrides", {})
+        if self.command_paths is None:
+            object.__setattr__(self, "command_paths", {})
 
 
 @dataclass(frozen=True)
@@ -88,6 +100,43 @@ def _host_execution_section(config: Dict[str, Any] | None) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         return {}
     return raw
+
+
+def _parse_run_as(section: Dict[str, Any]) -> tuple[str, Dict[str, Dict[str, Optional[str]]], Dict[str, str]]:
+    run_as = section.get("run_as")
+    if not isinstance(run_as, dict):
+        return "project_owner", {}, {}
+
+    default_mode = run_as.get("default", "project_owner")
+    if not isinstance(default_mode, str) or not default_mode.strip():
+        default_mode = "project_owner"
+
+    command_paths: Dict[str, str] = {}
+    raw_paths = run_as.get("command_paths")
+    if isinstance(raw_paths, dict):
+        for key, val in raw_paths.items():
+            if isinstance(key, str) and key.strip() and isinstance(val, str) and val.strip():
+                command_paths[key.strip().lower()] = val.strip()
+
+    sudo_overrides: Dict[str, Dict[str, Optional[str]]] = {}
+    raw_sudo = run_as.get("sudo")
+    if isinstance(raw_sudo, dict):
+        for key, entry in raw_sudo.items():
+            if not isinstance(key, str) or not key.strip() or not isinstance(entry, dict):
+                continue
+            as_user = entry.get("as_user")
+            if not isinstance(as_user, str) or not as_user.strip():
+                continue
+            override: Dict[str, Optional[str]] = {"as_user": as_user.strip()}
+            group = entry.get("group")
+            if isinstance(group, str) and group.strip():
+                override["group"] = group.strip()
+            path = entry.get("path")
+            if isinstance(path, str) and path.strip():
+                override["path"] = path.strip()
+            sudo_overrides[key.strip().lower()] = override
+
+    return default_mode.strip(), sudo_overrides, command_paths
 
 
 def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecutionConfig:
@@ -114,7 +163,20 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
             if isinstance(item, str) and item.strip():
                 names.append(item.strip())
 
-    return HostExecutionConfig(enabled=enabled, allowed_commands=frozenset(names))
+    service_user = section.get("service_user", HOST_EXECUTION_CONFIG["service_user"])
+    if not isinstance(service_user, str) or not service_user.strip():
+        service_user = str(HOST_EXECUTION_CONFIG["service_user"])
+
+    run_as_default, sudo_overrides, command_paths = _parse_run_as(section)
+
+    return HostExecutionConfig(
+        enabled=enabled,
+        allowed_commands=frozenset(names),
+        service_user=service_user.strip(),
+        run_as_default=run_as_default,
+        sudo_overrides=sudo_overrides,
+        command_paths=command_paths,
+    )
 
 
 def warn_if_host_execution_enabled_without_commands(config: Dict[str, Any]) -> None:
@@ -122,6 +184,17 @@ def warn_if_host_execution_enabled_without_commands(config: Dict[str, Any]) -> N
     he = get_host_execution_config(config)
     if he.enabled and not he.allowed_commands:
         _logger.warning(HOST_EXECUTION_EMPTY_ALLOWLIST_LOG)
+
+
+def warn_if_host_sudo_not_configured(config: Dict[str, Any]) -> None:
+    """Log when host execution is enabled but passwordless sudo is unavailable."""
+    he = get_host_execution_config(config)
+    if not he.enabled or not he.allowed_commands:
+        return
+    from mcp_terminal.services.host_session_executor import sudo_nopasswd_available
+
+    if not sudo_nopasswd_available():
+        _logger.warning(HOST_EXECUTION_SUDO_WARN_LOG)
 
 
 def _allowed_names_lower(allowed: FrozenSet[str]) -> FrozenSet[str]:

@@ -6,14 +6,20 @@ set -u
 
 MCP_TERMINAL_USER="${MCP_TERMINAL_USER:-mcp-terminal}"
 MCP_TERMINAL_GROUP="${MCP_TERMINAL_GROUP:-mcp-terminal}"
+MCP_TERMINAL_CONTAINER_USER="${MCP_TERMINAL_CONTAINER_USER:-root}"
 CONFIG_DIR="${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}"
 LOG_DIR="${MCP_TERMINAL_LOG_DIR:-/var/log/mcp-terminal}"
 DATA_DIR="${MCP_TERMINAL_DATA_DIR:-/var/mcp-terminal}"
 MTLS_DIR="${MCP_TERMINAL_MTLS_DIR:-/etc/mcp-terminal/mtls_certificates}"
-DEFAULT_CONFIG="${CONFIG_DIR}/term_server.json"
+CONFIG_FILE="${MCP_TERMINAL_CONFIG_FILE:-term_server.json}"
+DEFAULT_CONFIG="${CONFIG_DIR}/${CONFIG_FILE}"
 CONFIG_TEMPLATE="/usr/share/mcp-terminal/term_server.json.template"
 INSTALL_CONFIG="/usr/lib/mcp-terminal/install-server-config.sh"
 ENSURE_MTLS="/usr/lib/mcp-terminal/ensure-mtls-certificates.sh"
+SYNC_SUDO="/usr/lib/mcp-terminal/sync-host-sudo.sh"
+ENSURE_PERMISSIONS="/usr/lib/mcp-terminal/ensure-host-permissions.sh"
+PREPARE_LAYOUT="/usr/lib/mcp-terminal/prepare_project_layout.py"
+WATCH_BIND_SPECS="/usr/lib/mcp-terminal/watch_dir_bind_specs.py"
 DOCKER_RUN="/usr/lib/mcp-terminal/docker-run.sh"
 IMAGE_SPEC="/usr/lib/mcp-terminal/image-spec"
 PULL_SANDBOX="/usr/lib/mcp-terminal/pull-sandbox-images.sh"
@@ -42,6 +48,28 @@ ensure_dirs() {
     chown root:root "$DEFAULT_CONFIG"
     chmod 644 "$DEFAULT_CONFIG"
   fi
+
+  sync_host_sudo_rules || true
+
+  if [ -x "$ENSURE_PERMISSIONS" ]; then
+    "$ENSURE_PERMISSIONS" || true
+  fi
+}
+
+sync_host_sudo_rules() {
+  if [ "$(id -u)" -ne 0 ]; then
+    return 0
+  fi
+  if [ ! -x "$SYNC_SUDO" ]; then
+    echo "[mcp-terminal-docker] WARNING: ${SYNC_SUDO} not executable" >&2
+    return 1
+  fi
+  if [ ! -f "$DEFAULT_CONFIG" ]; then
+    echo "[mcp-terminal-docker] Skipping sudo sync (config missing: ${DEFAULT_CONFIG})" >&2
+    return 0
+  fi
+  echo "[mcp-terminal-docker] Syncing host sudoers for terminal_run_host ..."
+  "$SYNC_SUDO" "$DEFAULT_CONFIG"
 }
 
 config_has_unresolved_placeholders() {
@@ -93,11 +121,19 @@ print_post_install_banner() {
   local config_pending=()
   local cert missing_mtls=""
   local image_ref="unknown"
+  local watch_bind_count=0
+  local watch_bind_sample=""
+  local item line smode sgroup sudoers_file
 
   if [ -f "$IMAGE_SPEC" ]; then
     # shellcheck source=/dev/null
     . "$IMAGE_SPEC"
     image_ref="${DOCKERHUB_REPO:-?}:${IMAGE_TAG:-?}"
+  fi
+
+  if [ -f "$DEFAULT_CONFIG" ] && [ -f "$WATCH_BIND_SPECS" ]; then
+    watch_bind_count="$(python3 "$WATCH_BIND_SPECS" "$DEFAULT_CONFIG" 2>/dev/null | wc -l | tr -d ' ')"
+    watch_bind_sample="$(python3 "$WATCH_BIND_SPECS" "$DEFAULT_CONFIG" 2>/dev/null | head -3 || true)"
   fi
 
   if [ -f "$DEFAULT_CONFIG" ]; then
@@ -108,12 +144,12 @@ print_post_install_banner() {
     grep -q 'REPLACE_ON_INSTALL' "$DEFAULT_CONFIG" 2>/dev/null \
       && config_pending+=("registration.instance_uuid (REPLACE_ON_INSTALL — run install-server-config or set UUID)")
     grep -q 'CODE_ANALYSIS_HOST' "$DEFAULT_CONFIG" 2>/dev/null \
-      && config_pending+=("code_analysis.host (CODE_ANALYSIS_HOST — casmgr-server, port 15010 production / 15000 dev)")
+      && config_pending+=("code_analysis.host (CODE_ANALYSIS_HOST)")
     grep -q 'WATCH_DIRS_ROOT' "$DEFAULT_CONFIG" 2>/dev/null \
-      && config_pending+=("watch_dirs.directories (WATCH_DIRS_ROOT — bind-mount via MCP_TERMINAL_EXTRA_BINDS)")
+      && config_pending+=("watch_dirs.directories (replace WATCH_DIRS_ROOT with real host anchor paths)")
     if grep -q '"watch_dirs"' "$DEFAULT_CONFIG" 2>/dev/null \
       && grep -q '"directories"[[:space:]]*:[[:space:]]*\[\]' "$DEFAULT_CONFIG" 2>/dev/null; then
-      config_pending+=("watch_dirs.directories (empty — add project roots)")
+      config_pending+=("watch_dirs.directories (empty — add project watch anchor paths)")
     fi
   else
     config_pending+=("missing ${DEFAULT_CONFIG}")
@@ -135,6 +171,13 @@ print_post_install_banner() {
   echo "mcp-terminal-docker installed — configure before production use"
   echo "================================================================================"
   echo ""
+  echo "Runtime (package default):"
+  echo "  Host install/recreate scripts: root (required for bind-mounts and chown)."
+  echo "  Service container user:      ${MCP_TERMINAL_CONTAINER_USER} (see ${DEFAULT_FILE})"
+  echo "  Package account:             ${MCP_TERMINAL_USER}:${MCP_TERMINAL_GROUP} (mTLS group, metadata)"
+  echo "  On install/recreate:         ${ENSURE_PERMISSIONS}"
+  echo "                               → sudoers/mTLS modes, project .terminals/ ownership"
+  echo ""
   echo "Paths:"
   echo "  Config:   ${DEFAULT_CONFIG}"
   echo "  Template: ${CONFIG_TEMPLATE}"
@@ -144,18 +187,18 @@ print_post_install_banner() {
   echo "  Data:     ${DATA_DIR}/"
   echo "  Image:    ${image_ref}"
   echo "  Docs:     man mcp-terminal-docker   info mcp-terminal-docker"
+  echo "            mcp-terminal-preflight      (after container is up)"
   echo ""
   echo "1) mTLS certificates under ${MTLS_DIR}/:"
   if [ -n "$missing_mtls" ]; then
     echo "     MISSING:${missing_mtls}"
-    echo "     Run: sudo ${ENSURE_MTLS:-ensure-mtls-certificates.sh} ${MTLS_DIR} (or copy MCP bundle)."
+    echo "     Run: sudo ${ENSURE_MTLS} ${MTLS_DIR} (or copy MCP bundle), then recreate."
   else
     echo "     OK: required server and client files present"
   fi
   echo ""
   echo "2) Edit ${DEFAULT_CONFIG}:"
   if [ "${#config_pending[@]}" -gt 0 ]; then
-    local item
     for item in "${config_pending[@]}"; do
       echo "     - ${item}"
     done
@@ -163,35 +206,71 @@ print_post_install_banner() {
     echo "     - registration URLs, advertised_host, watch_dirs (review if not set yet)"
   fi
   echo "     - server.port default: 3011 (host publish: MCP_TERMINAL_PORT in ${DEFAULT_FILE})"
+  echo "     - terminal.host_execution.service_user should be root (matches container user)"
   echo ""
-  echo "3) Project bind mounts (${DEFAULT_FILE}):"
-  if [ -z "${MCP_TERMINAL_EXTRA_BINDS:-}" ]; then
-    echo "     MCP_TERMINAL_EXTRA_BINDS is unset — add host paths for watch_dirs, e.g.:"
-    echo "       MCP_TERMINAL_EXTRA_BINDS=/home/you/projects:/home/you/projects"
-    echo "     Paths must exist on the host Docker daemon (same path inside service container)."
+  echo "3) Watch directories and project layout:"
+  echo "     Auto-bind: MCP_TERMINAL_AUTO_BIND_WATCH_DIRS=${MCP_TERMINAL_AUTO_BIND_WATCH_DIRS:-1}"
+  echo "     Paths listed in watch_dirs.directories are bind-mounted on recreate (same host path"
+  echo "     inside the service container). Only root on the host can add these mounts."
+  if [ "$watch_bind_count" -gt 0 ]; then
+    echo "     Resolved from config: ${watch_bind_count} bind mount(s), e.g.:"
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      echo "       ${line%%:*}"
+    done <<< "$watch_bind_sample"
+    if [ "$watch_bind_count" -gt 3 ]; then
+      echo "       ... (${watch_bind_count} total)"
+    fi
   else
-    echo "     MCP_TERMINAL_EXTRA_BINDS=${MCP_TERMINAL_EXTRA_BINDS}"
+    echo "     No resolved watch_dirs yet — set real paths in ${DEFAULT_CONFIG} (not placeholders)."
+  fi
+  if [ -n "${MCP_TERMINAL_EXTRA_BINDS:-}" ]; then
+    echo "     Extra binds (${DEFAULT_FILE}): MCP_TERMINAL_EXTRA_BINDS=${MCP_TERMINAL_EXTRA_BINDS}"
+  fi
+  if [ -x "$ENSURE_PERMISSIONS" ] && [ -f "$DEFAULT_CONFIG" ] && [ "$watch_bind_count" -gt 0 ]; then
+    if command -v python3 >/dev/null 2>&1 && [ -f "$PREPARE_LAYOUT" ]; then
+      echo "     Project .terminals/: prepared by prepare_project_layout.py (via ensure-host-permissions)"
+    fi
   fi
   if [ -z "${MCP_TERMINAL_NETWORK:-}" ]; then
-    echo "     Optional: MCP_TERMINAL_NETWORK=smart-assistant (MCP proxy Docker network)"
+    echo "     Optional Docker network: MCP_TERMINAL_NETWORK=smart-assistant (MCP proxy)"
   else
     echo "     Docker network: ${MCP_TERMINAL_NETWORK}"
   fi
   echo ""
+  echo "4) Host execution (terminal_run_host) and sudo:"
+  sudoers_file="/etc/sudoers.d/mcp-terminal"
+  if [ -f "$sudoers_file" ]; then
+    if grep -q 'NOPASSWD:' "$sudoers_file" 2>/dev/null; then
+      echo "     ${sudoers_file}: OK (passwordless rules for terminal.host_execution)"
+    else
+      echo "     ${sudoers_file}: present but no NOPASSWD (host_execution disabled or empty allowlist)"
+    fi
+    smode="$(stat -c '%a' "$sudoers_file" 2>/dev/null || echo '?')"
+    sgroup="$(stat -c '%G' "$sudoers_file" 2>/dev/null || echo '?')"
+    echo "     sudoers mode: ${smode} root:${sgroup} (set by ensure-host-permissions)"
+  else
+    echo "     ${sudoers_file}: MISSING — will be created on recreate or run:"
+    echo "       sudo ${SYNC_SUDO} ${DEFAULT_CONFIG}"
+  fi
+  echo "     Allowed commands/users: terminal.host_execution in ${DEFAULT_CONFIG}"
+  echo ""
   if [ "$container_started" = "1" ]; then
-    echo "4) mcp-terminal-docker.service is running."
+    echo "5) Service status:"
+    echo "     mcp-terminal-docker.service is running."
     echo "     mcp-terminal-info"
+    echo "     mcp-terminal-preflight"
     echo "     sudo systemctl status mcp-terminal-docker"
   else
-    echo "4) Start after steps 1–3:"
+    echo "5) Start the service (after steps 1–4):"
     echo "     sudo mcp-terminal-docker recreate"
     echo "     sudo systemctl start mcp-terminal-docker"
     echo "     mcp-terminal-info"
   fi
   echo ""
-  echo "After config edits:"
+  echo "After any config change:"
   echo "  sudo mcp-terminal-docker recreate"
-  echo "  sudo systemctl restart mcp-terminal-docker"
+  echo "  (root: ensure-host-permissions → sync-host-sudo → docker container recreate)"
   echo ""
   echo "================================================================================"
   echo ""

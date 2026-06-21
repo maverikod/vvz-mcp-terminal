@@ -2,6 +2,9 @@
 # Service control wrapper: standard systemd verbs + recreate.
 set -e
 
+# shellcheck source=/dev/null
+[ -f /etc/default/mcp-terminal ] && . /etc/default/mcp-terminal
+
 SERVICE="mcp-terminal-docker.service"
 RECREATE_SERVICE="mcp-terminal-docker-recreate.service"
 DOCKER_RUN="/usr/lib/mcp-terminal/docker-run.sh"
@@ -14,7 +17,8 @@ Commands:
   start      Start the service (systemctl start)
   stop       Stop the service (systemctl stop)
   restart    Restart container without recreating it (stop + start)
-  recreate   Remove and recreate container (apply config/mount/network changes)
+  recreate   Remove and recreate container (after config, certificate, bind-mount,
+             or host_execution / sudoers changes)
   status     Show systemd and container status
   info       Show host user, port, paths, and image (mcp-terminal-info)
 
@@ -52,6 +56,15 @@ case "$cmd" in
     ;;
   recreate)
     require_root recreate
+    if [ -x /usr/lib/mcp-terminal/ensure-host-permissions.sh ]; then
+      /usr/lib/mcp-terminal/ensure-host-permissions.sh || exit 1
+    fi
+    if [ -x /usr/lib/mcp-terminal/sync-host-sudo.sh ] \
+      && [ -f "${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}/${MCP_TERMINAL_CONFIG_FILE:-term_server.json}" ]; then
+      /usr/lib/mcp-terminal/sync-host-sudo.sh \
+        "${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}/${MCP_TERMINAL_CONFIG_FILE:-term_server.json}" \
+        || exit 1
+    fi
     if [ -x "$DOCKER_RUN" ]; then
       "$DOCKER_RUN" recreate
     else

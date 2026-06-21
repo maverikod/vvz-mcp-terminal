@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
 _EXAMPLE_SESSION = "46ce9394-01ca-4440-9c03-c4a7466c4ec5"
 
@@ -84,17 +89,21 @@ def get_terminal_get_session_bootstrap_metadata(cls: Type[Any]) -> Dict[str, Any
                 ),
             },
         ],
-        "error_cases": {
+        "error_cases": merge_error_cases(
+            {
             "INVALID_PROJECT_ID": {
                 "description": "project_id is not a UUID4.",
+                "message": "INVALID_PROJECT_ID",
                 "solution": "Use a UUID4 from terminal_list_watch.",
             },
             "INVALID_SESSION_ID": {
                 "description": "session_id is not a UUID4.",
+                "message": "INVALID_SESSION_ID",
                 "solution": "Use the session_id from terminal_session_create.",
             },
             "INVALID_SESSION": {
                 "description": "No session for (project_id, session_id).",
+                "message": "INVALID_SESSION",
                 "solution": "terminal_session_create, then retry.",
             },
             "NOT_FOUND": {
@@ -102,6 +111,7 @@ def get_terminal_get_session_bootstrap_metadata(cls: Type[Any]) -> Dict[str, Any
                     "bootstrap.json missing (bootstrap_python_env was false or file "
                     "deleted)."
                 ),
+                "message": "NOT_FOUND",
                 "solution": (
                     "Recreate session with bootstrap_python_env true, or skip polling "
                     "when bootstrap was disabled."
@@ -109,9 +119,12 @@ def get_terminal_get_session_bootstrap_metadata(cls: Type[Any]) -> Dict[str, Any
             },
             "BOOTSTRAP_STATE_CORRUPT": {
                 "description": "bootstrap.json exists but runtime_image is not an object.",
+                "message": "BOOTSTRAP_STATE_CORRUPT",
                 "solution": "Inspect .terminals/<session_id>/bootstrap.json on disk.",
             },
-        },
+            },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Poll after terminal_session_create when bootstrap.status was pending.",
             "Bootstrap failure does not delete the session — check detail before retrying runs.",

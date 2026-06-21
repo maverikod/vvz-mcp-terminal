@@ -1,0 +1,57 @@
+.TH MCP-TERMINAL-PREFLIGHT 1 "@VERSION@" "mcp-terminal-docker" "User Commands"
+.SH NAME
+mcp-terminal-preflight \- validate MCP Terminal configuration and runtime prerequisites
+.SH SYNOPSIS
+.B mcp-terminal-preflight
+.SH DESCRIPTION
+Runs the same validation chain as service startup:
+.PP
+.RS
+.IP 1.
+Placeholder resolution (\fBCHANGE_ME\fR, \fBWATCH_DIRS_ROOT\fR, etc.)
+.IP 2.
+JSON schema and cross-field rules (\fBconfig_validator\fR)
+.IP 3.
+Runtime preflight: TLS files readable, \fBwatch_dirs\fR visibility and write access,
+\fB/var/mcp-terminal\fR writable, Docker socket and CLI API version,
+\fBcode_analysis.ssl.ca\fR sanity, host sudoers when \fBterminal_run_host\fR is enabled.
+.RE
+.PP
+When the \fBmcp-terminal\fR container is running, validation executes inside the
+container (same uid, groups, and bind mounts as production). Otherwise a host-side
+check runs with Docker checks skipped.
+.PP
+On service start, all findings are written to the application log
+(\fB/var/log/mcp-terminal/\fR): errors prevent startup; warnings are logged but
+do not block startup.
+.SH EXIT STATUS
+.TP
+.B 0
+Configuration passes schema and runtime error checks (warnings may still print).
+.TP
+.B 1
+Validation failed (missing files, permissions, unresolved placeholders, etc.).
+.SH EXAMPLES
+Validate before recreate:
+.PP
+.RS
+.EX
+sudo mcp-terminal-docker recreate
+mcp-terminal-preflight
+.EE
+.RE
+.PP
+Validate from inside a dev venv:
+.PP
+.RS
+.EX
+python3 -m mcp_terminal.config.config_cli validate \\
+  -c /etc/mcp-terminal/term_server.json
+.EE
+.RE
+.SH SEE ALSO
+.BR mcp-terminal-config (5),
+.BR mcp-terminal-docker (1),
+.BR info (1) \fBmcp-terminal-docker\fR
+.SH AUTHOR
+Vasiliy Zdanovskiy <vasilyvz@gmail.com>

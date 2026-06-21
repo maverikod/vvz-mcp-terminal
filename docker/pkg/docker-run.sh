@@ -13,6 +13,7 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 MCP_TERMINAL_USER="${MCP_TERMINAL_USER:-mcp-terminal}"
 MCP_TERMINAL_GROUP="${MCP_TERMINAL_GROUP:-mcp-terminal}"
+MCP_TERMINAL_CONTAINER_USER="${MCP_TERMINAL_CONTAINER_USER:-root}"
 CONTAINER_NAME="${MCP_TERMINAL_CONTAINER:-mcp-terminal}"
 PORT="${MCP_TERMINAL_PORT:-3011}"
 CONFIG_DIR="${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}"
@@ -55,6 +56,25 @@ ensure_host_owner() {
   # shellcheck source=ensure-host-user.sh
   . "${LIB_DIR}/ensure-host-user.sh"
   ensure_mcp_terminal_host_user
+}
+
+ensure_sudoers_for_container() {
+  local sudoers="/etc/sudoers.d/mcp-terminal"
+  local config="${CONFIG_DIR}/${CONFIG_FILE}"
+  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/sync-host-sudo.sh" ] && [ -f "$config" ]; then
+    if [ ! -f "$sudoers" ]; then
+      echo "[INFO] Creating ${sudoers} via sync-host-sudo.sh ..."
+      "${LIB_DIR}/sync-host-sudo.sh" "$config"
+    fi
+  fi
+  if [ ! -f "$sudoers" ]; then
+    echo "[ERROR] Missing ${sudoers} (required for container bind-mount)." >&2
+    echo "[ERROR] Run as root: ${LIB_DIR}/sync-host-sudo.sh ${config}" >&2
+    return 1
+  fi
+  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
+    "${LIB_DIR}/ensure-host-permissions.sh"
+  fi
 }
 
 pull_image_from_spec() {
@@ -104,6 +124,15 @@ extra_bind_args() {
     [ -n "$spec" ] || continue
     args+=(-v "$spec")
   done
+  if [ "${MCP_TERMINAL_AUTO_BIND_WATCH_DIRS:-1}" = "1" ] \
+    && [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ] \
+    && [ -f "${LIB_DIR}/watch_dir_bind_specs.py" ]; then
+    while IFS= read -r spec; do
+      [ -n "$spec" ] || continue
+      args+=(-v "$spec")
+    done < <(python3 "${LIB_DIR}/watch_dir_bind_specs.py" \
+      "${CONFIG_DIR}/${CONFIG_FILE}" "$EXTRA_BINDS")
+  fi
   if [ "${#args[@]}" -gt 0 ]; then
     printf '%s\n' "${args[@]}"
   fi
@@ -112,10 +141,21 @@ extra_bind_args() {
 container_create() {
   local -a docker_opts bind_extra
 
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "[ERROR] docker-run.sh must run as root (watch_dir bind-mounts and project chown require root)" >&2
+    exit 1
+  fi
+
   ensure_host_owner
+  if [ -x "${LIB_DIR}/sync-host-sudo.sh" ] && [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ]; then
+    "${LIB_DIR}/sync-host-sudo.sh" "${CONFIG_DIR}/${CONFIG_FILE}" || exit 1
+  fi
+  ensure_sudoers_for_container || exit 1
+
   mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR" "$MTLS_DIR"
-  chown -R "${MCP_TERMINAL_USER}:${MCP_TERMINAL_GROUP}" "$LOG_DIR" "$DATA_DIR" 2>/dev/null || true
-  chmod 755 "$LOG_DIR" "$DATA_DIR" 2>/dev/null || true
+  if [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
+    "${LIB_DIR}/ensure-host-permissions.sh"
+  fi
 
   if [ ! -f "${CONFIG_DIR}/${CONFIG_FILE}" ]; then
     echo "[ERROR] Config not found: ${CONFIG_DIR}/${CONFIG_FILE}" >&2
@@ -146,6 +186,9 @@ container_create() {
     -v "${LOG_DIR}:/var/log/mcp-terminal"
     -v "${DATA_DIR}:/var/mcp-terminal"
     -v "${MTLS_DIR}:/etc/mcp-terminal/mtls_certificates:ro"
+    -v /etc/sudoers.d/mcp-terminal:/etc/sudoers.d/mcp-terminal:ro
+    -v /etc/passwd:/etc/passwd:ro
+    -v /etc/group:/etc/group:ro
     -v /var/run/docker.sock:/var/run/docker.sock
     -p "${PORT}:3011"
     -e MCP_TERMINAL_SKIP_VENV_REEXEC=1
@@ -158,6 +201,19 @@ container_create() {
     --restart=always
   )
 
+  if [ "${MCP_TERMINAL_CONTAINER_USER:-root}" != "root" ]; then
+    docker_opts+=(--user "${MCP_TERMINAL_UID}:${MCP_TERMINAL_GID}")
+  fi
+
+  if [ "${MCP_TERMINAL_MOUNT_HOST_DOCKER:-1}" = "1" ]; then
+    local host_docker="/usr/bin/docker"
+    if [ -x "$host_docker" ]; then
+      docker_opts+=(-v "${host_docker}:${host_docker}:ro")
+    else
+      echo "[WARN] Host docker CLI not found at ${host_docker}; sandbox may fail on Engine 29+" >&2
+    fi
+  fi
+
   if [ "${#sandbox_env[@]}" -gt 0 ]; then
     docker_opts+=("${sandbox_env[@]}")
   fi
@@ -168,9 +224,10 @@ container_create() {
 
   if [ "${#bind_extra[@]}" -gt 0 ]; then
     docker_opts+=("${bind_extra[@]}")
+    echo "[INFO] Extra bind mounts: ${#bind_extra[@]} volume(s) (watch_dirs auto-bind=${MCP_TERMINAL_AUTO_BIND_WATCH_DIRS:-1})"
   fi
 
-  echo "[INFO] Creating container (image=$IMAGE_NAME, port=$PORT, docker.sock mounted)"
+  echo "[INFO] Creating container (image=$IMAGE_NAME, port=$PORT, user=${MCP_TERMINAL_CONTAINER_USER:-root}, docker.sock mounted)"
   docker create "${docker_opts[@]}" "$IMAGE_NAME"
 }
 
@@ -214,6 +271,12 @@ cmd_restart() {
   if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
     cmd_start
     return
+  fi
+  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
+    "${LIB_DIR}/ensure-host-permissions.sh" || exit 1
+  fi
+  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/sync-host-sudo.sh" ] && [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ]; then
+    "${LIB_DIR}/sync-host-sudo.sh" "${CONFIG_DIR}/${CONFIG_FILE}" || exit 1
   fi
   cmd_stop
   docker start "$CONTAINER_NAME"

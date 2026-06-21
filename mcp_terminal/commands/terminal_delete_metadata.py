@@ -89,14 +89,27 @@ def get_terminal_delete_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "error_cases": {
             "INVALID_PROJECT_ID": {
                 "description": "project_id not UUID4.",
+                "message": "INVALID_PROJECT_ID",
                 "solution": "Fix UUID.",
             },
             "INVALID_SESSION_ID": {
                 "description": "session_id not UUID4.",
+                "message": "INVALID_SESSION_ID",
                 "solution": "Fix UUID.",
+            },
+            "PROJECT_NOT_FOUND": {
+                "description": "project_id is unknown to the project registry.",
+                "message": "PROJECT_NOT_FOUND",
+                "solution": "Call terminal_list_watch and use a valid project_id.",
+            },
+            "INVALID_SESSION": {
+                "description": "Session not registered and directory absent.",
+                "message": "INVALID_SESSION",
+                "solution": "Verify session_id or use force when cleaning stale state.",
             },
             "SESSION_RUNNING": {
                 "description": "Session marked running and force is false.",
+                "message": "SESSION_RUNNING",
                 "solution": "Wait for terminal_run to finish or use force: true.",
             },
         },

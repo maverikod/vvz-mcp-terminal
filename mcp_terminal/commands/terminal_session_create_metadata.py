@@ -45,11 +45,13 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "``.mcp_terminal/runtime/`` when ``requirements.txt`` exists.\n\n"
             "**Session defaults (stored in shell_state / session record):**\n"
             "- ``use_venv`` — whether ``terminal_run`` prepends ``/workspace/.venv/bin`` "
-            "to PATH (no ``source activate``). Omitted on create: auto true when "
-            "``.venv`` exists on the project.\n"
+            "to PATH (no ``source activate``). Omitted on create: "
+            "``terminal.defaults.use_venv`` from server config (built-in fallback is true).\n"
             "- ``pid_namespace`` — Docker PID namespace for this session's containers. "
-            "``container`` (default): isolated. ``host``: ``docker run --pid=host`` so "
-            "tools on the host (e.g. ``casmgr status``) see daemon PIDs; dev/debug only.\n\n"
+            "``container``: isolated PID namespace. ``host``: ``docker run --pid=host`` "
+            "so host tools (e.g. ``casmgr status``) see daemon PIDs; dev/debug only. "
+            "Omitted on create: ``terminal.defaults.pid_namespace`` from server config "
+            "(built-in fallback is host).\n\n"
             "Typical agent flow: create a **client session** on code-analysis-server "
             "(``session_create`` → session_id), then ``terminal_session_create`` with the "
             "**same session_id**. The server validates the client session and registers a "
@@ -117,10 +119,10 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "use_venv": {
                 "description": (
                     "Session default for ``terminal_run``: prepend /workspace/.venv/bin to "
-                    "PATH when true (no activate script). When omitted on create: true if "
-                    "project_dir/.venv exists, else false. Can be overridden per "
-                    "terminal_run. Updating on an existing session rewrites shell_state "
-                    "when the value changes."
+                    "PATH when true (no activate script). When omitted on create: "
+                    "``terminal.defaults.use_venv`` from server config (built-in fallback "
+                    "is true). Can be overridden per terminal_run. Updating on an existing "
+                    "session rewrites shell_state when the value changes."
                 ),
                 "type": "boolean",
                 "required": False,
@@ -128,13 +130,15 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "pid_namespace": {
                 "description": (
                     "Docker PID namespace for containers started for this session. "
-                    "container (default): normal isolated PID namespace. host: "
-                    "--pid=host so host tools (e.g. casmgr) can match daemon PIDs inside "
-                    "the container; use only for local dev/debug."
+                    "container: normal isolated PID namespace. host: --pid=host so host "
+                    "tools (e.g. casmgr) can match daemon PIDs inside the container; use "
+                    "only for local dev/debug. When omitted: "
+                    "terminal.defaults.pid_namespace from server config (built-in fallback "
+                    "is host)."
                 ),
                 "type": "string",
                 "required": False,
-                "default": "container",
+                "default": "(from terminal.defaults.pid_namespace)",
                 "enum": ["container", "host"],
             },
         },
@@ -274,6 +278,17 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "description": "session_id is not registered on code-analysis-server.",
                 "message": "CLIENT_SESSION_NOT_FOUND",
                 "solution": "Call casmgr session_create first; reuse the returned session_id.",
+            },
+            "SUBORDINATE_SESSION_NOT_LINKED": {
+                "description": (
+                    "No subordinate link between this parent session and the terminal "
+                    "server instance."
+                ),
+                "message": "SUBORDINATE_SESSION_NOT_LINKED",
+                "solution": (
+                    "Call terminal_session_create with the same session_id after casmgr "
+                    "session_create."
+                ),
             },
             "CODE_ANALYSIS_UNAVAILABLE": {
                 "description": "Cannot reach code-analysis-server or config is incomplete.",

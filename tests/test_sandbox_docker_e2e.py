@@ -30,7 +30,7 @@ from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.container_runner import (
     ContainerRunner,
     ContainerSpec,
-    workspace_bind_mount_user,
+    sandbox_container_user,
 )
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
 from mcp_terminal.services.session_container import (
@@ -107,7 +107,7 @@ def _container_spec(
         image=image,
         mount_spec=mount,
         network_spec="none",
-        user=workspace_bind_mount_user(workspace),
+        user=sandbox_container_user(),
         memory_limit="256m",
         cpu_limit=0.5,
         pids_limit=128,
@@ -175,6 +175,7 @@ def test_docker_read_only_blocks_workspace_write(e2e_workspace: Path, e2e_image:
             session_id=session_id,
             seq=1,
             session_dir=session_dir,
+            project_dir=e2e_workspace,
             spec=spec,
             timeout_seconds=30,
             keep_container=False,
@@ -206,6 +207,7 @@ def test_docker_workspace_write_creates_file(e2e_workspace: Path, e2e_image: str
             session_id=session_id,
             seq=1,
             session_dir=session_dir,
+            project_dir=e2e_workspace,
             spec=spec,
             timeout_seconds=30,
             keep_container=False,
@@ -238,6 +240,7 @@ def test_docker_timeout_kills_long_sleep(e2e_workspace: Path, e2e_image: str) ->
             session_id=session_id,
             seq=1,
             session_dir=session_dir,
+            project_dir=e2e_workspace,
             spec=spec,
             timeout_seconds=2,
             keep_container=False,
@@ -395,6 +398,7 @@ def test_docker_project_mounted_only_at_workspace(e2e_workspace: Path, e2e_image
             session_id=session_id,
             seq=1,
             session_dir=session_dir,
+            project_dir=e2e_workspace,
             spec=spec,
             timeout_seconds=30,
             keep_container=False,
@@ -429,6 +433,7 @@ def test_docker_container_cannot_access_files_outside_mount(
             session_id=session_id,
             seq=1,
             session_dir=session_dir,
+            project_dir=e2e_workspace,
             spec=spec,
             timeout_seconds=30,
             keep_container=False,

@@ -54,6 +54,11 @@ Show host paths, Docker image tag, and container state.
 .TP
 .B help
 Print usage (\fB\-h\fR, \fB\-\-help\fR).
+.SH VALIDATION
+Run \fBmcp-terminal-preflight\fR after configuration changes and before
+reporting startup failures. The service logs the same runtime checks to
+\fB/var/log/mcp-terminal/\fR on every start (errors abort startup; warnings are
+logged only). See \fBmcp-terminal-config\fR(5) for the error catalog.
 .SH PURGE
 On \fBapt purge mcp-terminal-docker\fR, maintainer scripts stop systemd, remove the
 container, and remove the saved Docker service image using
@@ -81,6 +86,7 @@ Docker service image repository and tag baked at package build time.
 .B /usr/lib/mcp-terminal/sandbox-images-spec
 Sandbox worker image references pulled on install/upgrade.
 .SH SEE ALSO
+.BR mcp-terminal-preflight (1),
 .BR mcp-terminal-config (5),
 .BR mcp-terminal-info (1),
 .BR info (1),

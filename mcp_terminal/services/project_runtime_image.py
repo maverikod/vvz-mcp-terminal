@@ -21,6 +21,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from mcp_terminal.services.host_run_identity import prepare_path_for_project_owner_access
+
 logger = logging.getLogger(__name__)
 
 RUNTIME_SUBDIR = Path(".mcp_terminal") / "runtime"
@@ -167,6 +169,7 @@ def ensure_project_runtime_image(
 
     rd = _runtime_dir(project_dir)
     rd.mkdir(parents=True, exist_ok=True)
+    prepare_path_for_project_owner_access(project_dir, rd)
     _dockerfile_path(project_dir).write_text(_DOCKERFILE_BODY, encoding="utf-8")
     # Minimal build context: only Dockerfile + requirements.txt (not whole project tree).
     shutil.copy2(req, rd / "requirements.txt")

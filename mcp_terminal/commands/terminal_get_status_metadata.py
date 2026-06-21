@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 
 def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
     return {
@@ -93,12 +98,34 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "explanation": "Repeat until queue and terminal show completion.",
             },
         ],
-        "error_cases": {
-            "INVALID_SESSION": {
-                "description": "Session not found.",
-                "solution": "terminal_session_create.",
+        "error_cases": merge_error_cases(
+            {
+                "INVALID_PROJECT_ID": {
+                    "description": "project_id is not a valid UUID4.",
+                    "message": "INVALID_PROJECT_ID",
+                    "solution": "Use a UUID4 from terminal_list_watch.",
+                },
+                "INVALID_SESSION_ID": {
+                    "description": "session_id is not a valid UUID4.",
+                    "message": "INVALID_SESSION_ID",
+                    "solution": "Use the session_id from terminal_session_create.",
+                },
+                "INVALID_SESSION": {
+                    "description": "No session directory for (project_id, session_id).",
+                    "message": "INVALID_SESSION",
+                    "solution": "Call terminal_session_create first.",
+                },
+                "NOT_FOUND": {
+                    "description": "seq is not present in session history.jsonl.",
+                    "message": "NOT_FOUND",
+                    "solution": (
+                        "Use terminal_list to see valid seq values or wait until "
+                        "terminal_run returns a seq."
+                    ),
+                },
             },
-        },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Do not assume success when queue status is completed.",
             "Use execution_target to choose the right follow-up (sandbox logs vs host policy).",

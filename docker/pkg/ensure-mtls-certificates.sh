@@ -124,7 +124,7 @@ generate_client() {
     )
   rm -f "${MTLS_DIR}/client/mcp-proxy.csr"
   install -m 644 "$flat_crt" "$nested_crt"
-  install -m 600 "$flat_key" "$nested_key"
+  install -m 640 -o root -g "$GROUP" "$flat_key" "$nested_key"
   ln -sf "../../ca/ca.crt" "${MTLS_DIR}/mtls_certificates/ca/ca.crt"
 }
 
@@ -133,9 +133,9 @@ fix_permissions() {
     chown -R root:"$GROUP" "$MTLS_DIR"
   fi
   find "$MTLS_DIR" -type d -exec chmod 0750 {} +
-  find "$MTLS_DIR" -type f -name '*.key' -exec chmod 600 {} +
-  find "$MTLS_DIR" -type f ! -name '*.key' -exec chmod 644 {} +
-  [ -f "${MTLS_DIR}/ca/ca.key" ] && chmod 600 "${MTLS_DIR}/ca/ca.key"
+  find "$MTLS_DIR" -type f -name '*.key' -exec chmod 0640 {} +
+  find "$MTLS_DIR" -type f ! -name '*.key' -exec chmod 0644 {} +
+  [ -f "${MTLS_DIR}/ca/ca.key" ] && chmod 0600 "${MTLS_DIR}/ca/ca.key"
 }
 
 main() {
@@ -146,10 +146,12 @@ main() {
   ensure_layout
   if all_present; then
     echo "[mcp-terminal-docker] mTLS material already present under ${MTLS_DIR}"
+    fix_permissions
     return 0
   fi
   if any_present; then
     echo "[mcp-terminal-docker] Partial mTLS tree under ${MTLS_DIR}; not auto-generating" >&2
+    fix_permissions
     return 0
   fi
   if [ ! -f "${MTLS_DIR}/ca/ca.crt" ]; then

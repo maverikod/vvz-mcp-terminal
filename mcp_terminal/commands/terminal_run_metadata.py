@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
 _EXAMPLE_SESSION = "46ce9394-01ca-4440-9c03-c4a7466c4ec5"
 
@@ -34,8 +39,10 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "/workspace, then your shell/argv command.\n"
             "4. **Save state** — after the command, cwd relative to /workspace is written "
             "back to ``shell_state.json`` (simulated persistent shell directory).\n"
-            "5. **Stop** — if ``keep_container`` is false (default), ``docker rm -f`` the "
-            "session container. If true, container stays up for the next terminal_run.\n\n"
+            "5. **Stop** — if ``keep_container`` is false, ``docker rm -f`` the "
+            "session container. If true, container stays up for the next terminal_run. "
+            "When ``keep_container`` is omitted, the value comes from "
+            "``terminal.defaults.keep_container`` in server config.\n\n"
             "**Mounts:** project root → ``/workspace`` (ro or rw per workspace_write); "
             "``.terminals/<session_id>/`` → ``/session-state`` (rw); tmpfs ``/tmp`` and "
             "``/scratch``. Root filesystem is read-only; capabilities dropped.\n\n"
@@ -102,14 +109,15 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
             },
             "keep_container": {
                 "description": (
-                    "When false (default): stop and remove the session container after "
-                    "saving shell_state (normal one-shot cycle). When true: leave the "
-                    "container running for the next terminal_run with the same "
-                    "(project_id, session_id) for faster multi-step workflows."
+                    "When false: stop and remove the session container after saving "
+                    "shell_state (normal one-shot cycle). When true: leave the container "
+                    "running for the next terminal_run with the same (project_id, "
+                    "session_id). When omitted: terminal.defaults.keep_container from "
+                    "server config (built-in fallback is true)."
                 ),
                 "type": "boolean",
                 "required": False,
-                "default": False,
+                "default": "(from terminal.defaults.keep_container)",
             },
             "use_venv": {
                 "description": (
@@ -177,6 +185,7 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
                         "meta_file": "000001.meta.json",
                         "cwd": ".",
                         "keep_container": False,
+                        "use_venv": True,
                     },
                 },
             },
@@ -232,28 +241,89 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 ),
             },
         ],
-        "error_cases": {
-            "INVALID_SESSION": {
-                "description": "No terminal_session_create for this (project_id, session_id).",
-                "solution": "Call terminal_session_create first.",
+        "error_cases": merge_error_cases(
+            {
+                "INVALID_PROJECT_ID": {
+                    "description": "project_id is not a valid UUID4.",
+                    "message": "INVALID_PROJECT_ID",
+                    "solution": "Use a UUID4 from terminal_list_watch.",
+                },
+                "INVALID_SESSION_ID": {
+                    "description": "session_id is not a valid UUID4.",
+                    "message": "INVALID_SESSION_ID",
+                    "solution": "Use the session_id from terminal_session_create.",
+                },
+                "INVALID_SESSION": {
+                    "description": "No terminal_session_create for this (project_id, session_id).",
+                    "message": "INVALID_SESSION",
+                    "solution": "Call terminal_session_create first.",
+                },
+                "WORKSPACE_WRITE_NOT_ALLOWED": {
+                    "description": "mode workspace_write but session lacks workspace_write.",
+                    "message": "WORKSPACE_WRITE_NOT_ALLOWED",
+                    "solution": "Use read_only or open the writer session for this project.",
+                },
+                "INVALID_CWD": {
+                    "description": "cwd absolute, contains .., or invalid characters.",
+                    "message": "INVALID_CWD",
+                    "solution": "Use a project-relative path like tests/unit.",
+                },
+                "INVALID_COMMAND": {
+                    "description": (
+                        "Policy rejected command or argv, or execution_kind/command/argv "
+                        "mismatch."
+                    ),
+                    "message": "INVALID_COMMAND",
+                    "solution": "Simplify command; avoid forbidden docker/host patterns.",
+                },
+                "PROJECT_NOT_FOUND": {
+                    "description": "project_id not in registry.",
+                    "message": "PROJECT_NOT_FOUND",
+                    "solution": "Call terminal_list_watch.",
+                },
+                "MODE_NOT_ALLOWED": {
+                    "description": "Requested mode is not permitted by sandbox policy.",
+                    "message": "MODE_NOT_ALLOWED",
+                    "solution": "Use read_only, workspace_write, or scratch_write.",
+                },
+                "NETWORK_MODE_NOT_ALLOWED": {
+                    "description": "Requested network mode is not permitted.",
+                    "message": "NETWORK_MODE_NOT_ALLOWED",
+                    "solution": "Use none or package_registry.",
+                },
+                "IMAGE_PROFILE_NOT_ALLOWED": {
+                    "description": "Unknown or disallowed image_profile value.",
+                    "message": "IMAGE_PROFILE_NOT_ALLOWED",
+                    "solution": "Use python_dev_3_12, node_dev_20, or base_tools.",
+                },
+                "PROJECT_PATH_OUT_OF_SCOPE": {
+                    "description": "Project directory is outside allowed watch roots.",
+                    "message": "PROJECT_PATH_OUT_OF_SCOPE",
+                    "solution": "Use a project_id from terminal_list_watch.",
+                },
+                "RUNTIME_IMAGE_STATE_CORRUPT": {
+                    "description": ".mcp_terminal/runtime state JSON is unreadable.",
+                    "message": "RUNTIME_IMAGE_STATE_CORRUPT",
+                    "solution": "Remove corrupt runtime state or rerun bootstrap.",
+                },
+                "RUNTIME_IMAGE_STALE": {
+                    "description": "Runtime image fingerprint no longer matches requirements.txt.",
+                    "message": "RUNTIME_IMAGE_STALE",
+                    "solution": "Rerun terminal_session_create bootstrap or rebuild runtime image.",
+                },
+                "RUNTIME_IMAGE_STATE_INCOMPLETE": {
+                    "description": "Runtime state exists but image_tag is missing.",
+                    "message": "RUNTIME_IMAGE_STATE_INCOMPLETE",
+                    "solution": "Rerun bootstrap_python_env or clear .mcp_terminal/runtime.",
+                },
+                "RUNTIME_IMAGE_INVALID": {
+                    "description": "Local runtime image failed verification.",
+                    "message": "RUNTIME_IMAGE_INVALID",
+                    "solution": "Inspect .mcp_terminal/runtime and rebuild if needed.",
+                },
             },
-            "WORKSPACE_WRITE_NOT_ALLOWED": {
-                "description": "mode workspace_write but session lacks workspace_write.",
-                "solution": "Use read_only or open the writer session for this project.",
-            },
-            "INVALID_CWD": {
-                "description": "cwd absolute, contains .., or invalid characters.",
-                "solution": "Use a project-relative path like tests/unit.",
-            },
-            "INVALID_COMMAND": {
-                "description": "Policy rejected command or argv.",
-                "solution": "Simplify command; avoid forbidden docker/host patterns.",
-            },
-            "PROJECT_NOT_FOUND": {
-                "description": "project_id not in registry.",
-                "solution": "terminal_list_watch.",
-            },
-        },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Always terminal_session_create before the first terminal_run for a session.",
             (

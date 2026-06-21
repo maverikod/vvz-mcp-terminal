@@ -120,7 +120,16 @@ def cmd_validate(args: argparse.Namespace) -> None:
         print(f"ERROR [generate_terminal_config]: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    from mcp_terminal.config.config_runtime_checks import assert_config_runtime_ready
+    from mcp_terminal.config.config_runtime_checks import (
+        assert_config_runtime_ready,
+        collect_config_runtime_issues,
+    )
+
+    issues = collect_config_runtime_issues(merged, config_path=path.resolve())
+    warnings = [issue for issue in issues if issue.level == "warning"]
+    for issue in warnings:
+        prefix = f"WARNING [{issue.field}]: " if issue.field else "WARNING: "
+        print(f"{prefix}{issue.message}", file=sys.stderr)
 
     try:
         assert_config_runtime_ready(merged, config_path=path.resolve())

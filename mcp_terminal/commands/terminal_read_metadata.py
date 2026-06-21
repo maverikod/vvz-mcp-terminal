@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 from mcp_terminal.services.output_reader import DEFAULT_MAX_BYTES
 
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
@@ -139,7 +144,8 @@ def get_terminal_read_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "explanation": "Smaller max_bytes reduces payload size for agents.",
             },
         ],
-        "error_cases": {
+        "error_cases": merge_error_cases(
+            {
             "INVALID_PROJECT_ID": {
                 "description": "project_id is not a valid UUID4.",
                 "message": "INVALID_PROJECT_ID",
@@ -162,7 +168,9 @@ def get_terminal_read_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "message": "INVALID_STREAM",
                 "solution": "Use stream stdout or stderr as defined in get_schema().",
             },
-        },
+            },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Discover seq with terminal_list, then read stdout/stderr for that seq.",
             "Use terminal_tail for the last N lines instead of large offset paging.",

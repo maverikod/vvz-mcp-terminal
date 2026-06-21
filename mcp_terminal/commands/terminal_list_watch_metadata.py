@@ -60,10 +60,10 @@ def get_terminal_list_watch_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 },
             },
             "error": {
-                "description": "Registry not configured (should not occur after server start).",
-                "code": "INTERNAL_ERROR",
-                "message": "…",
-                "details": "…",
+                "description": "This command always returns success when the registry is initialised.",
+                "code": "(none)",
+                "message": "Read-only snapshot; no rejection path in normal operation.",
+                "details": "Registry is built at server startup.",
             },
         },
         "usage_examples": [
@@ -73,13 +73,7 @@ def get_terminal_list_watch_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "explanation": "No parameters; returns the current discovery layout.",
             },
         ],
-        "error_cases": {
-            "INTERNAL_ERROR": {
-                "description": "ProjectRegistry was not initialised.",
-                "message": "RuntimeError from runtime_context",
-                "solution": "Restart term_server with a valid config.",
-            },
-        },
+        "error_cases": {},
         "best_practices": [
             (
                 "Always use this command (or ``registry_list_watch_layout`` in code); "

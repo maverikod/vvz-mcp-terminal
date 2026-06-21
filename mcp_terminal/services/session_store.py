@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from mcp_terminal.services.host_run_identity import prepare_path_for_project_owner_access
 from mcp_terminal.services.shell_state import (
     initial_shell_state_for_project,
     write_shell_state,
@@ -145,6 +146,7 @@ class SessionStore:
         workspace_write: Optional[bool] = None,
     ) -> Tuple[Optional[SessionRecord], Optional[str], Optional[Dict[str, Any]]]:
         terminals_root.mkdir(parents=True, exist_ok=True)
+        prepare_path_for_project_owner_access(project_dir, terminals_root)
         self._ensure_gitignore(project_dir)
         now = datetime.now(timezone.utc)
 
@@ -167,6 +169,7 @@ class SessionStore:
             ws_on_disk = False
 
         session_dir.mkdir(parents=True, exist_ok=True)
+        prepare_path_for_project_owner_access(project_dir, session_dir)
 
         if pid_namespace is None:
             pid_ns = normalize_pid_namespace(None, default=resolve_default_pid_namespace())
@@ -208,6 +211,7 @@ class SessionStore:
         project_dir: Path,
         session_dir: Path,
     ) -> Tuple[Optional[SessionRecord], Optional[str]]:
+        prepare_path_for_project_owner_access(project_dir, session_dir)
         meta_path = session_dir / "session.json"
         if not meta_path.is_file():
             return None, "SESSION_STATE_CORRUPT"

@@ -237,6 +237,152 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
                     message="each allowed_commands entry must be a non-empty string",
                 )
             )
+
+    allowed_lower = {
+        item.strip().lower()
+        for item in commands
+        if isinstance(item, str) and item.strip()
+    }
+
+    service_user = section.get("service_user")
+    if service_user is not None:
+        if not isinstance(service_user, str) or not service_user.strip():
+            errors.append(
+                ValidationError(
+                    field="terminal.host_execution.service_user",
+                    message="service_user must be a non-empty string when present",
+                )
+            )
+
+    run_as = section.get("run_as")
+    if run_as is None:
+        return errors
+    if not isinstance(run_as, dict):
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.run_as",
+                message="run_as must be an object when present",
+            )
+        )
+        return errors
+
+    default_mode = run_as.get("default", "project_owner")
+    if default_mode is not None:
+        if not isinstance(default_mode, str) or default_mode not in ("project_owner",):
+            errors.append(
+                ValidationError(
+                    field="terminal.host_execution.run_as.default",
+                    message="run_as.default must be project_owner",
+                )
+            )
+
+    command_paths = run_as.get("command_paths")
+    if command_paths is not None:
+        if not isinstance(command_paths, dict):
+            errors.append(
+                ValidationError(
+                    field="terminal.host_execution.run_as.command_paths",
+                    message="run_as.command_paths must be an object when present",
+                )
+            )
+        else:
+            for key, path_val in command_paths.items():
+                if not isinstance(key, str) or not key.strip():
+                    errors.append(
+                        ValidationError(
+                            field="terminal.host_execution.run_as.command_paths",
+                            message="command_paths keys must be non-empty command basenames",
+                        )
+                    )
+                    continue
+                if key.strip().lower() not in allowed_lower:
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.command_paths.{key}",
+                            message="command_paths key must appear in allowed_commands",
+                        )
+                    )
+                if not isinstance(path_val, str) or not path_val.startswith("/"):
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.command_paths.{key}",
+                            message="command_paths values must be absolute paths",
+                        )
+                    )
+                elif any(ch in path_val for ch in ("*", "?", "$", "`", ";", "|", "&")):
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.command_paths.{key}",
+                            message="command_paths values must not contain shell metacharacters",
+                        )
+                    )
+
+    sudo_map = run_as.get("sudo")
+    if sudo_map is not None:
+        if not isinstance(sudo_map, dict):
+            errors.append(
+                ValidationError(
+                    field="terminal.host_execution.run_as.sudo",
+                    message="run_as.sudo must be an object when present",
+                )
+            )
+        else:
+            for key, entry in sudo_map.items():
+                if not isinstance(key, str) or not key.strip():
+                    errors.append(
+                        ValidationError(
+                            field="terminal.host_execution.run_as.sudo",
+                            message="run_as.sudo keys must be non-empty command basenames",
+                        )
+                    )
+                    continue
+                if key.strip().lower() not in allowed_lower:
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.sudo.{key}",
+                            message="run_as.sudo key must appear in allowed_commands",
+                        )
+                    )
+                if not isinstance(entry, dict):
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.sudo.{key}",
+                            message="run_as.sudo entry must be an object",
+                        )
+                    )
+                    continue
+                as_user = entry.get("as_user")
+                if not isinstance(as_user, str) or not as_user.strip():
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.sudo.{key}.as_user",
+                            message="as_user must be a non-empty string",
+                        )
+                    )
+                group = entry.get("group")
+                if group is not None and (not isinstance(group, str) or not group.strip()):
+                    errors.append(
+                        ValidationError(
+                            field=f"terminal.host_execution.run_as.sudo.{key}.group",
+                            message="group must be a non-empty string when present",
+                        )
+                    )
+                path = entry.get("path")
+                if path is not None:
+                    if not isinstance(path, str) or not path.startswith("/"):
+                        errors.append(
+                            ValidationError(
+                                field=f"terminal.host_execution.run_as.sudo.{key}.path",
+                                message="path must be an absolute path when present",
+                            )
+                        )
+                    elif any(ch in path for ch in ("*", "?", "$", "`", ";", "|", "&")):
+                        errors.append(
+                            ValidationError(
+                                field=f"terminal.host_execution.run_as.sudo.{key}.path",
+                                message="path must not contain shell metacharacters",
+                            )
+                        )
     return errors
 
 

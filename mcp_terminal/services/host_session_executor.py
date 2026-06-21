@@ -2,6 +2,7 @@
 Host-side terminal command execution (no Docker session container).
 
 Used when ``terminal.host_execution`` is enabled and the command is on the allowlist.
+Commands run via ``sudo -n`` as the project owner or a configured override user.
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -9,23 +10,32 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
+import json
 import logging
 import shlex
 import subprocess
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.command_history import CommandHistory
+from mcp_terminal.services.host_execution_config import (
+    get_host_execution_config,
+    validate_host_run_request,
+)
+from mcp_terminal.services.host_run_identity import (
+    HostRunIdentity,
+    build_sudo_argv,
+    resolve_host_identity,
+    segments_for_request,
+)
 from mcp_terminal.services.shell_state import (
     ShellState,
     normalize_cwd,
     read_shell_state,
     write_shell_state,
-)
-from mcp_terminal.services.host_execution_config import (
-    get_host_execution_config,
-    validate_host_run_request,
 )
 from mcp_terminal.services.venv_activation import host_venv_activation_shell_block
 
@@ -56,6 +66,33 @@ _SAVE_CWD_PY = textwrap.dedent(
     state_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     """
 )
+
+_SUDO_BIN = "/usr/bin/sudo"
+
+
+@dataclass(frozen=True)
+class HostRunResult:
+    """Outcome of one host-side execution including identity metadata."""
+
+    exit_code: Optional[int]
+    timed_out: bool
+    status: str
+    identity: Optional[HostRunIdentity] = None
+    error_code: Optional[str] = None
+
+
+def sudo_nopasswd_available() -> bool:
+    """Return True when passwordless sudo is available for the current user."""
+    try:
+        proc = subprocess.run(  # noqa: S603
+            [_SUDO_BIN, "-n", "true"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def _write_host_exec_script(
@@ -115,10 +152,15 @@ def _write_host_exec_script(
 
 
 class HostSessionExecutor:
-    """Run one command directly on the host under the project workspace."""
+    """Run one command on the host under sudo as project owner or override user."""
 
     def __init__(self) -> None:
         self._logger = logging.getLogger(__name__)
+        self._last_identity: Optional[HostRunIdentity] = None
+
+    @property
+    def last_identity(self) -> Optional[HostRunIdentity]:
+        return self._last_identity
 
     def run(
         self,
@@ -134,11 +176,13 @@ class HostSessionExecutor:
         command: Optional[str],
         argv: Optional[List[str]],
         use_venv: bool = True,
-    ) -> tuple[Optional[int], bool, str]:
-        """Return ``(exit_code, timed_out, status)``."""
-        if not get_host_execution_config().enabled:
+    ) -> HostRunResult:
+        """Run host execution and return outcome with effective identity metadata."""
+        self._last_identity = None
+        he = get_host_execution_config()
+        if not he.enabled:
             self._logger.error("host exec rejected seq=%d: host_execution disabled", seq)
-            return None, False, "failed"
+            return HostRunResult(None, False, "failed", error_code=ErrorCode.HOST_EXECUTION_DISABLED)
 
         validation = validate_host_run_request(execution_kind, command, argv)
         if not validation.ok:
@@ -148,7 +192,37 @@ class HostSessionExecutor:
                 validation.error_code,
                 validation.detail,
             )
-            return None, False, "failed"
+            return HostRunResult(
+                None,
+                False,
+                "failed",
+                error_code=validation.error_code or ErrorCode.HOST_COMMAND_NOT_ALLOWED,
+            )
+
+        if not sudo_nopasswd_available():
+            self._logger.error("host exec rejected seq=%d: sudo not configured", seq)
+            return HostRunResult(
+                None,
+                False,
+                "failed",
+                error_code=ErrorCode.HOST_SUDO_NOT_CONFIGURED,
+            )
+
+        segments = segments_for_request(
+            execution_kind=execution_kind,
+            command=command,
+            argv=argv,
+            allowed_commands=he.allowed_commands,
+        )
+        identity = resolve_host_identity(
+            project_dir=project_dir,
+            config=he,
+            execution_kind=execution_kind,
+            command=command,
+            argv=argv,
+            segments=segments,
+        )
+        self._last_identity = identity
 
         prefix = CommandHistory.seq_to_prefix(seq)
         script_path = _write_host_exec_script(
@@ -163,6 +237,10 @@ class HostSessionExecutor:
         )
         stdout_path = session_dir / f"{prefix}.stdout.log"
         stderr_path = session_dir / f"{prefix}.stderr.log"
+
+        inner = ["/bin/bash", str(script_path)]
+        launch_argv = build_sudo_argv(identity, inner_argv=inner)
+
         exit_code: Optional[int] = None
         timed_out = False
         status = "failed"
@@ -171,7 +249,7 @@ class HostSessionExecutor:
         try:
             with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
                 proc = subprocess.Popen(  # noqa: S603
-                    ["/bin/bash", str(script_path)],
+                    launch_argv,
                     stdout=out,
                     stderr=err,
                     cwd=str(project_dir.resolve()),
@@ -208,4 +286,4 @@ class HostSessionExecutor:
         except OSError:
             pass
 
-        return exit_code, timed_out, status
+        return HostRunResult(exit_code, timed_out, status, identity=identity)

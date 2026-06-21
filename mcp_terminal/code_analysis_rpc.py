@@ -8,6 +8,7 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -40,11 +41,10 @@ def run_coro_sync(coro: Any) -> Any:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    # Inside Hypercorn/async command handlers: cannot nest run_until_complete on the
+    # running loop; execute the coroutine in a worker thread with its own loop.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,11 @@ def terminal_instance_uuid(app_config: Dict[str, Any]) -> str:
 
 
 def _rpc_error_code(inner: Dict[str, Any]) -> str:
+    err = inner.get("error")
+    if isinstance(err, dict):
+        code = err.get("code")
+        if isinstance(code, str) and code.strip():
+            return code.strip()
     for key in ("error", "code"):
         val = inner.get(key)
         if isinstance(val, str) and val.strip():
@@ -86,6 +91,12 @@ def _rpc_error_code(inner: Dict[str, Any]) -> str:
 
 
 def _rpc_error_message(inner: Dict[str, Any]) -> str:
+    err = inner.get("error")
+    if isinstance(err, dict):
+        for key in ("message", "error_message", "detail"):
+            val = err.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
     for key in ("message", "error_message", "detail"):
         val = inner.get(key)
         if isinstance(val, str) and val.strip():

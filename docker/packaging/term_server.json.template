@@ -136,6 +136,51 @@
     },
     "host_execution": {
       "enabled": true,
+      "service_user": "root",
+      "run_as": {
+        "default": "project_owner",
+        "sudo": {
+          "casmgr": {
+            "as_user": "casuser",
+            "group": "casgrp",
+            "path": "/usr/bin/casmgr"
+          }
+        },
+        "command_paths": {
+          "termgr": "/usr/local/bin/termgr",
+          "python": "/usr/local/bin/python3",
+          "python3": "/usr/local/bin/python3",
+          "pip": "/usr/local/bin/pip3",
+          "pip3": "/usr/local/bin/pip3",
+          "bash": "/bin/bash",
+          "sh": "/bin/sh",
+          "grep": "/usr/bin/grep",
+          "jq": "/usr/bin/jq",
+          "sed": "/usr/bin/sed",
+          "awk": "/usr/bin/awk",
+          "cat": "/bin/cat",
+          "ls": "/bin/ls",
+          "cp": "/bin/cp",
+          "mv": "/bin/mv",
+          "mkdir": "/bin/mkdir",
+          "rm": "/bin/rm",
+          "find": "/usr/bin/find",
+          "head": "/usr/bin/head",
+          "tail": "/usr/bin/tail",
+          "wc": "/usr/bin/wc",
+          "sort": "/usr/bin/sort",
+          "diff": "/usr/bin/diff",
+          "tee": "/usr/bin/tee",
+          "true": "/usr/bin/true",
+          "false": "/usr/bin/false",
+          "test": "/usr/bin/test",
+          "env": "/usr/bin/env",
+          "printenv": "/usr/bin/printenv",
+          "which": "/usr/bin/which",
+          "git": "/usr/bin/git",
+          "pytest": "/usr/bin/pytest"
+        }
+      },
       "allowed_commands": [
         "bash",
         "sh",
@@ -159,6 +204,7 @@
         "make",
         "rg",
         "grep",
+        "jq",
         "sed",
         "awk",
         "cat",

@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 from types import SimpleNamespace
+from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
@@ -26,6 +27,7 @@ from mcp_terminal.services.host_execution_config import (
 )
 from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand
 from mcp_terminal.services.host_run_service import enqueue_host_terminal_run
+from mcp_terminal.services.host_run_identity import HostRunIdentity
 from mcp_terminal.services.host_session_executor import HostSessionExecutor
 from mcp_terminal.services.shell_state import (
     ShellState,
@@ -52,6 +54,32 @@ def _patch_host_config_executor(cfg: HostExecutionConfig):
         "mcp_terminal.services.host_session_executor.get_host_execution_config",
         return_value=cfg,
     )
+
+
+def _patch_host_sudo_exec():
+    """Bypass sudo for integration-style host executor tests."""
+    identity = HostRunIdentity(
+        run_as_mode="project_owner",
+        sudo_user="1000",
+        sudo_group="1000",
+        effective_uid=1000,
+        effective_gid=1000,
+        primary_basename="true",
+    )
+    return [
+        patch(
+            "mcp_terminal.services.host_session_executor.sudo_nopasswd_available",
+            return_value=True,
+        ),
+        patch(
+            "mcp_terminal.services.host_session_executor.resolve_host_identity",
+            return_value=identity,
+        ),
+        patch(
+            "mcp_terminal.services.host_session_executor.build_sudo_argv",
+            side_effect=lambda _identity, *, inner_argv: inner_argv,
+        ),
+    ]
 
 
 # --- H-1: disabled gate ---
@@ -280,7 +308,7 @@ def test_h8_validation_failure_preserves_shell_state(tmp_path: Path) -> None:
         ),
     ):
         executor = HostSessionExecutor()
-        exit_code, timed_out, status = executor.run(
+        result = executor.run(
             project_id="00000000-0000-4000-8000-000000000001",
             session_id="00000000-0000-4000-8000-000000000002",
             seq=1,
@@ -294,9 +322,9 @@ def test_h8_validation_failure_preserves_shell_state(tmp_path: Path) -> None:
             use_venv=False,
         )
 
-    assert status == "failed"
-    assert exit_code is None
-    assert not timed_out
+    assert result.status == "failed"
+    assert result.exit_code is None
+    assert not result.timed_out
     after = (session_dir / "shell_state.json").read_text(encoding="utf-8")
     assert after == before
     assert read_shell_state(session_dir).cwd == "keep-me"
@@ -310,15 +338,18 @@ def test_h8_failing_command_keeps_valid_shell_state(tmp_path: Path) -> None:
     session_dir.mkdir()
     write_shell_state(session_dir, ShellState(cwd=".", use_venv=False))
 
-    with (
-        _patch_host_config_executor(_HE_CFG),
-        patch(
-            "mcp_terminal.services.host_session_executor.validate_host_run_request",
-            return_value=HostCommandValidation(ok=True),
-        ),
-    ):
+    with ExitStack() as stack:
+        stack.enter_context(_patch_host_config_executor(_HE_CFG))
+        for p in _patch_host_sudo_exec():
+            stack.enter_context(p)
+        stack.enter_context(
+            patch(
+                "mcp_terminal.services.host_session_executor.validate_host_run_request",
+                return_value=HostCommandValidation(ok=True),
+            )
+        )
         executor = HostSessionExecutor()
-        exit_code, timed_out, status = executor.run(
+        result = executor.run(
             project_id="00000000-0000-4000-8000-000000000001",
             session_id="00000000-0000-4000-8000-000000000002",
             seq=1,
@@ -332,9 +363,9 @@ def test_h8_failing_command_keeps_valid_shell_state(tmp_path: Path) -> None:
             use_venv=False,
         )
 
-    assert status == "completed"
-    assert exit_code != 0
-    assert not timed_out
+    assert result.status == "completed"
+    assert result.exit_code != 0
+    assert not result.timed_out
     state = read_shell_state(session_dir)
     assert state.cwd == "."
     raw = json.loads((session_dir / "shell_state.json").read_text(encoding="utf-8"))
@@ -373,18 +404,23 @@ def test_h11_timeout_kills_runaway_host_process(tmp_path: Path) -> None:
     session_dir = tmp_path / "session"
     session_dir.mkdir()
 
-    with (
-        _patch_host_config(_HE_CFG),
-        _patch_host_config_executor(_HE_CFG),
-        patch(
-            "mcp_terminal.jobs.terminal_host_execution_job.get_host_execution_config",
-            return_value=_HE_CFG,
-        ),
-        patch(
-            "mcp_terminal.services.host_session_executor.validate_host_run_request",
-            return_value=HostCommandValidation(ok=True),
-        ),
-    ):
+    with ExitStack() as stack:
+        stack.enter_context(_patch_host_config(_HE_CFG))
+        stack.enter_context(_patch_host_config_executor(_HE_CFG))
+        for p in _patch_host_sudo_exec():
+            stack.enter_context(p)
+        stack.enter_context(
+            patch(
+                "mcp_terminal.jobs.terminal_host_execution_job.get_host_execution_config",
+                return_value=_HE_CFG,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "mcp_terminal.services.host_session_executor.validate_host_run_request",
+                return_value=HostCommandValidation(ok=True),
+            )
+        )
         job = TerminalHostExecutionJob(
             HostJobParams(
                 project_id="00000000-0000-4000-8000-000000000001",

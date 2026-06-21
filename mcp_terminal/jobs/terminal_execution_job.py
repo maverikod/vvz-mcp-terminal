@@ -73,6 +73,7 @@ class TerminalExecutionJob:
             session_id=p.session_id,
             seq=p.seq,
             session_dir=p.session_dir,
+            project_dir=p.project_dir,
             spec=p.container_spec,
             timeout_seconds=p.timeout_seconds,
             keep_container=p.keep_container,

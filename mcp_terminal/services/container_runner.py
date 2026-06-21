@@ -1,7 +1,8 @@
 """Container runtime for mcp_terminal sandbox execution (C-010).
 
 Builds security-hardened container creation parameters and executes
-containers with fixed /workspace mount, non-root user, and capability drop.
+containers with fixed /workspace mount, root inside the sandbox boundary,
+and capability drop.
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -21,6 +22,7 @@ from mcp_terminal.services.docker_hosts import (
     parse_docker_host_mappings,
     resolve_container_network_mode,
 )
+from mcp_terminal.services.host_run_identity import project_owner_user_spec
 from mcp_terminal.services.pid_namespace import apply_docker_pid_namespace
 from mcp_terminal.services.sandbox_policy import MountSpec
 
@@ -29,24 +31,25 @@ logger = logging.getLogger(__name__)
 # Fallback when host stat fails; bind mounts do not remap ownership.
 _DEFAULT_BIND_MOUNT_USER = "65534:65534"
 
+# Sandbox isolation is the container boundary; processes run as root inside.
+SANDBOX_CONTAINER_USER = "0:0"
+
+
+def sandbox_container_user() -> str:
+    """Return ``uid:gid`` for ``docker run --user`` in session sandboxes."""
+    return SANDBOX_CONTAINER_USER
+
 
 def workspace_bind_mount_user(workspace_source: Path) -> str:
-    """Return ``uid:gid`` for ``docker run --user`` from the host project directory.
-
-    Bind-mounted paths keep host ownership; running the container as the same
-    ``uid:gid`` lets processes create files under ``/workspace`` (e.g. ``.venv``)
-    without permission errors.
-    """
-    try:
-        st = os.stat(workspace_source.resolve(), follow_symlinks=True)
-    except OSError as exc:
+    """Return ``uid:gid`` for ``docker run --user`` from the host project directory owner."""
+    spec = project_owner_user_spec(workspace_source, fallback=_DEFAULT_BIND_MOUNT_USER)
+    if spec == _DEFAULT_BIND_MOUNT_USER:
         logger.warning(
-            "workspace_bind_mount_user: stat failed for %s: %s",
+            "workspace_bind_mount_user: using fallback %s for %s",
+            _DEFAULT_BIND_MOUNT_USER,
             workspace_source,
-            exc,
         )
-        return _DEFAULT_BIND_MOUNT_USER
-    return f"{st.st_uid}:{st.st_gid}"
+    return spec
 
 
 @dataclass(frozen=True)
@@ -65,7 +68,7 @@ class ContainerSpec:
     network_spec: str
     """Network mode string: 'none' or 'package_registry' egress config."""
     user: str
-    """Host uid:gid for ``/workspace`` bind (e.g. ``1000:1000``); else ``65534:65534``."""
+    """Container uid:gid (sandbox default ``0:0``; legacy helper maps project owner)."""
     memory_limit: str
     """Memory limit string for Docker/Podman, e.g. '1g'."""
     cpu_limit: float

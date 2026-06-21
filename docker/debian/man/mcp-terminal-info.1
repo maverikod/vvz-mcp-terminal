@@ -4,10 +4,24 @@ mcp-terminal-info \- show MCP Terminal host integration summary
 .SH SYNOPSIS
 .B mcp-terminal-info
 .SH DESCRIPTION
-Prints host user, published port, configuration and data paths, Docker service
-image reference, container state, and systemd unit status for the
+Prints host user, supplementary groups, Docker socket membership, host sudoers
+state, published port, configuration and data paths, Docker service image
+reference, container state, and systemd unit status for the
 \fBmcp-terminal-docker\fR package.
+.PP
+After reviewing this summary, run \fBmcp-terminal-preflight\fR to validate JSON
+configuration, TLS files, watch directory permissions, and Docker CLI compatibility
+inside the running container.
+.SH EXAMPLES
+.RS
+.EX
+mcp-terminal-info
+mcp-terminal-preflight
+sudo journalctl -u mcp-terminal-docker -n 50
+.EE
+.RE
 .SH SEE ALSO
+.BR mcp-terminal-preflight (1),
 .BR mcp-terminal-config (5),
 .BR mcp-terminal-docker (1)
 .SH AUTHOR

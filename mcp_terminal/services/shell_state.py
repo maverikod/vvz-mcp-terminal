@@ -8,6 +8,7 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -73,6 +74,17 @@ def read_shell_state(session_dir: Path) -> ShellState:
     )
 
 
+def _chown_to_session_dir_owner(session_dir: Path, path: Path) -> None:
+    """When running as root, align session files with the session directory owner."""
+    if os.geteuid() != 0:
+        return
+    try:
+        st = session_dir.stat()
+        os.chown(path, st.st_uid, st.st_gid)
+    except OSError:
+        pass
+
+
 def write_shell_state(session_dir: Path, state: ShellState) -> None:
     """Persist shell state atomically (best-effort) under the session directory."""
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -85,7 +97,13 @@ def write_shell_state(session_dir: Path, state: ShellState) -> None:
         "use_venv": state.use_venv,
     }
     path = session_dir / SHELL_STATE_FILE
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    try:
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except PermissionError:
+        if os.geteuid() != 0:
+            return
+        raise
+    _chown_to_session_dir_owner(session_dir, path)
 
 
 def initial_shell_state_for_project(project_dir: Path, *, use_venv: bool) -> ShellState:

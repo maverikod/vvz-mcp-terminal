@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+from mcp_terminal.commands.metadata_common import (
+    CASMGR_SESSION_ERROR_CASES,
+    merge_error_cases,
+)
+
 _EXAMPLE_PROJECT = "8772a086-688d-4198-a0c4-f03817cc0e6c"
 _EXAMPLE_SESSION = "46ce9394-01ca-4440-9c03-c4a7466c4ec5"
 
@@ -127,7 +132,8 @@ def get_terminal_list_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "explanation": "limit is capped at 200 by schema.",
             },
         ],
-        "error_cases": {
+        "error_cases": merge_error_cases(
+            {
             "INVALID_PROJECT_ID": {
                 "description": "project_id is not a valid UUID4.",
                 "message": "INVALID_PROJECT_ID",
@@ -145,7 +151,9 @@ def get_terminal_list_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "message": "INVALID_SESSION",
                 "solution": "Call terminal_session_create before terminal_list.",
             },
-        },
+            },
+            CASMGR_SESSION_ERROR_CASES,
+        ),
         "best_practices": [
             "Use terminal_list to discover recent seq values before terminal_get or terminal_tail.",
             "Default limit 25 is enough for interactive debugging; raise limit only when needed.",

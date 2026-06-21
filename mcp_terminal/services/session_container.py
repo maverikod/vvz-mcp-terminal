@@ -22,6 +22,11 @@ from mcp_terminal.services.docker_hosts import (
     parse_docker_host_mappings,
     resolve_container_network_mode,
 )
+from mcp_terminal.services.host_run_identity import (
+    prepare_session_dir_for_sandbox,
+    prepare_workspace_for_sandbox_write,
+    restore_session_dir_project_owner,
+)
 from mcp_terminal.services.pid_namespace import apply_docker_pid_namespace
 from mcp_terminal.services.shell_state import (
     ShellState,
@@ -265,6 +270,47 @@ class SessionContainerExecutor:
         session_id: str,
         seq: int,
         session_dir: Path,
+        project_dir: Path,
+        spec: ContainerSpec,
+        timeout_seconds: int,
+        keep_container: bool,
+        effective_cwd: str,
+        execution_kind: str,
+        command: Optional[str],
+        argv: Optional[List[str]],
+        use_venv: bool = True,
+    ) -> tuple[Optional[int], bool, str]:
+        """Return ``(exit_code, timed_out, status)``."""
+        if not spec.mount_spec.workspace_readonly:
+            prepare_workspace_for_sandbox_write(project_dir)
+        prepare_session_dir_for_sandbox(project_dir, session_dir)
+        try:
+            return self._run_impl(
+                project_id=project_id,
+                session_id=session_id,
+                seq=seq,
+                session_dir=session_dir,
+                project_dir=project_dir,
+                spec=spec,
+                timeout_seconds=timeout_seconds,
+                keep_container=keep_container,
+                effective_cwd=effective_cwd,
+                execution_kind=execution_kind,
+                command=command,
+                argv=argv,
+                use_venv=use_venv,
+            )
+        finally:
+            restore_session_dir_project_owner(project_dir, session_dir)
+
+    def _run_impl(
+        self,
+        *,
+        project_id: str,
+        session_id: str,
+        seq: int,
+        session_dir: Path,
+        project_dir: Path,
         spec: ContainerSpec,
         timeout_seconds: int,
         keep_container: bool,
@@ -363,6 +409,7 @@ class SessionContainerExecutor:
             self._logger.error("docker exec failed seq=%d: %s", seq, exc)
             status = "failed"
 
+        restore_session_dir_project_owner(project_dir, session_dir)
         new_state = read_shell_state(session_dir)
         if keep_container and _docker_inspect_running(name):
             write_shell_state(

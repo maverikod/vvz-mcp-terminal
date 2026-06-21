@@ -14,6 +14,11 @@ from typing import Any, ClassVar, Dict, Optional, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
+from mcp_terminal.commands.schema_common import (
+    schema_project_id,
+    schema_session_id,
+    schema_seq,
+)
 from mcp_terminal.commands.terminal_get_status_metadata import (
     get_terminal_get_status_metadata,
 )
@@ -60,9 +65,11 @@ class TerminalGetStatusCommand(Command):
         return {
             "type": "object",
             "properties": {
-                "project_id": {"type": "string"},
-                "session_id": {"type": "string"},
-                "seq": {"type": "integer"},
+                "project_id": schema_project_id(),
+                "session_id": schema_session_id(),
+                "seq": schema_seq(
+                    description="seq returned by terminal_run or terminal_run_host."
+                ),
             },
             "required": ["project_id", "session_id", "seq"],
             "additionalProperties": False,

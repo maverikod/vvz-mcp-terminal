@@ -53,6 +53,9 @@ def get_terminal_purge_sessions_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "session_dirs_removed": "Session directories removed or counted.",
                     "empty_terminals_trees_removed": "Empty .terminals roots removed.",
                     "runtime_dirs_removed": ".mcp_terminal trees removed when requested.",
+                    "memory_sessions_dropped": (
+                        "In-memory SessionStore entries cleared during purge."
+                    ),
                     "errors": "List of non-fatal error strings.",
                 },
                 "example": {
@@ -62,6 +65,7 @@ def get_terminal_purge_sessions_metadata(cls: Type[Any]) -> Dict[str, Any]:
                         "session_dirs_removed": 2,
                         "empty_terminals_trees_removed": 1,
                         "runtime_dirs_removed": 0,
+                        "memory_sessions_dropped": 0,
                         "errors": [],
                     },
                 },
@@ -87,6 +91,13 @@ def get_terminal_purge_sessions_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "solution": (
                     "Set terminal.admin.allow_purge_sessions to true in term_server.json "
                     "and restart the server; use only on trusted hosts."
+                ),
+            },
+            "INVALID_CONFIG": {
+                "description": "Active term server config file is missing on disk.",
+                "message": "INVALID_CONFIG",
+                "solution": (
+                    "Ensure term_server.json exists at the configured path before purging."
                 ),
             },
         },
