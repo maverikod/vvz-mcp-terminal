@@ -16,7 +16,10 @@ from mcp_proxy_adapter.commands.base import Command, CommandResult
 from mcp_terminal.commands.terminal_list_watch_metadata import (
     get_terminal_list_watch_metadata,
 )
-from mcp_terminal.runtime_context import registry_list_watch_layout
+from mcp_terminal.runtime_context import (
+    refresh_project_registry,
+    registry_list_watch_layout,
+)
 
 
 class TerminalListWatchCommand(Command):
@@ -26,7 +29,7 @@ class TerminalListWatchCommand(Command):
     version: ClassVar[str] = "1.0.0"
     descr: ClassVar[str] = (
         "List watch anchor directories and projects (projectid) found under each. "
-        "Read-only snapshot of the in-memory project registry."
+        "Rescans disk by default so the layout matches on-disk projectid files."
     )
     category: ClassVar[str] = "custom"
     author: ClassVar[str] = "Vasiliy Zdanovskiy"
@@ -37,13 +40,25 @@ class TerminalListWatchCommand(Command):
     def get_schema(cls) -> Dict[str, Any]:
         return {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "rescan": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": (
+                        "When true (default), rescan watch anchors from disk before "
+                        "returning the layout."
+                    ),
+                },
+            },
             "required": [],
             "additionalProperties": False,
         }
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)
+        rescan = kwargs.get("rescan", True)
+        if rescan is not False:
+            refresh_project_registry()
         layout = registry_list_watch_layout()
         return CommandResult(success=True, data=layout)  # type: ignore[arg-type]
 

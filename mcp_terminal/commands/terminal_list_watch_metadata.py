@@ -19,11 +19,22 @@ def get_terminal_list_watch_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "Under each anchor, lists projects discovered as immediate subdirectories "
             "containing a valid ``projectid`` file. Entries with ``disabled: true`` "
             "indicate duplicate ``project_id`` conflicts.\n\n"
-            "Read-only snapshot of the in-memory project registry. No parameters. "
-            "Use enabled project_id values for ``terminal_session_create`` and other "
-            "project-scoped commands."
+            "By default rescans watch anchors from disk before returning the layout "
+            "(``rescan: true``). Set ``rescan: false`` for a fast in-memory snapshot "
+            "only. Use enabled project_id values for ``terminal_session_create`` and "
+            "other project-scoped commands."
         ),
-        "parameters": {},
+        "parameters": {
+            "rescan": {
+                "description": (
+                    "Rescan watch anchors from disk before building the response "
+                    "(default true)."
+                ),
+                "type": "boolean",
+                "required": False,
+                "default": True,
+            },
+        },
         "return_value": {
             "success": {
                 "description": "Snapshot returned.",
@@ -63,14 +74,19 @@ def get_terminal_list_watch_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "description": "This command always returns success when the registry is initialised.",
                 "code": "(none)",
                 "message": "Read-only snapshot; no rejection path in normal operation.",
-                "details": "Registry is built at server startup.",
+                "details": "Registry is rebuilt on each call when rescan is true.",
             },
         },
         "usage_examples": [
             {
-                "description": "List anchors and projects",
+                "description": "List anchors and projects (rescan from disk)",
                 "command": {},
-                "explanation": "No parameters; returns the current discovery layout.",
+                "explanation": "Default rescan=true; returns the current on-disk layout.",
+            },
+            {
+                "description": "In-memory snapshot without rescan",
+                "command": {"rescan": False},
+                "explanation": "Fast snapshot; may miss projectid files added after last refresh.",
             },
         ],
         "error_cases": {},

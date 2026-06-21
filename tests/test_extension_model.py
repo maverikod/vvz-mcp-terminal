@@ -52,6 +52,9 @@ def test_command_modules_importable() -> None:
     from mcp_terminal.commands.terminal_list_watch_command import (  # noqa: F401
         TerminalListWatchCommand,
     )
+    from mcp_terminal.commands.terminal_registry_refresh_command import (
+        TerminalRegistryRefreshCommand,
+    )
     from mcp_terminal.commands.terminal_purge_sessions_command import (
         TerminalPurgeSessionsCommand,
     )
@@ -91,6 +94,7 @@ def test_command_modules_importable() -> None:
     assert TerminalPurgeSessionsCommand.name == "terminal_purge_sessions"
     assert TerminalListCommand.name == "terminal_list"
     assert TerminalListWatchCommand.name == "terminal_list_watch"
+    assert TerminalRegistryRefreshCommand.name == "terminal_registry_refresh"
 
 
 def test_config_overlay_generates_defaults() -> None:

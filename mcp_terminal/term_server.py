@@ -36,6 +36,9 @@ from mcp_terminal.commands.terminal_get_status_command import TerminalGetStatusC
 from mcp_terminal.commands.terminal_kill_command import TerminalKillCommand
 from mcp_terminal.commands.terminal_list_command import TerminalListCommand
 from mcp_terminal.commands.terminal_list_watch_command import TerminalListWatchCommand
+from mcp_terminal.commands.terminal_registry_refresh_command import (
+    TerminalRegistryRefreshCommand,
+)
 from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
 from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
 from mcp_terminal.commands.terminal_purge_sessions_command import TerminalPurgeSessionsCommand
@@ -53,7 +56,10 @@ from mcp_terminal.commands.terminal_sessions_command import TerminalSessionsComm
 from mcp_terminal.commands.terminal_stat_command import TerminalStatCommand
 from mcp_terminal.commands.terminal_tail_command import TerminalTailCommand
 from mcp_terminal.paths import default_term_server_config_path
-from mcp_terminal.runtime_context import set_terminal_services
+from mcp_terminal.runtime_context import (
+    configure_project_registry_sources,
+    set_terminal_services,
+)
 from mcp_terminal.services.project_registry_refresh import (
     rebuild_project_registry,
     start_project_registry_refresh_daemon,
@@ -92,6 +98,7 @@ _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
     TerminalRunHostCommand,
     TerminalListCommand,
     TerminalListWatchCommand,
+    TerminalRegistryRefreshCommand,
     TerminalGetCommand,
     TerminalReadCommand,
     TerminalSearchCommandsCommand,
@@ -217,6 +224,8 @@ def main() -> None:
             return data if isinstance(data, dict) else {}
 
         start_project_registry_refresh_daemon(cfg_path, interval, _app_config_snapshot)
+
+    configure_project_registry_sources(config_path=cfg_path, get_app_config=_app_config_snapshot)
 
     terminal_section = app_config.get("terminal")
     sessions_section: dict = {}

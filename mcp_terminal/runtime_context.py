@@ -16,7 +16,8 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any, Callable, FrozenSet, Optional, TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, FrozenSet, Optional, TypeVar
 
 if TYPE_CHECKING:
     from mcp_terminal.services.project_registry import ProjectRegistry, ResolutionResult
@@ -27,6 +28,8 @@ T = TypeVar("T")
 _session_store: Optional["SessionStore"] = None
 _project_registry: Optional["ProjectRegistry"] = None
 _project_registry_lock = threading.RLock()
+_registry_config_path: Optional[Path] = None
+_registry_get_app_config: Optional[Callable[[], Dict[str, Any]]] = None
 
 
 def _with_project_registry(fn: Callable[["ProjectRegistry"], T]) -> T:
@@ -56,6 +59,36 @@ def set_project_registry(project_registry: "ProjectRegistry") -> None:
         _project_registry = project_registry
 
 
+def configure_project_registry_sources(
+    *,
+    config_path: Path,
+    get_app_config: Callable[[], Dict[str, Any]],
+) -> None:
+    """Install config sources used for on-demand registry rescans."""
+    global _registry_config_path, _registry_get_app_config
+    _registry_config_path = config_path
+    _registry_get_app_config = get_app_config
+
+
+def refresh_project_registry() -> bool:
+    """Rescan watch anchors and replace the in-memory registry.
+
+    Returns:
+        True when the registry was rebuilt and installed; False when refresh
+        sources were not configured (startup incomplete).
+    """
+    if _registry_config_path is None or _registry_get_app_config is None:
+        return False
+    from mcp_terminal.services.project_registry_refresh import rebuild_project_registry
+
+    snap = _registry_get_app_config()
+    if not isinstance(snap, dict):
+        snap = {}
+    reg = rebuild_project_registry(snap, config_path=_registry_config_path)
+    set_project_registry(reg)
+    return True
+
+
 def get_session_store() -> "SessionStore":
     """Return the active ``SessionStore`` or raise if startup did not configure it."""
     if _session_store is None:
@@ -79,8 +112,18 @@ def get_project_registry() -> "ProjectRegistry":
 
 
 def registry_resolve_project(project_id: str) -> "ResolutionResult":
-    """Resolve ``project_id`` under the registry mutex."""
-    return _with_project_registry(lambda reg: reg.resolve(project_id))
+    """Resolve ``project_id`` under the registry mutex.
+
+    On ``PROJECT_NOT_FOUND``, rescan watch anchors once before returning so
+    ``projectid`` files created after process start are picked up without a
+    manual restart.
+    """
+    result = _with_project_registry(lambda reg: reg.resolve(project_id))
+    if result.success or result.error_code != "PROJECT_NOT_FOUND":
+        return result
+    if refresh_project_registry():
+        return _with_project_registry(lambda reg: reg.resolve(project_id))
+    return result
 
 
 def registry_known_project_ids() -> FrozenSet[str]:
