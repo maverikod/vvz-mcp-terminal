@@ -24,9 +24,7 @@ from mcp_terminal.services.docker_hosts import (
 )
 from mcp_terminal.services.host_run_identity import (
     prepare_session_dir_for_sandbox,
-    prepare_workspace_tree_for_sandbox_write,
     restore_session_dir_project_owner,
-    restore_workspace_tree_project_owner,
 )
 from mcp_terminal.services.pid_namespace import apply_docker_pid_namespace
 from mcp_terminal.services.shell_state import (
@@ -39,8 +37,7 @@ from mcp_terminal.services.venv_activation import venv_activation_shell_block
 
 _SESSION_LABEL = "mcp.terminal.session=true"
 _IDLE_CMD = ["sleep", "infinity"]
-_SAVE_CWD_PY = textwrap.dedent(
-    """\
+_SAVE_CWD_PY = textwrap.dedent("""\
     import json, os
     from pathlib import Path
     ws = Path("/workspace").resolve()
@@ -64,8 +61,7 @@ _SAVE_CWD_PY = textwrap.dedent(
     data["version"] = 1
     data["cwd"] = rel
     p.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    """
-)
+    """)
 
 
 def session_container_name(project_id: str, session_id: str) -> str:
@@ -202,17 +198,13 @@ def _write_exec_script(
             user_body = "false"
         else:
             user_body = " ".join(parts)
-    py_load = (
-        "import json,sys;d=json.load(open(sys.argv[1]));"
-        'print(d.get("cwd",".") or ".")'
-    )
+    py_load = "import json,sys;d=json.load(open(sys.argv[1]));" 'print(d.get("cwd",".") or ".")'
     load_cwd = (
-        f"CWD=$(python3 -c {shlex.quote(py_load)} \"$STATE\" 2>/dev/null)"
+        f'CWD=$(python3 -c {shlex.quote(py_load)} "$STATE" 2>/dev/null)'
         f" || CWD={shlex.quote(cwd)}"
     )
     venv_block = venv_activation_shell_block(use_venv=use_venv)
-    script = textwrap.dedent(
-        f"""\
+    script = textwrap.dedent(f"""\
         #!/usr/bin/env bash
         set -euo pipefail
         STATE=/session-state/shell_state.json
@@ -231,8 +223,7 @@ def _write_exec_script(
 {_SAVE_CWD_PY}
 PYEND
         exit $ec
-        """
-    )
+        """)
     path = session_dir / f"{prefix}.exec.sh"
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
@@ -282,11 +273,8 @@ class SessionContainerExecutor:
         use_venv: bool = True,
     ) -> tuple[Optional[int], bool, str]:
         """Return ``(exit_code, timed_out, status)``."""
-        workspace_prepared = False
-        if not spec.mount_spec.workspace_readonly:
-            prepare_workspace_tree_for_sandbox_write(project_dir)
-            workspace_prepared = True
-        prepare_session_dir_for_sandbox(project_dir, session_dir)
+        root_session_dir = spec.user == "0:0"
+        prepare_session_dir_for_sandbox(project_dir, session_dir, container_user=spec.user)
         try:
             return self._run_impl(
                 project_id=project_id,
@@ -304,9 +292,8 @@ class SessionContainerExecutor:
                 use_venv=use_venv,
             )
         finally:
-            restore_session_dir_project_owner(project_dir, session_dir)
-            if workspace_prepared:
-                restore_workspace_tree_project_owner(project_dir)
+            if root_session_dir:
+                restore_session_dir_project_owner(project_dir, session_dir)
 
     def _run_impl(
         self,
@@ -414,7 +401,8 @@ class SessionContainerExecutor:
             self._logger.error("docker exec failed seq=%d: %s", seq, exc)
             status = "failed"
 
-        restore_session_dir_project_owner(project_dir, session_dir)
+        if spec.user == "0:0":
+            restore_session_dir_project_owner(project_dir, session_dir)
         new_state = read_shell_state(session_dir)
         if keep_container and _docker_inspect_running(name):
             write_shell_state(

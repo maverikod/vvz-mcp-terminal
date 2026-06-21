@@ -13,7 +13,7 @@ import pwd
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import FrozenSet, Mapping, Optional
+from typing import FrozenSet, Optional
 
 from mcp_terminal.services.host_execution_config import HostExecutionConfig
 
@@ -146,12 +146,10 @@ def _strip_other_write_tree(path: Path) -> None:
 
 
 def prepare_workspace_tree_for_sandbox_write(project_dir: Path) -> None:
-    """Allow hardened sandbox root to write anywhere under ``/workspace``.
+    """Legacy helper: temporarily open the project tree for root-in-container writes.
 
-    With ``--cap-drop ALL`` and ``no-new-privileges``, container uid 0 is treated
-    as "other" on group-owned project trees. When the service runs as root, the
-    project tree is temporarily chowned to ``0:0``; in non-root dev mode,
-    other-write is opened recursively instead.
+    Writer sessions now run as the project owner (see ``writer_session_user``) and
+    do not call this function. Kept for tests and any remaining root-container paths.
     """
     root = project_dir.resolve()
     if os.geteuid() == 0:
@@ -181,13 +179,25 @@ def prepare_workspace_for_sandbox_write(project_dir: Path) -> None:
     prepare_workspace_tree_for_sandbox_write(project_dir)
 
 
-def prepare_session_dir_for_sandbox(project_dir: Path, session_dir: Path) -> None:
-    """Make *session_dir* writable by the sandbox container (root inside the boundary).
+def prepare_session_dir_for_sandbox(
+    project_dir: Path,
+    session_dir: Path,
+    *,
+    container_user: str,
+) -> None:
+    """Make *session_dir* writable by the sandbox container process.
 
-    Project-owner ``2770`` trees block container root (mapped as "other"). The service
-    temporarily root-owns the session dir when running as root, or opens other-write
-    in dev when the server is not root.
+    Writer sessions run as the project owner; read-only sessions still use root
+    inside the boundary and need a root-owned session dir (or dev-mode other-write).
     """
+    if container_user == "0:0":
+        _prepare_session_dir_for_root_container(session_dir)
+        return
+    prepare_path_for_project_owner_access(project_dir, session_dir)
+
+
+def _prepare_session_dir_for_root_container(session_dir: Path) -> None:
+    """Session dir for read-only sandboxes running as container root."""
     try:
         session_dir.mkdir(parents=True, exist_ok=True)
     except OSError:

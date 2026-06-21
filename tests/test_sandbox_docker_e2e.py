@@ -30,7 +30,7 @@ from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.container_runner import (
     ContainerRunner,
     ContainerSpec,
-    sandbox_container_user,
+    session_container_user,
 )
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
 from mcp_terminal.services.session_container import (
@@ -107,7 +107,10 @@ def _container_spec(
         image=image,
         mount_spec=mount,
         network_spec="none",
-        user=sandbox_container_user(),
+        user=session_container_user(
+            workspace,
+            workspace_readonly=mount.workspace_readonly,
+        ),
         memory_limit="256m",
         cpu_limit=0.5,
         pids_limit=128,

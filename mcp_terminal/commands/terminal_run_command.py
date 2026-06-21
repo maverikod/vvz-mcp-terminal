@@ -25,7 +25,7 @@ from mcp_terminal.jobs.terminal_execution_job import JobParams, TerminalExecutio
 from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.runtime_context import registry_resolve_project, get_session_store
 from mcp_terminal.services.command_history import CommandHistory, CommandRecord
-from mcp_terminal.services.container_runner import ContainerSpec, sandbox_container_user
+from mcp_terminal.services.container_runner import ContainerSpec, session_container_user
 from mcp_terminal.services.project_runtime_image import resolve_execution_image
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
 from mcp_terminal.services.terminal_defaults import (
@@ -296,7 +296,10 @@ class TerminalRunCommand(Command):
             image=exec_image,
             mount_spec=mount,
             network_spec=network,
-            user=sandbox_container_user(),
+            user=session_container_user(
+                resolved.project_dir,
+                workspace_readonly=mount.workspace_readonly,
+            ),
             memory_limit="512m",
             cpu_limit=1.0,
             pids_limit=256,

@@ -1,7 +1,8 @@
 """Container runtime for mcp_terminal sandbox execution (C-010).
 
 Builds security-hardened container creation parameters and executes
-containers with fixed /workspace mount, root inside the sandbox boundary,
+containers with fixed /workspace mount, project-owner uid for writer
+sessions (read-only sessions may use root inside the sandbox boundary),
 and capability drop.
 
 Author: Vasiliy Zdanovskiy
@@ -11,7 +12,6 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import logging
-import os
 import subprocess  # noqa: F401
 from dataclasses import dataclass, field
 from pathlib import Path  # noqa: F401
@@ -36,8 +36,27 @@ SANDBOX_CONTAINER_USER = "0:0"
 
 
 def sandbox_container_user() -> str:
-    """Return ``uid:gid`` for ``docker run --user`` in session sandboxes."""
+    """Return ``uid:gid`` for read-only session sandboxes (legacy root inside boundary)."""
     return SANDBOX_CONTAINER_USER
+
+
+def writer_session_user(project_dir: Path) -> str:
+    """Return ``uid:gid`` for writer session ``docker run --user`` (project directory owner)."""
+    spec = project_owner_user_spec(project_dir, fallback=_DEFAULT_BIND_MOUNT_USER)
+    if spec == _DEFAULT_BIND_MOUNT_USER:
+        logger.warning(
+            "writer_session_user: using fallback %s for %s",
+            _DEFAULT_BIND_MOUNT_USER,
+            project_dir,
+        )
+    return spec
+
+
+def session_container_user(project_dir: Path, *, workspace_readonly: bool) -> str:
+    """Return ``uid:gid`` for ``docker run --user`` based on workspace write mode."""
+    if workspace_readonly:
+        return sandbox_container_user()
+    return writer_session_user(project_dir)
 
 
 def workspace_bind_mount_user(workspace_source: Path) -> str:
@@ -68,7 +87,7 @@ class ContainerSpec:
     network_spec: str
     """Network mode string: 'none' or 'package_registry' egress config."""
     user: str
-    """Container uid:gid (sandbox default ``0:0``; legacy helper maps project owner)."""
+    """Container uid:gid (``0:0`` read-only; project owner for writer sessions)."""
     memory_limit: str
     """Memory limit string for Docker/Podman, e.g. '1g'."""
     cpu_limit: float

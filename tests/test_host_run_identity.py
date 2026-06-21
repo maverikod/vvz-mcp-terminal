@@ -14,6 +14,7 @@ from mcp_terminal.services.host_run_identity import (
     HostRunIdentity,
     build_sudo_argv,
     prepare_path_for_project_owner_access,
+    prepare_session_dir_for_sandbox,
     prepare_workspace_tree_for_sandbox_write,
     project_owner_ids,
     project_owner_login,
@@ -154,6 +155,19 @@ def test_build_sudo_argv_includes_named_group_when_present() -> None:
     )
     argv = build_sudo_argv(identity, inner_argv=["/usr/bin/true"])
     assert argv[:7] == ["/usr/bin/sudo", "-n", "-u", "root", "-g", "root", "--"]
+
+
+def test_prepare_session_dir_for_sandbox_uses_project_owner(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    session = project / ".terminals" / "sess"
+    uid, gid = project_owner_ids(project)
+    prepare_session_dir_for_sandbox(
+        project, session, container_user=f"{uid}:{gid}"
+    )
+    assert session.is_dir()
+    assert session.stat().st_uid == project.stat().st_uid
+    assert session.stat().st_gid == project.stat().st_gid
 
 
 def test_prepare_workspace_tree_non_root_opens_nested_other_write(tmp_path: Path) -> None:
