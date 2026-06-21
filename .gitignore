@@ -105,3 +105,5 @@ old_code//.mcp_terminal/
 .trees/
 old_code/
 *.tree
+.terminals/
+projectid
