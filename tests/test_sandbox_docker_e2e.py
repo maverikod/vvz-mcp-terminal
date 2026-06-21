@@ -227,6 +227,44 @@ def test_docker_workspace_write_creates_file(e2e_workspace: Path, e2e_image: str
 
 
 @_requires_docker
+def test_docker_workspace_write_modifies_nested_file(e2e_workspace: Path, e2e_image: str) -> None:
+    """Writer sandbox can replace an existing file under a nested directory."""
+    nested = e2e_workspace / "pkg"
+    nested.mkdir()
+    target = nested / "module.py"
+    target.write_text("# before\n", encoding="utf-8")
+    original_uid = target.stat().st_uid
+    project_id, session_id = _session_ids("rw-nested")
+    session_dir = e2e_workspace.parent / "session-rw-nested"
+    session_dir.mkdir()
+    spec = _container_spec(e2e_workspace, mode="workspace_write", image=e2e_image)
+    try:
+        exit_code, timed_out, status = SessionContainerExecutor().run(
+            project_id=project_id,
+            session_id=session_id,
+            seq=1,
+            session_dir=session_dir,
+            project_dir=e2e_workspace,
+            spec=spec,
+            timeout_seconds=30,
+            keep_container=False,
+            effective_cwd=".",
+            execution_kind="shell",
+            command="printf 'after' > /workspace/pkg/module.py",
+            argv=None,
+            use_venv=False,
+        )
+        assert timed_out is False
+        assert status == "completed"
+        assert exit_code == 0
+        assert target.read_text(encoding="utf-8") == "after"
+        assert target.stat().st_uid == original_uid
+        assert not (target.stat().st_mode & 0o002)
+    finally:
+        _teardown_container(project_id, session_id)
+
+
+@_requires_docker
 def test_docker_timeout_kills_long_sleep(e2e_workspace: Path, e2e_image: str) -> None:
     """§21: timeout works and cleans up the session container."""
     project_id, session_id = _session_ids("timeout")

@@ -17,7 +17,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from mcp_terminal.services.host_run_identity import prepare_path_for_project_owner_access
+from mcp_terminal.services.host_run_identity import (
+    prepare_path_for_project_owner_access,
+    restore_workspace_tree_project_owner,
+)
 from mcp_terminal.services.shell_state import (
     initial_shell_state_for_project,
     write_shell_state,
@@ -410,6 +413,7 @@ class SessionStore:
                 if isinstance(meta, dict) and meta.get("workspace_write") is True:
                     if self._project_writer.get(project_id) == session_id:
                         self._release_writer(project_id, session_id)
+                    restore_workspace_tree_project_owner(project_dir)
             except (OSError, json.JSONDecodeError):
                 pass
 
@@ -442,6 +446,7 @@ class SessionStore:
             return False
         if record.workspace_write:
             self._release_writer(project_id, session_id)
+            restore_workspace_tree_project_owner(record.project_dir)
         stop_session_container(project_id, session_id)
         if record.session_dir.exists():
             import shutil

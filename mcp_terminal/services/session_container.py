@@ -24,8 +24,9 @@ from mcp_terminal.services.docker_hosts import (
 )
 from mcp_terminal.services.host_run_identity import (
     prepare_session_dir_for_sandbox,
-    prepare_workspace_for_sandbox_write,
+    prepare_workspace_tree_for_sandbox_write,
     restore_session_dir_project_owner,
+    restore_workspace_tree_project_owner,
 )
 from mcp_terminal.services.pid_namespace import apply_docker_pid_namespace
 from mcp_terminal.services.shell_state import (
@@ -281,8 +282,10 @@ class SessionContainerExecutor:
         use_venv: bool = True,
     ) -> tuple[Optional[int], bool, str]:
         """Return ``(exit_code, timed_out, status)``."""
+        workspace_prepared = False
         if not spec.mount_spec.workspace_readonly:
-            prepare_workspace_for_sandbox_write(project_dir)
+            prepare_workspace_tree_for_sandbox_write(project_dir)
+            workspace_prepared = True
         prepare_session_dir_for_sandbox(project_dir, session_dir)
         try:
             return self._run_impl(
@@ -302,6 +305,8 @@ class SessionContainerExecutor:
             )
         finally:
             restore_session_dir_project_owner(project_dir, session_dir)
+            if workspace_prepared:
+                restore_workspace_tree_project_owner(project_dir)
 
     def _run_impl(
         self,

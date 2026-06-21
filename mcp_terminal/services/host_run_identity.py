@@ -84,20 +84,101 @@ def prepare_path_for_project_owner_access(project_dir: Path, path: Path) -> None
         pass
 
 
+def _chown_tree(path: Path, uid: int, gid: int) -> None:
+    """Recursively ``chown`` *path* and all descendants."""
+    try:
+        for root, dirs, files in os.walk(path, topdown=False):
+            root_path = Path(root)
+            for name in (*files, *dirs):
+                try:
+                    os.chown(root_path / name, uid, gid)
+                except OSError:
+                    pass
+        os.chown(path, uid, gid)
+    except OSError:
+        pass
+
+
+def _add_other_write_tree(path: Path) -> None:
+    """Recursively add other-write (and traverse bits on dirs) for non-root dev."""
+    try:
+        for root, dirs, files in os.walk(path):
+            root_path = Path(root)
+            for name in files:
+                try:
+                    entry = root_path / name
+                    mode = stat.S_IMODE(entry.stat().st_mode)
+                    os.chmod(entry, mode | stat.S_IWOTH)
+                except OSError:
+                    pass
+            for name in dirs:
+                try:
+                    entry = root_path / name
+                    mode = stat.S_IMODE(entry.stat().st_mode)
+                    os.chmod(
+                        entry,
+                        mode | stat.S_IWOTH | stat.S_IROTH | stat.S_IXOTH,
+                    )
+                except OSError:
+                    pass
+        mode = stat.S_IMODE(path.stat().st_mode)
+        os.chmod(path, mode | stat.S_IWOTH | stat.S_IROTH | stat.S_IXOTH)
+    except OSError:
+        pass
+
+
+def _strip_other_write_tree(path: Path) -> None:
+    """Remove other-write bits introduced by ``_add_other_write_tree``."""
+    try:
+        for root, dirs, files in os.walk(path, topdown=False):
+            root_path = Path(root)
+            for name in (*files, *dirs):
+                try:
+                    entry = root_path / name
+                    mode = stat.S_IMODE(entry.stat().st_mode) & ~stat.S_IWOTH
+                    os.chmod(entry, mode)
+                except OSError:
+                    pass
+        mode = stat.S_IMODE(path.stat().st_mode) & ~stat.S_IWOTH
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+
+def prepare_workspace_tree_for_sandbox_write(project_dir: Path) -> None:
+    """Allow hardened sandbox root to write anywhere under ``/workspace``.
+
+    With ``--cap-drop ALL`` and ``no-new-privileges``, container uid 0 is treated
+    as "other" on group-owned project trees. When the service runs as root, the
+    project tree is temporarily chowned to ``0:0``; in non-root dev mode,
+    other-write is opened recursively instead.
+    """
+    root = project_dir.resolve()
+    if os.geteuid() == 0:
+        _chown_tree(root, 0, 0)
+        return
+    _add_other_write_tree(root)
+
+
+def restore_workspace_tree_project_owner(project_dir: Path) -> None:
+    """Return the project tree to the project owner after a writer sandbox run."""
+    root = project_dir.resolve()
+    if os.geteuid() == 0:
+        try:
+            uid, gid = project_owner_ids(root)
+        except OSError:
+            return
+        _chown_tree(root, uid, gid)
+        return
+    _strip_other_write_tree(root)
+
+
 def prepare_workspace_for_sandbox_write(project_dir: Path) -> None:
     """Allow hardened sandbox root to create files under ``/workspace`` (bind mount).
 
-    With ``--cap-drop ALL`` and ``no-new-privileges``, container uid 0 does not
-    bypass directory permissions; open other-write on the project root on the host.
+    Deprecated alias for :func:`prepare_workspace_tree_for_sandbox_write`.
     """
-    try:
-        mode = project_dir.stat().st_mode
-        os.chmod(
-            project_dir,
-            stat.S_IMODE(mode) | stat.S_IWOTH | stat.S_IROTH | stat.S_IXOTH,
-        )
-    except OSError:
-        pass
+    prepare_workspace_tree_for_sandbox_write(project_dir)
 
 
 def prepare_session_dir_for_sandbox(project_dir: Path, session_dir: Path) -> None:

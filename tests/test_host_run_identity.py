@@ -14,9 +14,11 @@ from mcp_terminal.services.host_run_identity import (
     HostRunIdentity,
     build_sudo_argv,
     prepare_path_for_project_owner_access,
+    prepare_workspace_tree_for_sandbox_write,
     project_owner_ids,
     project_owner_login,
     project_owner_user_spec,
+    restore_workspace_tree_project_owner,
     resolve_host_identity,
 )
 
@@ -152,3 +154,47 @@ def test_build_sudo_argv_includes_named_group_when_present() -> None:
     )
     argv = build_sudo_argv(identity, inner_argv=["/usr/bin/true"])
     assert argv[:7] == ["/usr/bin/sudo", "-n", "-u", "root", "-g", "root", "--"]
+
+
+def test_prepare_workspace_tree_non_root_opens_nested_other_write(tmp_path: Path) -> None:
+    if os.geteuid() == 0:
+        pytest.skip("non-root dev-mode chmod test")
+    project = tmp_path / "proj"
+    nested = project / "pkg"
+    nested.mkdir(parents=True)
+    target = nested / "module.py"
+    target.write_text("x", encoding="utf-8")
+    os.chmod(project, 0o2770)
+    os.chmod(nested, 0o2770)
+    os.chmod(target, 0o660)
+
+    prepare_workspace_tree_for_sandbox_write(project)
+    assert target.stat().st_mode & stat.S_IWOTH
+    assert nested.stat().st_mode & stat.S_IWOTH
+
+    restore_workspace_tree_project_owner(project)
+    assert not (target.stat().st_mode & stat.S_IWOTH)
+    assert not (nested.stat().st_mode & stat.S_IWOTH)
+
+
+def test_prepare_workspace_tree_root_chowns_nested_file(tmp_path: Path) -> None:
+    if os.geteuid() != 0:
+        pytest.skip("root chown tree test")
+    project = tmp_path / "proj"
+    nested = project / "pkg"
+    nested.mkdir(parents=True)
+    target = nested / "module.py"
+    target.write_text("x", encoding="utf-8")
+    uid, gid = os.getuid(), os.getgid()
+    os.chown(project, uid, gid)
+    os.chown(nested, uid, gid)
+    os.chown(target, uid, gid)
+
+    prepare_workspace_tree_for_sandbox_write(project)
+    assert target.stat().st_uid == 0
+    assert target.stat().st_gid == 0
+
+    restore_workspace_tree_project_owner(project)
+    assert target.stat().st_uid == uid
+    assert target.stat().st_gid == gid
+    assert not (target.stat().st_mode & stat.S_IWOTH)
