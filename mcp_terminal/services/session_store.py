@@ -86,9 +86,9 @@ class SessionStore:
     ) -> Tuple[Optional[SessionRecord], bool, Optional[str], Optional[Dict[str, Any]]]:
         """Create or adopt a session.
 
-        Returns ``(record, created, error_code, error_data)``. ``error_data`` is non-None
-        only for some errors (e.g. ``WORKSPACE_WRITE_NOT_ALLOWED`` includes the holder
-        ``session_id``).
+        Returns ``(record, created, error_code, error_data)``. ``error_data`` is
+        non-None only for some errors (e.g. ``WORKSPACE_WRITE_NOT_ALLOWED`` includes
+        the holder ``session_id``).
         """
         key = self._key(project_id, session_id)
         existing = self._sessions.get(key)
@@ -96,7 +96,8 @@ class SessionStore:
             if existing.session_dir.is_dir():
                 return existing, False, None, None
             self._logger.info(
-                "Dropping in-memory session %s (missing session_dir after purge or manual delete)",
+                "Dropping in-memory session %s"
+                " (missing session_dir after purge or manual delete)",
                 session_id,
             )
             if existing.workspace_write:
@@ -148,9 +149,30 @@ class SessionStore:
         pid_namespace: Optional[str] = None,
         workspace_write: Optional[bool] = None,
     ) -> Tuple[Optional[SessionRecord], Optional[str], Optional[Dict[str, Any]]]:
-        terminals_root.mkdir(parents=True, exist_ok=True)
-        prepare_path_for_project_owner_access(project_dir, terminals_root)
-        self._ensure_gitignore(project_dir)
+        try:
+            terminals_root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._logger.error(
+                "Cannot create .terminals dir for project %s: %s",
+                project_id,
+                exc,
+            )
+            return (
+                None,
+                "TERMINALS_DIR_PERMISSION_DENIED",
+                {"path": str(terminals_root), "detail": str(exc)},
+            )
+
+        try:
+            prepare_path_for_project_owner_access(project_dir, terminals_root)
+            self._ensure_gitignore(project_dir)
+        except OSError as exc:
+            self._logger.warning(
+                "Non-fatal setup error for project %s terminals_root: %s",
+                project_id,
+                exc,
+            )
+
         now = datetime.now(timezone.utc)
 
         wants_write = (
@@ -171,11 +193,28 @@ class SessionStore:
         else:
             ws_on_disk = False
 
-        session_dir.mkdir(parents=True, exist_ok=True)
-        prepare_path_for_project_owner_access(project_dir, session_dir)
+        try:
+            session_dir.mkdir(parents=True, exist_ok=True)
+            prepare_path_for_project_owner_access(project_dir, session_dir)
+        except OSError as exc:
+            self._logger.error(
+                "Cannot create session_dir %s for project %s: %s",
+                session_dir,
+                project_id,
+                exc,
+            )
+            if ws_on_disk:
+                self._release_writer(project_id, session_id)
+            return (
+                None,
+                "SESSION_DIR_PERMISSION_DENIED",
+                {"path": str(session_dir), "detail": str(exc)},
+            )
 
         if pid_namespace is None:
-            pid_ns = normalize_pid_namespace(None, default=resolve_default_pid_namespace())
+            pid_ns = normalize_pid_namespace(
+                None, default=resolve_default_pid_namespace()
+            )
         else:
             pid_ns = normalize_pid_namespace(pid_namespace)
 
@@ -197,7 +236,8 @@ class SessionStore:
             initial_shell_state_for_project(project_dir, use_venv=venv_on),
         )
         self._logger.info(
-            "Created session %s for project %s (workspace_write=%s use_venv=%s pid_namespace=%s)",
+            "Created session %s for project %s"
+            " (workspace_write=%s use_venv=%s pid_namespace=%s)",
             session_id,
             project_id,
             ws_on_disk,
@@ -232,7 +272,9 @@ class SessionStore:
             return None, "SESSION_PROJECT_MISMATCH"
         created_raw = meta.get("created_at")
         try:
-            created_at = datetime.fromisoformat(created_raw) if created_raw else None
+            created_at = (
+                datetime.fromisoformat(created_raw) if created_raw else None
+            )
         except (TypeError, ValueError):
             created_at = None
         if created_at is None:
@@ -246,7 +288,9 @@ class SessionStore:
             self._project_writer[project_id] = session_id
         stored_pid_ns = meta.get("pid_namespace")
         if stored_pid_ns is None:
-            pid_ns = normalize_pid_namespace(None, default=resolve_default_pid_namespace())
+            pid_ns = normalize_pid_namespace(
+                None, default=resolve_default_pid_namespace()
+            )
         else:
             pid_ns = normalize_pid_namespace(stored_pid_ns)
         record = SessionRecord(
@@ -288,7 +332,7 @@ class SessionStore:
         return meta.get("workspace_write") is True
 
     def _reconcile_project_writer(self, project_dir: Path, project_id: str) -> None:
-        """Restore per-project write lock from ``session.json`` on disk (after restart)."""
+        """Restore per-project write lock from ``session.json`` on disk."""
         terminals = project_dir / self.TERMINALS_DIR
         current_sid = self._project_writer.get(project_id)
         if current_sid is not None and not self._workspace_writer_claim_valid(
@@ -316,7 +360,9 @@ class SessionStore:
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if not isinstance(meta, dict) or meta.get("project_id") != project_id:
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("project_id") != project_id:
                 continue
             if meta.get("workspace_write") is not True:
                 continue
@@ -462,10 +508,12 @@ class SessionStore:
     def list_sessions_for_project(
         self, project_id: str, project_dir: Path
     ) -> List[SessionRecord]:
-        """In-memory sessions plus any ``.terminals/*`` dirs on disk not yet registered."""
+        """In-memory sessions plus ``.terminals/*`` dirs on disk not yet registered."""
         self._reconcile_project_writer(project_dir, project_id)
         by_id: Dict[str, SessionRecord] = {
-            r.session_id: r for r in self._sessions.values() if r.project_id == project_id
+            r.session_id: r
+            for r in self._sessions.values()
+            if r.project_id == project_id
         }
         terminals_root = project_dir / self.TERMINALS_DIR
         if not terminals_root.is_dir():
@@ -489,7 +537,7 @@ class SessionStore:
         return list(by_id.values())
 
     def drop_sessions_for_purged_terminals(self, terminals_roots: List[Path]) -> int:
-        """Unregister in-memory sessions under purged ``.terminals`` trees (and ghosts)."""
+        """Unregister in-memory sessions under purged ``.terminals`` trees."""
         normalized = {p.resolve() for p in terminals_roots}
         dropped = 0
         for key in list(self._sessions.keys()):
@@ -498,7 +546,9 @@ class SessionStore:
                 parent = rec.session_dir.parent.resolve()
             except OSError:
                 parent = None
-            if (parent is not None and parent in normalized) or not rec.session_dir.is_dir():
+            is_purged = parent is not None and parent in normalized
+            is_ghost = not rec.session_dir.is_dir()
+            if is_purged or is_ghost:
                 if rec.workspace_write:
                     self._release_writer(rec.project_id, rec.session_id)
                 del self._sessions[key]

@@ -196,3 +196,53 @@ def test_delete_session_by_id_removes_disk_only(tmp_path: Path) -> None:
     ok, err = store.delete_session_by_id(project_id, session_a, tmp_path, force=True)
     assert ok and err is None
     assert not session_dir.exists()
+
+
+def test_create_new_terminals_dir_permission_denied(tmp_path: Path) -> None:
+    store = SessionStore()
+    project_id = "00000000-0000-4000-8000-000000000060"
+    session_id = "00000000-0000-4000-8000-000000000061"
+    terminals_root = tmp_path / SessionStore.TERMINALS_DIR
+    session_dir = terminals_root / session_id
+
+    with patch.object(Path, "mkdir", side_effect=OSError("permission denied")):
+        rec, err, data = store._create_new(
+            project_id=project_id,
+            session_id=session_id,
+            project_dir=tmp_path,
+            session_dir=session_dir,
+            terminals_root=terminals_root,
+        )
+
+    assert rec is None
+    assert err == "TERMINALS_DIR_PERMISSION_DENIED"
+    assert data is not None and "path" in data
+
+
+def test_create_new_session_dir_permission_denied_releases_writer(
+    tmp_path: Path,
+) -> None:
+    store = SessionStore()
+    project_id = "00000000-0000-4000-8000-000000000070"
+    session_id = "00000000-0000-4000-8000-000000000071"
+    terminals_root = tmp_path / SessionStore.TERMINALS_DIR
+    session_dir = terminals_root / session_id
+
+    with patch(
+        "mcp_terminal.services.session_store.prepare_path_for_project_owner_access",
+    ) as mock_prepare:
+        mock_prepare.side_effect = [None, OSError("permission denied")]
+
+        rec, err, data = store._create_new(
+            project_id=project_id,
+            session_id=session_id,
+            project_dir=tmp_path,
+            session_dir=session_dir,
+            terminals_root=terminals_root,
+            workspace_write=True,
+        )
+
+    assert rec is None
+    assert err == "SESSION_DIR_PERMISSION_DENIED"
+    assert data is not None
+    assert project_id not in store._project_writer
