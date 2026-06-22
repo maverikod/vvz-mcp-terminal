@@ -10,7 +10,6 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
-import json
 import logging
 import shlex
 import subprocess
@@ -182,7 +181,12 @@ class HostSessionExecutor:
         he = get_host_execution_config()
         if not he.enabled:
             self._logger.error("host exec rejected seq=%d: host_execution disabled", seq)
-            return HostRunResult(None, False, "failed", error_code=ErrorCode.HOST_EXECUTION_DISABLED)
+            return HostRunResult(
+                None,
+                False,
+                "failed",
+                error_code=ErrorCode.HOST_EXECUTION_DISABLED,
+            )
 
         validation = validate_host_run_request(execution_kind, command, argv)
         if not validation.ok:
@@ -197,15 +201,6 @@ class HostSessionExecutor:
                 False,
                 "failed",
                 error_code=validation.error_code or ErrorCode.HOST_COMMAND_NOT_ALLOWED,
-            )
-
-        if not sudo_nopasswd_available():
-            self._logger.error("host exec rejected seq=%d: sudo not configured", seq)
-            return HostRunResult(
-                None,
-                False,
-                "failed",
-                error_code=ErrorCode.HOST_SUDO_NOT_CONFIGURED,
             )
 
         segments = segments_for_request(
@@ -224,6 +219,15 @@ class HostSessionExecutor:
         )
         self._last_identity = identity
 
+        if identity.run_as_mode != "root" and not sudo_nopasswd_available():
+            self._logger.error("host exec rejected seq=%d: sudo not configured", seq)
+            return HostRunResult(
+                None,
+                False,
+                "failed",
+                error_code=ErrorCode.HOST_SUDO_NOT_CONFIGURED,
+            )
+
         prefix = CommandHistory.seq_to_prefix(seq)
         script_path = _write_host_exec_script(
             session_dir,
@@ -239,7 +243,10 @@ class HostSessionExecutor:
         stderr_path = session_dir / f"{prefix}.stderr.log"
 
         inner = ["/bin/bash", str(script_path)]
-        launch_argv = build_sudo_argv(identity, inner_argv=inner)
+        if identity.run_as_mode == "root":
+            launch_argv = inner
+        else:
+            launch_argv = build_sudo_argv(identity, inner_argv=inner)
 
         exit_code: Optional[int] = None
         timed_out = False

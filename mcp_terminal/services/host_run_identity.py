@@ -23,7 +23,7 @@ class HostRunIdentity:
     """Effective user context for one host-side execution."""
 
     run_as_mode: str
-    """``project_owner`` or ``sudo_override``."""
+    """``project_owner``, ``sudo_override``, or ``root`` (direct, no sudo)."""
     sudo_user: str
     """First argument to ``sudo -u`` (account name preferred; numeric uid fallback)."""
     sudo_group: Optional[str]
@@ -308,6 +308,16 @@ def resolve_host_identity(
             sudo_group=group,
             effective_uid=None,
             effective_gid=None,
+            primary_basename=primary,
+        )
+
+    if config.run_as_default == "root":
+        return HostRunIdentity(
+            run_as_mode="root",
+            sudo_user="root",
+            sudo_group=None,
+            effective_uid=0,
+            effective_gid=0,
             primary_basename=primary,
         )
 

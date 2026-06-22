@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from mcp_terminal.config.config_validator import validate_terminal_config
 from mcp_terminal.config.create_config import build_term_server_config
+from mcp_terminal.config.host_execution_schema import HOST_RUN_AS_DEFAULT_MODES
 
 
 def _optional_bool(raw: Optional[str]) -> Optional[bool]:
@@ -75,9 +76,23 @@ def _collect_code_analysis_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
     return out
 
 
+def _collect_host_execution_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if getattr(args, "host_execution_enabled", None) is not None:
+        out["host_execution_enabled"] = args.host_execution_enabled
+    if getattr(args, "host_execution_allowed_commands", None) is not None:
+        out["host_execution_allowed_commands"] = args.host_execution_allowed_commands
+    if getattr(args, "host_execution_run_as_default", None) is not None:
+        out["host_execution_run_as_default"] = args.host_execution_run_as_default
+    if getattr(args, "host_execution_service_user", None) is not None:
+        out["host_execution_service_user"] = args.host_execution_service_user
+    return out
+
+
 def _collect_all_generate_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
     out = _collect_code_analysis_kwargs(args)
     out.update(_collect_terminal_defaults_kwargs(args))
+    out.update(_collect_host_execution_kwargs(args))
     return out
 
 
@@ -259,6 +274,33 @@ def main() -> None:
             "terminal.admin.allow_purge_sessions (termgr purge-sessions / "
             "terminal_purge_sessions MCP)"
         ),
+    )
+    gen.add_argument(
+        "--host-execution-enabled",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="terminal.host_execution.enabled",
+    )
+    gen.add_argument(
+        "--host-execution-allowed-commands",
+        nargs="+",
+        default=None,
+        metavar="CMD",
+        help="terminal.host_execution.allowed_commands (space-separated basenames)",
+    )
+    gen.add_argument(
+        "--host-execution-run-as-default",
+        type=str,
+        default=None,
+        choices=HOST_RUN_AS_DEFAULT_MODES,
+        help="terminal.host_execution.run_as.default",
+    )
+    gen.add_argument(
+        "--host-execution-service-user",
+        type=str,
+        default=None,
+        help="terminal.host_execution.service_user",
     )
     gen.set_defaults(func=cmd_generate)
     val = subparsers.add_parser("validate", help="Validate config file")

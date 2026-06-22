@@ -14,7 +14,10 @@ import copy
 from typing import Any, Dict, List, Optional
 
 from mcp_terminal.config.config_validator import validate_terminal_config
-from mcp_terminal.config.host_execution_schema import HOST_EXECUTION_CONFIG
+from mcp_terminal.config.host_execution_schema import (
+    HOST_EXECUTION_CONFIG,
+    HOST_RUN_AS_DEFAULT_MODES,
+)
 from mcp_terminal.config.terminal_admin_schema import TERMINAL_ADMIN_CONFIG
 from mcp_terminal.config.terminal_defaults_schema import TERMINAL_DEFAULTS_CONFIG
 
@@ -121,6 +124,10 @@ def generate_terminal_config(
     terminal_defaults_pid_namespace: Optional[str] = None,
     terminal_defaults_keep_container: Optional[bool] = None,
     terminal_admin_allow_purge_sessions: Optional[bool] = None,
+    host_execution_enabled: Optional[bool] = None,
+    host_execution_allowed_commands: Optional[List[str]] = None,
+    host_execution_run_as_default: Optional[str] = None,
+    host_execution_service_user: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Merge terminal-specific default sections into base_config.
 
@@ -167,6 +174,11 @@ def generate_terminal_config(
         terminal_defaults_pid_namespace: Overrides ``terminal.defaults.pid_namespace``.
         terminal_defaults_keep_container: Overrides ``terminal.defaults.keep_container``.
         terminal_admin_allow_purge_sessions: Overrides ``terminal.admin.allow_purge_sessions``.
+        host_execution_enabled: Overrides ``terminal.host_execution.enabled``.
+        host_execution_allowed_commands: Replaces ``terminal.host_execution.allowed_commands``.
+        host_execution_run_as_default: Overrides ``terminal.host_execution.run_as.default``
+            (``project_owner`` or ``root``).
+        host_execution_service_user: Overrides ``terminal.host_execution.service_user``.
 
     Returns:
         New dict containing adapter sections, ``terminal``, ``runtime``,
@@ -279,6 +291,52 @@ def generate_terminal_config(
             admin_block = copy.deepcopy(TERMINAL_ADMIN_CONFIG)
             term["admin"] = admin_block
         admin_block["allow_purge_sessions"] = bool(terminal_admin_allow_purge_sessions)
+
+    he_updates: Dict[str, Any] = {}
+    if host_execution_enabled is not None:
+        he_updates["enabled"] = bool(host_execution_enabled)
+    if host_execution_allowed_commands is not None:
+        if not isinstance(host_execution_allowed_commands, list):
+            raise TypeError(
+                "host_execution_allowed_commands must be a list of strings when provided"
+            )
+        he_updates["allowed_commands"] = [
+            str(item).strip() for item in host_execution_allowed_commands if str(item).strip()
+        ]
+    if host_execution_service_user is not None:
+        he_updates["service_user"] = str(host_execution_service_user).strip()
+
+    run_as_updates: Dict[str, Any] = {}
+    if host_execution_run_as_default is not None:
+        mode = str(host_execution_run_as_default).strip()
+        if mode not in HOST_RUN_AS_DEFAULT_MODES:
+            allowed = ", ".join(HOST_RUN_AS_DEFAULT_MODES)
+            raise ValueError(
+                f"host_execution_run_as_default must be one of: {allowed}; got {mode!r}"
+            )
+        run_as_updates["default"] = mode
+    if run_as_updates:
+        he_updates["run_as"] = run_as_updates
+
+    if he_updates:
+        term = result.setdefault("terminal", {})
+        if not isinstance(term, dict):
+            term = {}
+            result["terminal"] = term
+        he_block = term.setdefault("host_execution", copy.deepcopy(HOST_EXECUTION_CONFIG))
+        if not isinstance(he_block, dict):
+            he_block = copy.deepcopy(HOST_EXECUTION_CONFIG)
+            term["host_execution"] = he_block
+        if "run_as" in he_updates and isinstance(he_updates["run_as"], dict):
+            run_as_block = he_block.setdefault(
+                "run_as",
+                copy.deepcopy(HOST_EXECUTION_CONFIG["run_as"]),
+            )
+            if not isinstance(run_as_block, dict):
+                run_as_block = copy.deepcopy(HOST_EXECUTION_CONFIG["run_as"])
+                he_block["run_as"] = run_as_block
+            run_as_block.update(he_updates.pop("run_as"))
+        he_block.update(he_updates)
 
     if overrides:
         for key, value in overrides.items():

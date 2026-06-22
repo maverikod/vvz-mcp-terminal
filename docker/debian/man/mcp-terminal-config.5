@@ -64,13 +64,21 @@ spawns per-session Docker containers on the host daemon (via mounted \fBdocker.s
 .TP
 .B terminal_run_host
 Host execution. Uses \fBterminal.host_execution\fR (\fBenabled\fR plus
-\fBallowed_commands\fR allowlist). Commands run on the host via passwordless
+\fBallowed_commands\fR allowlist). By default commands run via passwordless
 \fBsudo\fR as the project directory owner, or as an explicit user from
-\fBrun_as.sudo\fR (e.g. \fBcasmgr\fR → \fBcasuser\fR). The service container runs
-as \fBmcp-terminal\fR; \fBsync-host-sudo.sh\fR (root) generates
-\fB/etc/sudoers.d/mcp-terminal\fR from the allowlist before start.
+\fBrun_as.sudo\fR (e.g. \fBcasmgr\fR → \fBcasuser\fR). When
+\fBrun_as.default\fR is \fBroot\fR, allowed commands run directly as the
+service user (no \fBsudo\fR) — use for \fBdocker\fR, \fBsystemctl\fR,
+\fBjournalctl\fR when the service container runs as root. Per-command
+\fBrun_as.sudo\fR overrides still take precedence over \fBrun_as.default\fR.
+The service container typically runs as \fBmcp-terminal\fR; production
+installs with root in-container use \fBservice_user\fR \fBroot\fR and
+\fBrun_as.default\fR \fBroot\fR. \fBsync-host-sudo.sh\fR (root) generates
+\fB/etc/sudoers.d/mcp-terminal\fR from the allowlist when
+\fBrun_as.default\fR is \fBproject_owner\fR.
 .PP
-After changing \fBallowed_commands\fR or \fBrun_as\fR:
+After changing \fBallowed_commands\fR, \fBrun_as.default\fR, or \fBrun_as.sudo\fR
+(when using \fBproject_owner\fR mode):
 .RS
 .EX
 sudo /usr/lib/mcp-terminal/sync-host-sudo.sh
@@ -133,7 +141,8 @@ into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR in
 .B terminal
 Terminal domain: session TTL, output limits, cleanup, admin flags, and
 \fBhost_execution\fR (allowlist for \fBterminal_run_host\fR, \fBservice_user\fR,
-\fBrun_as.default\fR, \fBrun_as.command_paths\fR, \fBrun_as.sudo\fR overrides).
+\fBrun_as.default\fR (\fBproject_owner\fR or \fBroot\fR), \fBrun_as.command_paths\fR,
+\fBrun_as.sudo\fR overrides).
 .TP
 .B runtime
 Sandbox defaults for \fBterminal_run\fR: image profile, network mode, timeouts,
@@ -195,6 +204,7 @@ Sample project roots writable for \fB.terminals/\fR
 \fB/usr/bin/docker\fR when \fBMCP_TERMINAL_MOUNT_HOST_DOCKER=1\fR)
 .IP \(bu
 \fB/etc/sudoers.d/mcp-terminal\fR when \fBterminal.host_execution.enabled\fR
+and \fBrun_as.default\fR is \fBproject_owner\fR (skipped for \fBroot\fR mode)
 .IP \(bu
 \fBregistration.instance_uuid\fR finalized (not \fBREPLACE_ON_INSTALL\fR)
 .RE
@@ -251,9 +261,32 @@ paths into the service container).
     "directories": ["/home/projects"],
     "refresh_interval_seconds": 60
   },
-  "queue_manager": { "enabled": true, "max_concurrent_jobs": 10 }
+  "queue_manager": { "enabled": true, "max_concurrent_jobs": 10 },
+  "terminal": {
+    "host_execution": {
+      "enabled": true,
+      "service_user": "root",
+      "allowed_commands": ["docker", "systemctl", "journalctl", "git"],
+      "run_as": {
+        "default": "root",
+        "sudo": {
+          "casmgr": { "as_user": "casuser", "group": "casgrp" }
+        },
+        "command_paths": {
+          "docker": "/usr/bin/docker",
+          "systemctl": "/usr/bin/systemctl",
+          "journalctl": "/usr/bin/journalctl"
+        }
+      }
+    }
+  }
 }
 .fi
+.PP
+With \fBrun_as.default\fR \fBroot\fR, \fBterminal_run_host\fR invokes allowlisted
+commands without \fBsudo\fR. With \fBproject_owner\fR (default), run
+\fBsync-host-sudo.sh\fR after allowlist edits. \fBrun_as.sudo\fR entries apply
+only when the matching command is invoked and override \fBrun_as.default\fR.
 .SH FILES
 .TP
 .B /etc/mcp-terminal/term_server.json

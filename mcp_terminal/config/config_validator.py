@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from mcp_terminal.config.host_execution_schema import HOST_RUN_AS_DEFAULT_MODES
 from mcp_terminal.config.tls_protocol import is_tls_protocol
 
 
@@ -268,11 +269,12 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
 
     default_mode = run_as.get("default", "project_owner")
     if default_mode is not None:
-        if not isinstance(default_mode, str) or default_mode not in ("project_owner",):
+        if not isinstance(default_mode, str) or default_mode not in HOST_RUN_AS_DEFAULT_MODES:
+            allowed = ", ".join(HOST_RUN_AS_DEFAULT_MODES)
             errors.append(
                 ValidationError(
                     field="terminal.host_execution.run_as.default",
-                    message="run_as.default must be project_owner",
+                    message=f"run_as.default must be one of: {allowed}",
                 )
             )
 

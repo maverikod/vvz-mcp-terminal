@@ -41,6 +41,40 @@ def test_validator_rejects_bad_host_execution() -> None:
     assert "terminal.host_execution.enabled" in fields
 
 
+def test_validator_rejects_invalid_run_as_default() -> None:
+    cfg = generate_terminal_config({})
+    cfg["terminal"]["host_execution"]["run_as"]["default"] = "nobody"
+    fields = [e.field for e in validate_terminal_config(cfg)]
+    assert "terminal.host_execution.run_as.default" in fields
+
+
+def test_validator_accepts_run_as_root() -> None:
+    cfg = generate_terminal_config(
+        {},
+        host_execution_enabled=True,
+        host_execution_allowed_commands=["docker"],
+        host_execution_run_as_default="root",
+    )
+    assert validate_terminal_config(cfg) == []
+    assert cfg["terminal"]["host_execution"]["run_as"]["default"] == "root"
+
+
+def test_generator_cli_host_execution_overrides() -> None:
+    from mcp_terminal.config.create_config import build_term_server_config
+
+    cfg = build_term_server_config(
+        host_execution_enabled=True,
+        host_execution_allowed_commands=["docker", "systemctl"],
+        host_execution_run_as_default="root",
+        host_execution_service_user="root",
+    )
+    he = cfg["terminal"]["host_execution"]
+    assert he["enabled"] is True
+    assert he["allowed_commands"] == ["docker", "systemctl"]
+    assert he["run_as"]["default"] == "root"
+    assert he["service_user"] == "root"
+
+
 def test_decompose_shell_command_respects_quotes() -> None:
     parts = decompose_shell_command('casmgr status && git commit -m "a; b"')
     assert len(parts) == 2
@@ -98,3 +132,35 @@ def test_warn_when_enabled_and_empty_allowlist(caplog: pytest.LogCaptureFixture)
     with caplog.at_level(logging.WARNING):
         warn_if_host_execution_enabled_without_commands(cfg)
     assert HOST_EXECUTION_EMPTY_ALLOWLIST_LOG in caplog.text
+
+
+def test_parse_run_as_root_default() -> None:
+    cfg = {
+        "terminal": {
+            "host_execution": {
+                "enabled": True,
+                "allowed_commands": ["docker"],
+                "run_as": {"default": "root"},
+            }
+        }
+    }
+    he = get_host_execution_config(cfg)
+    assert he.run_as_default == "root"
+
+
+def test_parse_run_as_unknown_default_falls_back(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    cfg = {
+        "terminal": {
+            "host_execution": {
+                "enabled": True,
+                "allowed_commands": ["docker"],
+                "run_as": {"default": "nobody"},
+            }
+        }
+    }
+    with caplog.at_level(logging.WARNING):
+        he = get_host_execution_config(cfg)
+    assert he.run_as_default == "project_owner"
+    assert "Unknown run_as.default" in caplog.text

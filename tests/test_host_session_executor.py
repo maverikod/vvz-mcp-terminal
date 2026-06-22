@@ -86,6 +86,81 @@ def test_host_session_executor_runs_and_updates_cwd(tmp_path: Path) -> None:
     assert launch_argv[0:3] == ["/usr/bin/sudo", "-n", "-u"]
 
 
+def test_host_session_executor_root_mode_runs_without_sudo(tmp_path: Path) -> None:
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    write_shell_state(session_dir, ShellState(cwd=".", use_venv=False))
+
+    root_cfg = HostExecutionConfig(
+        enabled=True,
+        allowed_commands=frozenset({"true"}),
+        run_as_default="root",
+    )
+    root_identity = HostRunIdentity(
+        run_as_mode="root",
+        sudo_user="root",
+        sudo_group=None,
+        effective_uid=0,
+        effective_gid=0,
+        primary_basename="true",
+    )
+
+    mock_proc = MagicMock()
+    mock_proc.wait.return_value = None
+    mock_proc.returncode = 0
+
+    with (
+        patch(
+            "mcp_terminal.services.host_session_executor.get_host_execution_config",
+            return_value=root_cfg,
+        ),
+        patch(
+            "mcp_terminal.services.host_session_executor.validate_host_run_request",
+            return_value=HostCommandValidation(ok=True, segments=("true",)),
+        ),
+        patch(
+            "mcp_terminal.services.host_session_executor.sudo_nopasswd_available",
+            return_value=False,
+        ) as mock_sudo,
+        patch(
+            "mcp_terminal.services.host_session_executor.resolve_host_identity",
+            return_value=root_identity,
+        ),
+        patch(
+            "mcp_terminal.services.host_session_executor.subprocess.Popen",
+            return_value=mock_proc,
+        ) as popen,
+        patch(
+            "mcp_terminal.services.running_terminal_jobs.register",
+            return_value=None,
+        ),
+        patch(
+            "mcp_terminal.services.running_terminal_jobs.unregister",
+            return_value=None,
+        ),
+    ):
+        executor = HostSessionExecutor()
+        result = executor.run(
+            project_id="00000000-0000-4000-8000-000000000001",
+            session_id="00000000-0000-4000-8000-000000000002",
+            seq=1,
+            session_dir=session_dir,
+            project_dir=project_dir,
+            timeout_seconds=30,
+            effective_cwd=".",
+            execution_kind="shell",
+            command="true",
+            argv=None,
+            use_venv=False,
+        )
+    assert result.status == "completed"
+    mock_sudo.assert_not_called()
+    launch_argv = popen.call_args[0][0]
+    assert launch_argv[0] == "/bin/bash"
+
+
 def test_host_session_executor_rejects_when_validation_fails(tmp_path: Path) -> None:
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
@@ -162,7 +237,10 @@ def test_host_session_executor_rejects_when_sudo_missing(tmp_path: Path) -> None
 
 
 def test_host_job_writes_execution_target(tmp_path: Path) -> None:
-    from mcp_terminal.jobs.terminal_host_execution_job import HostJobParams, TerminalHostExecutionJob
+    from mcp_terminal.jobs.terminal_host_execution_job import (
+        HostJobParams,
+        TerminalHostExecutionJob,
+    )
 
     project_dir = tmp_path / "proj"
     project_dir.mkdir()

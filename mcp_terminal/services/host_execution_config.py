@@ -21,6 +21,7 @@ from mcp_terminal.config.host_execution_schema import (
     HOST_EXECUTION_CONFIG,
     HOST_EXECUTION_EMPTY_ALLOWLIST_LOG,
     HOST_EXECUTION_SUDO_WARN_LOG,
+    HOST_RUN_AS_DEFAULT_MODES,
 )
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.host_shell_scanner import (
@@ -102,7 +103,9 @@ def _host_execution_section(config: Dict[str, Any] | None) -> Dict[str, Any]:
     return raw
 
 
-def _parse_run_as(section: Dict[str, Any]) -> tuple[str, Dict[str, Dict[str, Optional[str]]], Dict[str, str]]:
+def _parse_run_as(
+    section: Dict[str, Any],
+) -> tuple[str, Dict[str, Dict[str, Optional[str]]], Dict[str, str]]:
     run_as = section.get("run_as")
     if not isinstance(run_as, dict):
         return "project_owner", {}, {}
@@ -110,6 +113,14 @@ def _parse_run_as(section: Dict[str, Any]) -> tuple[str, Dict[str, Dict[str, Opt
     default_mode = run_as.get("default", "project_owner")
     if not isinstance(default_mode, str) or not default_mode.strip():
         default_mode = "project_owner"
+    else:
+        default_mode = default_mode.strip()
+        if default_mode not in HOST_RUN_AS_DEFAULT_MODES:
+            _logger.warning(
+                "Unknown run_as.default %r; falling back to project_owner",
+                default_mode,
+            )
+            default_mode = "project_owner"
 
     command_paths: Dict[str, str] = {}
     raw_paths = run_as.get("command_paths")
@@ -136,7 +147,7 @@ def _parse_run_as(section: Dict[str, Any]) -> tuple[str, Dict[str, Dict[str, Opt
                 override["path"] = path.strip()
             sudo_overrides[key.strip().lower()] = override
 
-    return default_mode.strip(), sudo_overrides, command_paths
+    return default_mode, sudo_overrides, command_paths
 
 
 def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecutionConfig:
@@ -190,6 +201,8 @@ def warn_if_host_sudo_not_configured(config: Dict[str, Any]) -> None:
     """Log when host execution is enabled but passwordless sudo is unavailable."""
     he = get_host_execution_config(config)
     if not he.enabled or not he.allowed_commands:
+        return
+    if he.run_as_default == "root":
         return
     from mcp_terminal.services.host_session_executor import sudo_nopasswd_available
 

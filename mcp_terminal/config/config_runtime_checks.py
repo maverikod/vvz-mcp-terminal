@@ -611,8 +611,26 @@ def _host_execution_enabled(app_config: dict) -> bool:
     return bool(host_exec.get("enabled", False))
 
 
+def _host_execution_run_as_default(app_config: dict) -> str:
+    terminal = app_config.get("terminal")
+    if not isinstance(terminal, dict):
+        return "project_owner"
+    host_exec = terminal.get("host_execution")
+    if not isinstance(host_exec, dict):
+        return "project_owner"
+    run_as = host_exec.get("run_as")
+    if not isinstance(run_as, dict):
+        return "project_owner"
+    default_mode = run_as.get("default", "project_owner")
+    if isinstance(default_mode, str) and default_mode.strip():
+        return default_mode.strip()
+    return "project_owner"
+
+
 def _check_host_execution_sudoers(app_config: dict) -> List[RuntimeIssue]:
     if not _host_execution_enabled(app_config):
+        return []
+    if _host_execution_run_as_default(app_config) == "root":
         return []
     sudoers = Path("/etc/sudoers.d/mcp-terminal")
     if not sudoers.is_file():
@@ -665,6 +683,8 @@ def _check_host_execution_sudoers(app_config: dict) -> List[RuntimeIssue]:
 def _check_host_execution_passwd(app_config: dict) -> List[RuntimeIssue]:
     """Warn when the service container lacks a host-like ``/etc/passwd`` (sudo -u names)."""
     if not _host_execution_enabled(app_config):
+        return []
+    if _host_execution_run_as_default(app_config) == "root":
         return []
     passwd = Path("/etc/passwd")
     try:

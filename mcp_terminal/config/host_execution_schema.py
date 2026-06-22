@@ -28,4 +28,4 @@ HOST_EXECUTION_SUDO_WARN_LOG = (
 )
 
 # Allowed values for terminal.host_execution.run_as.default
-HOST_RUN_AS_DEFAULT_MODES: List[str] = ["project_owner"]
+HOST_RUN_AS_DEFAULT_MODES: List[str] = ["project_owner", "root"]

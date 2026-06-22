@@ -168,17 +168,24 @@ Set @code{server.log_dir} to @code{/var/log/mcp-terminal} and
 @code{server.host} to @code{0.0.0.0} in production.
 
 Host-side command execution (@code{terminal_run_host}) runs inside the service
-container as @code{mcp-terminal} but elevates via passwordless @command{sudo}
-to the project directory owner or explicit @code{run_as.sudo} targets (for
-example @code{casmgr} as @code{casuser}). After editing
-@code{terminal.host_execution}:
+container. With @code{run_as.default} @code{project_owner} (default), commands
+elevate via passwordless @command{sudo} to the project directory owner or
+explicit @code{run_as.sudo} targets (for example @code{casmgr} as
+@code{casuser}). With @code{run_as.default} @code{root}, allowlisted commands
+run directly as the service user (no @command{sudo}) --- suitable for
+@command{docker}, @command{systemctl}, @command{journalctl} when the container
+runs as root (@code{service_user} @code{root}). Per-command @code{run_as.sudo}
+overrides still take precedence. After editing @code{terminal.host_execution}
+when using @code{project_owner} mode:
 
 @example
 sudo /usr/lib/mcp-terminal/sync-host-sudo.sh /etc/mcp-terminal/term_server.json
 sudo mcp-terminal-docker recreate
 @end example
 
-@file{/etc/sudoers.d/mcp-terminal} is bind-mounted read-only into the container.
+@file{/etc/sudoers.d/mcp-terminal} is bind-mounted read-only into the container
+when @code{run_as.default} is @code{project_owner}; it is not required for
+@code{root} mode.
 
 @node Preflight
 @chapter Preflight and troubleshooting
@@ -197,8 +204,10 @@ Project roots must allow @file{.terminals/} creation.
 @file{/var/run/docker.sock} accessible; client API @geq{} 1.44. Set
 @code{MCP_TERMINAL_MOUNT_HOST_DOCKER=1} (default) and recreate on Engine 29+.
 @item Host execution
-When @code{terminal.host_execution.enabled}, @file{/etc/sudoers.d/mcp-terminal}
-must exist with @code{NOPASSWD} rules from @command{sync-host-sudo.sh}.
+When @code{terminal.host_execution.enabled} and @code{run_as.default} is
+@code{project_owner}, @file{/etc/sudoers.d/mcp-terminal} must exist with
+@code{NOPASSWD} rules from @command{sync-host-sudo.sh}. When
+@code{run_as.default} is @code{root}, sudoers is not required.
 @item casmgr TLS
 Warning when @code{code_analysis.ssl.ca} is the install CA instead of MCP-Proxy CA.
 @end table

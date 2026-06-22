@@ -84,6 +84,50 @@ def test_resolve_host_identity_sudo_override(tmp_path: Path) -> None:
     assert identity.sudo_group == "casgrp"
 
 
+def test_resolve_host_identity_root_mode(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    cfg = HostExecutionConfig(
+        enabled=True,
+        allowed_commands=frozenset({"docker"}),
+        run_as_default="root",
+        sudo_overrides={},
+    )
+    identity = resolve_host_identity(
+        project_dir=project,
+        config=cfg,
+        execution_kind="shell",
+        command="docker ps",
+        argv=None,
+        segments=("docker ps",),
+    )
+    assert identity.run_as_mode == "root"
+    assert identity.sudo_user == "root"
+    assert identity.effective_uid == 0
+    assert identity.effective_gid == 0
+
+
+def test_resolve_host_identity_sudo_override_beats_root_default(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    cfg = HostExecutionConfig(
+        enabled=True,
+        allowed_commands=frozenset({"casmgr"}),
+        run_as_default="root",
+        sudo_overrides={"casmgr": {"as_user": "casuser", "group": "casgrp"}},
+    )
+    identity = resolve_host_identity(
+        project_dir=project,
+        config=cfg,
+        execution_kind="shell",
+        command="casmgr status",
+        argv=None,
+        segments=("casmgr status",),
+    )
+    assert identity.run_as_mode == "sudo_override"
+    assert identity.sudo_user == "casuser"
+
+
 def test_project_owner_user_spec_matches_stat(tmp_path: Path) -> None:
     project = tmp_path / "proj"
     project.mkdir()
