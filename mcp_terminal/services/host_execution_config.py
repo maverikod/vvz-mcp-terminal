@@ -73,12 +73,19 @@ class HostExecutionConfig:
     run_as_default: str = "project_owner"
     sudo_overrides: Mapping[str, Dict[str, Optional[str]]] = None  # type: ignore[assignment]
     command_paths: Mapping[str, str] = None  # type: ignore[assignment]
+    forbidden_executables: Optional[FrozenSet[str]] = None
+    """When set, replaces ``DEFAULT_HOST_FORBIDDEN_EXECUTABLES`` entirely (empty = none)."""
 
     def __post_init__(self) -> None:
         if self.sudo_overrides is None:
             object.__setattr__(self, "sudo_overrides", {})
         if self.command_paths is None:
             object.__setattr__(self, "command_paths", {})
+
+    def effective_forbidden_executables(self) -> FrozenSet[str]:
+        if self.forbidden_executables is not None:
+            return self.forbidden_executables
+        return HOST_FORBIDDEN_EXECUTABLES
 
 
 @dataclass(frozen=True)
@@ -150,6 +157,19 @@ def _parse_run_as(
     return default_mode, sudo_overrides, command_paths
 
 
+def _parse_forbidden_executables_override(section: Dict[str, Any]) -> Optional[FrozenSet[str]]:
+    if "forbidden_executables_override" not in section:
+        return None
+    raw = section.get("forbidden_executables_override")
+    if not isinstance(raw, list):
+        return None
+    return frozenset(
+        item.strip().lower()
+        for item in raw
+        if isinstance(item, str) and item.strip()
+    )
+
+
 def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecutionConfig:
     """Return merged host_execution settings (config + built-in fallbacks)."""
     if config is None:
@@ -179,6 +199,7 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
         service_user = str(HOST_EXECUTION_CONFIG["service_user"])
 
     run_as_default, sudo_overrides, command_paths = _parse_run_as(section)
+    forbidden_executables = _parse_forbidden_executables_override(section)
 
     return HostExecutionConfig(
         enabled=enabled,
@@ -187,6 +208,7 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
         run_as_default=run_as_default,
         sudo_overrides=sudo_overrides,
         command_paths=command_paths,
+        forbidden_executables=forbidden_executables,
     )
 
 
@@ -214,7 +236,11 @@ def _allowed_names_lower(allowed: FrozenSet[str]) -> FrozenSet[str]:
     return {name.lower() for name in allowed}
 
 
-def _validate_segment(segment: str, allowed_lower: FrozenSet[str]) -> HostCommandValidation:
+def _validate_segment(
+    segment: str,
+    allowed_lower: FrozenSet[str],
+    forbidden_executables: FrozenSet[str],
+) -> HostCommandValidation:
     exe = segment_executable_name(segment)
     if not exe:
         return HostCommandValidation(
@@ -225,7 +251,7 @@ def _validate_segment(segment: str, allowed_lower: FrozenSet[str]) -> HostComman
         )
 
     exe_lower = exe.lower()
-    if exe_lower in HOST_FORBIDDEN_EXECUTABLES:
+    if exe_lower in forbidden_executables:
         return HostCommandValidation(
             ok=False,
             error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
@@ -247,8 +273,14 @@ def _validate_segment(segment: str, allowed_lower: FrozenSet[str]) -> HostComman
 def validate_host_shell_command(
     command: str,
     allowed_commands: FrozenSet[str],
+    forbidden_executables: Optional[FrozenSet[str]] = None,
 ) -> HostCommandValidation:
     """Validate every segment of a shell command for host execution."""
+    blocked = (
+        forbidden_executables
+        if forbidden_executables is not None
+        else HOST_FORBIDDEN_EXECUTABLES
+    )
     allowed_lower = _allowed_names_lower(allowed_commands)
     hit = find_forbidden_in_shell_command(command)
     if hit is not None:
@@ -268,7 +300,7 @@ def validate_host_shell_command(
         )
 
     for segment in segments:
-        result = _validate_segment(segment, allowed_lower)
+        result = _validate_segment(segment, allowed_lower, blocked)
         if not result.ok:
             return HostCommandValidation(
                 ok=False,
@@ -283,8 +315,14 @@ def validate_host_shell_command(
 def validate_host_argv_command(
     argv: List[str],
     allowed_commands: FrozenSet[str],
+    forbidden_executables: Optional[FrozenSet[str]] = None,
 ) -> HostCommandValidation:
     """Validate a single argv invocation for host execution."""
+    blocked = (
+        forbidden_executables
+        if forbidden_executables is not None
+        else HOST_FORBIDDEN_EXECUTABLES
+    )
     if not argv:
         return HostCommandValidation(
             ok=False,
@@ -304,7 +342,7 @@ def validate_host_argv_command(
     allowed_lower = _allowed_names_lower(allowed_commands)
     exe = Path(str(argv[0])).name
     exe_lower = exe.lower()
-    if exe_lower in HOST_FORBIDDEN_EXECUTABLES:
+    if exe_lower in blocked:
         return HostCommandValidation(
             ok=False,
             error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
@@ -350,7 +388,11 @@ def validate_host_run_request(
                 error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,
                 detail="argv is required for execution_kind argv",
             )
-        return validate_host_argv_command([str(x) for x in argv], he.allowed_commands)
+        return validate_host_argv_command(
+            [str(x) for x in argv],
+            he.allowed_commands,
+            he.effective_forbidden_executables(),
+        )
 
     if execution_kind != "shell" or not command or not command.strip():
         return HostCommandValidation(
@@ -358,7 +400,11 @@ def validate_host_run_request(
             error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,
             detail="command is required for execution_kind shell",
         )
-    return validate_host_shell_command(command.strip(), he.allowed_commands)
+    return validate_host_shell_command(
+        command.strip(),
+        he.allowed_commands,
+        he.effective_forbidden_executables(),
+    )
 
 
 def is_host_execution_eligible(
@@ -374,9 +420,17 @@ def is_host_execution_eligible(
         if not he.enabled or not he.allowed_commands:
             return False
         if execution_kind == "argv" and argv:
-            return validate_host_argv_command([str(x) for x in argv], he.allowed_commands).ok
+            return validate_host_argv_command(
+                [str(x) for x in argv],
+                he.allowed_commands,
+                he.effective_forbidden_executables(),
+            ).ok
         if execution_kind == "shell" and command and command.strip():
-            return validate_host_shell_command(command.strip(), he.allowed_commands).ok
+            return validate_host_shell_command(
+                command.strip(),
+                he.allowed_commands,
+                he.effective_forbidden_executables(),
+            ).ok
         return False
     return validate_host_run_request(execution_kind, command, argv).ok
 
@@ -386,4 +440,8 @@ def host_shell_command_is_safe(command: str) -> bool:
     he = get_host_execution_config()
     if not he.enabled or not he.allowed_commands:
         return False
-    return validate_host_shell_command(command, he.allowed_commands).ok
+    return validate_host_shell_command(
+        command,
+        he.allowed_commands,
+        he.effective_forbidden_executables(),
+    ).ok

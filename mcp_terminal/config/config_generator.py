@@ -128,6 +128,7 @@ def generate_terminal_config(
     host_execution_allowed_commands: Optional[List[str]] = None,
     host_execution_run_as_default: Optional[str] = None,
     host_execution_service_user: Optional[str] = None,
+    host_execution_forbidden_executables_override: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Merge terminal-specific default sections into base_config.
 
@@ -179,6 +180,9 @@ def generate_terminal_config(
         host_execution_run_as_default: Overrides ``terminal.host_execution.run_as.default``
             (``project_owner`` or ``root``).
         host_execution_service_user: Overrides ``terminal.host_execution.service_user``.
+        host_execution_forbidden_executables_override: Replaces
+            ``terminal.host_execution.forbidden_executables_override`` (empty list
+            clears all hard-forbidden executables).
 
     Returns:
         New dict containing adapter sections, ``terminal``, ``runtime``,
@@ -305,6 +309,16 @@ def generate_terminal_config(
         ]
     if host_execution_service_user is not None:
         he_updates["service_user"] = str(host_execution_service_user).strip()
+    if host_execution_forbidden_executables_override is not None:
+        if not isinstance(host_execution_forbidden_executables_override, list):
+            raise TypeError(
+                "host_execution_forbidden_executables_override must be a list when provided"
+            )
+        he_updates["forbidden_executables_override"] = [
+            str(item).strip()
+            for item in host_execution_forbidden_executables_override
+            if str(item).strip()
+        ]
 
     run_as_updates: Dict[str, Any] = {}
     if host_execution_run_as_default is not None:

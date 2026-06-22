@@ -41,7 +41,8 @@ HOST_FORBIDDEN_SUBSTRINGS: FrozenSet[str] = frozenset(
 )
 
 # Always blocked on the host path even if listed in ``allowed_commands`` (C-018).
-HOST_FORBIDDEN_EXECUTABLES: FrozenSet[str] = frozenset(
+# Override entirely via ``terminal.host_execution.forbidden_executables_override``.
+DEFAULT_HOST_FORBIDDEN_EXECUTABLES: FrozenSet[str] = frozenset(
     {
         "docker",
         "podman",
@@ -67,6 +68,8 @@ HOST_FORBIDDEN_EXECUTABLES: FrozenSet[str] = frozenset(
         "netcat",
     }
 )
+
+HOST_FORBIDDEN_EXECUTABLES: FrozenSet[str] = DEFAULT_HOST_FORBIDDEN_EXECUTABLES
 
 
 def decompose_shell_command(command: str) -> List[str]:

@@ -31,7 +31,31 @@ def test_generator_includes_host_execution_defaults() -> None:
     he = cfg["terminal"]["host_execution"]
     assert he["enabled"] is False
     assert he["allowed_commands"] == []
+    assert he["forbidden_executables_override"] is None
     assert validate_terminal_config(cfg) == []
+
+
+def test_validator_accepts_run_as_root_without_allowed_commands() -> None:
+    cfg = {
+        "terminal": {
+            "sessions": {"ttl_seconds": 3600},
+            "host_execution": {
+                "enabled": True,
+                "forbidden_executables_override": [],
+                "run_as": {"default": "root"},
+            },
+        }
+    }
+    fields = [e.field for e in validate_terminal_config(cfg)]
+    assert "terminal.host_execution.run_as.default" not in fields
+    assert "terminal.host_execution.forbidden_executables_override" not in fields
+
+
+def test_generator_rejects_invalid_run_as_default_kwarg() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="host_execution_run_as_default"):
+        generate_terminal_config({}, host_execution_run_as_default="nobody")
 
 
 def test_validator_rejects_bad_host_execution() -> None:
@@ -73,6 +97,73 @@ def test_generator_cli_host_execution_overrides() -> None:
     assert he["allowed_commands"] == ["docker", "systemctl"]
     assert he["run_as"]["default"] == "root"
     assert he["service_user"] == "root"
+
+
+def test_validator_rejects_bad_forbidden_executables_override() -> None:
+    cfg = generate_terminal_config({})
+    cfg["terminal"]["host_execution"]["forbidden_executables_override"] = "docker"
+    fields = [e.field for e in validate_terminal_config(cfg)]
+    assert "terminal.host_execution.forbidden_executables_override" in fields
+
+
+def test_forbidden_executables_override_empty_allows_docker() -> None:
+    cfg = {
+        "terminal": {
+            "host_execution": {
+                "enabled": True,
+                "allowed_commands": ["docker"],
+                "forbidden_executables_override": [],
+                "run_as": {"default": "root"},
+            }
+        }
+    }
+    he = get_host_execution_config(cfg)
+    assert he.forbidden_executables == frozenset()
+    v = validate_host_shell_command(
+        "docker ps",
+        he.allowed_commands,
+        he.effective_forbidden_executables(),
+    )
+    assert v.ok
+
+
+def test_forbidden_executables_override_replaces_builtin_list() -> None:
+    cfg = {
+        "terminal": {
+            "host_execution": {
+                "enabled": True,
+                "allowed_commands": ["docker", "kubectl"],
+                "forbidden_executables_override": ["kubectl"],
+            }
+        }
+    }
+    he = get_host_execution_config(cfg)
+    v_docker = validate_host_shell_command(
+        "docker ps",
+        he.allowed_commands,
+        he.effective_forbidden_executables(),
+    )
+    assert v_docker.ok
+    v_kubectl = validate_host_shell_command(
+        "kubectl get pods",
+        he.allowed_commands,
+        he.effective_forbidden_executables(),
+    )
+    assert not v_kubectl.ok
+
+
+def test_generator_cli_forbidden_executables_override() -> None:
+    from mcp_terminal.config.create_config import build_term_server_config
+
+    cfg = build_term_server_config(
+        host_execution_enabled=True,
+        host_execution_allowed_commands=["docker"],
+        host_execution_forbidden_executables_override=[],
+        host_execution_run_as_default="root",
+    )
+    he = cfg["terminal"]["host_execution"]
+    assert he["forbidden_executables_override"] == []
+    assert he["run_as"]["default"] == "root"
 
 
 def test_decompose_shell_command_respects_quotes() -> None:

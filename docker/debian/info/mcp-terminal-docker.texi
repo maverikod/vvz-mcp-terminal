@@ -174,7 +174,10 @@ explicit @code{run_as.sudo} targets (for example @code{casmgr} as
 @code{casuser}). With @code{run_as.default} @code{root}, allowlisted commands
 run directly as the service user (no @command{sudo}) --- suitable for
 @command{docker}, @command{systemctl}, @command{journalctl} when the container
-runs as root (@code{service_user} @code{root}). Per-command @code{run_as.sudo}
+runs as root (@code{service_user} @code{root}). Set
+@code{forbidden_executables_override} to an empty array (@code{[]}) to disable
+the built-in host-shell denylist (which blocks @command{docker} by default); omit
+the key to keep built-in defaults. Per-command @code{run_as.sudo}
 overrides still take precedence. After editing @code{terminal.host_execution}
 when using @code{project_owner} mode:
 

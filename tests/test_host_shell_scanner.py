@@ -23,6 +23,12 @@ def test_h3_hard_forbidden_beats_allowlist_docker() -> None:
     assert "docker" in (v.detail or "")
 
 
+def test_empty_forbidden_override_allows_docker() -> None:
+    allowed = frozenset({"docker"})
+    v = validate_host_shell_command("docker ps", allowed, frozenset())
+    assert v.ok
+
+
 def test_h3_hard_forbidden_beats_allowlist_argv_style() -> None:
     """H-3: hard-forbidden executable rejected even when sole allowlist entry."""
     allowed = frozenset({"kubectl"})

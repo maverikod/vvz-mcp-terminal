@@ -219,31 +219,30 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
         )
 
     commands = section.get("allowed_commands")
-    if commands is None:
-        return errors
-    if not isinstance(commands, list):
+    if commands is not None and not isinstance(commands, list):
         errors.append(
             ValidationError(
                 field="terminal.host_execution.allowed_commands",
                 message="allowed_commands must be an array of strings when present",
             )
         )
-        return errors
+        commands = None
 
-    for i, item in enumerate(commands):
-        if not isinstance(item, str) or not item.strip():
-            errors.append(
-                ValidationError(
-                    field=f"terminal.host_execution.allowed_commands[{i}]",
-                    message="each allowed_commands entry must be a non-empty string",
+    allowed_lower: set[str] = set()
+    if isinstance(commands, list):
+        for i, item in enumerate(commands):
+            if not isinstance(item, str) or not item.strip():
+                errors.append(
+                    ValidationError(
+                        field=f"terminal.host_execution.allowed_commands[{i}]",
+                        message="each allowed_commands entry must be a non-empty string",
+                    )
                 )
-            )
-
-    allowed_lower = {
-        item.strip().lower()
-        for item in commands
-        if isinstance(item, str) and item.strip()
-    }
+        allowed_lower = {
+            item.strip().lower()
+            for item in commands
+            if isinstance(item, str) and item.strip()
+        }
 
     service_user = section.get("service_user")
     if service_user is not None:
@@ -254,6 +253,28 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
                     message="service_user must be a non-empty string when present",
                 )
             )
+
+    forbidden_override = section.get("forbidden_executables_override")
+    if forbidden_override is not None:
+        if not isinstance(forbidden_override, list):
+            errors.append(
+                ValidationError(
+                    field="terminal.host_execution.forbidden_executables_override",
+                    message="forbidden_executables_override must be an array of strings",
+                )
+            )
+        else:
+            for i, item in enumerate(forbidden_override):
+                if not isinstance(item, str) or not item.strip():
+                    errors.append(
+                        ValidationError(
+                            field=(
+                                "terminal.host_execution"
+                                f".forbidden_executables_override[{i}]"
+                            ),
+                            message="each entry must be a non-empty command basename",
+                        )
+                    )
 
     run_as = section.get("run_as")
     if run_as is None:

@@ -8,6 +8,7 @@ HOST_EXECUTION_CONFIG: Dict[str, Any] = {
     "enabled": False,
     "allowed_commands": [],
     "service_user": "root",
+    "forbidden_executables_override": None,
     "run_as": {
         "default": "project_owner",
         "sudo": {},

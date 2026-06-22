@@ -86,6 +86,10 @@ def _collect_host_execution_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
         out["host_execution_run_as_default"] = args.host_execution_run_as_default
     if getattr(args, "host_execution_service_user", None) is not None:
         out["host_execution_service_user"] = args.host_execution_service_user
+    if hasattr(args, "host_execution_forbidden_executables_override"):
+        out["host_execution_forbidden_executables_override"] = (
+            args.host_execution_forbidden_executables_override
+        )
     return out
 
 
@@ -301,6 +305,16 @@ def main() -> None:
         type=str,
         default=None,
         help="terminal.host_execution.service_user",
+    )
+    gen.add_argument(
+        "--host-execution-forbidden-executables-override",
+        nargs="*",
+        default=argparse.SUPPRESS,
+        metavar="EXE",
+        help=(
+            "terminal.host_execution.forbidden_executables_override "
+            "(replaces built-in list; pass alone for empty / no forbidden executables)"
+        ),
     )
     gen.set_defaults(func=cmd_generate)
     val = subparsers.add_parser("validate", help="Validate config file")
