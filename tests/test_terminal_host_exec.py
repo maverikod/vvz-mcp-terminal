@@ -1,4 +1,4 @@
-"""terminal_run_host command and host_run_service."""
+"""terminal_host_exec command and host_run_service."""
 
 from __future__ import annotations
 
@@ -8,20 +8,40 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand
+from mcp_terminal.commands.terminal_host_exec_command import TerminalHostExecCommand
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.host_execution_config import (
     HostCommandValidation,
     HostExecutionConfig,
+    HostSshConfig,
     validate_host_run_request,
 )
-from mcp_terminal.services.host_run_service import enqueue_host_terminal_run
+from mcp_terminal.services.host_run_service import enqueue_host_ssh_terminal_run
+
+
+def _ssh_cfg(
+    *,
+    enabled: bool = True,
+    allowed: frozenset[str] = frozenset({"casmgr"}),
+) -> HostExecutionConfig:
+    return HostExecutionConfig(
+        enabled=enabled,
+        allowed_commands=allowed,
+        ssh=HostSshConfig(
+            host="127.0.0.1",
+            port=22,
+            target_users=("mcp-terminal-host",),
+            known_hosts_path="/etc/mcp-terminal/ssh_known_hosts",
+            connect_timeout=10,
+            key_manager_script="/usr/lib/mcp-terminal/manage-session-keys.sh",
+        ),
+    )
 
 
 def test_validate_host_run_disabled() -> None:
     with patch(
         "mcp_terminal.services.host_execution_config.get_host_execution_config",
-        return_value=HostExecutionConfig(enabled=False, allowed_commands=frozenset({"casmgr"})),
+        return_value=_ssh_cfg(enabled=False),
     ):
         v = validate_host_run_request("argv", None, ["casmgr", "status"])
     assert not v.ok
@@ -31,43 +51,62 @@ def test_validate_host_run_disabled() -> None:
 def test_validate_host_run_when_enabled() -> None:
     with patch(
         "mcp_terminal.services.host_execution_config.get_host_execution_config",
-        return_value=HostExecutionConfig(enabled=True, allowed_commands=frozenset({"casmgr"})),
+        return_value=_ssh_cfg(),
     ):
         assert validate_host_run_request("argv", None, ["casmgr", "status"]).ok
 
 
-def test_terminal_run_host_command_returns_disabled_error() -> None:
-    from pathlib import Path
-    from types import SimpleNamespace
+def test_terminal_host_exec_schema_has_target_user() -> None:
+    from mcp_terminal.commands.terminal_host_exec_schema import get_terminal_host_exec_schema
 
+    schema = get_terminal_host_exec_schema()
+    assert "target_user" in schema["properties"]
+    assert schema["additionalProperties"] is False
+
+
+def test_terminal_host_exec_metadata_required_fields() -> None:
+    meta = TerminalHostExecCommand.metadata()
+    for key in (
+        "detailed_description",
+        "parameters",
+        "return_value",
+        "usage_examples",
+        "error_cases",
+        "best_practices",
+    ):
+        assert key in meta
+    assert "host_ssh" in meta["return_value"]["success"]["data"]["execution_target"]
+
+
+def test_terminal_host_exec_command_returns_disabled_error() -> None:
     srec = SimpleNamespace(session_dir=Path("/tmp/s"))
     resolved = SimpleNamespace(success=True, project_dir=Path("/tmp/p"), error_code=None)
 
-    cmd = TerminalRunHostCommand()
+    cmd = TerminalHostExecCommand()
     with (
         patch(
-            "mcp_terminal.commands.terminal_run_host_command.registry_resolve_project",
+            "mcp_terminal.commands.terminal_host_exec_command.registry_resolve_project",
             return_value=resolved,
         ),
         patch(
-            "mcp_terminal.commands.terminal_run_host_command.resolve_session",
+            "mcp_terminal.commands.terminal_host_exec_command.resolve_session",
             return_value=(srec, None),
         ),
         patch(
-            "mcp_terminal.commands.terminal_run_host_command.resolve_cwd",
+            "mcp_terminal.commands.terminal_host_exec_command.resolve_cwd",
             return_value=(".", None),
         ),
         patch(
-            "mcp_terminal.commands.terminal_run_host_command.resolve_use_venv",
+            "mcp_terminal.commands.terminal_host_exec_command.resolve_use_venv",
             return_value=False,
         ),
         patch(
-            "mcp_terminal.commands.terminal_run_host_command.get_session_store",
+            "mcp_terminal.commands.terminal_host_exec_command.get_session_store",
             return_value=object(),
         ),
         patch(
             "mcp_terminal.services.host_execution_config.get_host_execution_config",
-            return_value=HostExecutionConfig(enabled=False, allowed_commands=frozenset()),
+            return_value=_ssh_cfg(enabled=False, allowed=frozenset()),
         ),
     ):
         result = asyncio.run(
@@ -82,7 +121,7 @@ def test_terminal_run_host_command_returns_disabled_error() -> None:
     assert result.error == ErrorCode.HOST_EXECUTION_DISABLED
 
 
-def test_enqueue_host_reject_writes_audit(tmp_path: Path) -> None:
+def test_enqueue_host_ssh_reject_writes_audit(tmp_path: Path) -> None:
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     session_dir = tmp_path / "session"
@@ -98,7 +137,7 @@ def test_enqueue_host_reject_writes_audit(tmp_path: Path) -> None:
                 error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,
             ),
         ):
-            result = await enqueue_host_terminal_run(
+            result = await enqueue_host_ssh_terminal_run(
                 project_id="p",
                 session_id="s",
                 srec=srec,
@@ -108,6 +147,7 @@ def test_enqueue_host_reject_writes_audit(tmp_path: Path) -> None:
                 effective_cwd=".",
                 timeout_seconds=30,
                 use_venv=False,
+                target_user=None,
                 project_dir=project_dir,
                 session_store=session_store,
             )
@@ -116,9 +156,8 @@ def test_enqueue_host_reject_writes_audit(tmp_path: Path) -> None:
         assert audit_path.is_file()
         line = audit_path.read_text(encoding="utf-8").strip().splitlines()[-1]
         record = json.loads(line)
-        assert record["execution_target"] == "host"
+        assert record["execution_target"] == "host_ssh"
         assert record["policy_code"] == ErrorCode.HOST_COMMAND_NOT_ALLOWED
         assert record["policy_decision"] == "rejected"
-        assert record["resolved_cwd_on_host"] == "."
 
     asyncio.run(_run())

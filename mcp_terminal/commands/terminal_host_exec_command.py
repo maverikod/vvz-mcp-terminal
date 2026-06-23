@@ -1,7 +1,7 @@
 """
-terminal_run_host: run allowlisted commands on the host (not in Docker).
+terminal_host_exec: run allowlisted commands on the real host via SSH.
 
-Requires ``terminal.host_execution.enabled`` and a non-empty ``allowed_commands`` list.
+Requires ``terminal.host_execution.enabled``, allowlist, and ssh settings.
 Use ``terminal_run`` for sandbox container execution.
 
 Author: Vasiliy Zdanovskiy
@@ -15,23 +15,24 @@ from typing import Any, ClassVar, Dict, List, Optional, Type
 from mcp_proxy_adapter.commands.base import Command, CommandResult
 
 from mcp_terminal.commands.session_resolve import resolve_session
-from mcp_terminal.commands.terminal_run_host_metadata import get_terminal_run_host_metadata
-from mcp_terminal.commands.terminal_run_host_schema import get_terminal_run_host_schema
+from mcp_terminal.commands.terminal_host_exec_metadata import get_terminal_host_exec_metadata
+from mcp_terminal.commands.terminal_host_exec_schema import get_terminal_host_exec_schema
+from mcp_terminal.errors import ErrorCode
 from mcp_terminal.runtime_context import get_session_store, registry_resolve_project
-from mcp_terminal.services.host_run_service import enqueue_host_terminal_run
+from mcp_terminal.services.host_run_service import enqueue_host_ssh_terminal_run
 from mcp_terminal.services.shell_state import resolve_cwd, resolve_use_venv
 
 _DEFAULT_TIMEOUT_S: int = 600
 
 
-class TerminalRunHostCommand(Command):
-    """Queue host-side command execution for an existing session."""
+class TerminalHostExecCommand(Command):
+    """Queue real host-side command execution via SSH for an existing session."""
 
-    name: ClassVar[str] = "terminal_run_host"
+    name: ClassVar[str] = "terminal_host_exec"
     version: ClassVar[str] = "1.0.0"
     descr: ClassVar[str] = (
-        "Run an allowlisted command on the host (outside Docker). Requires "
-        "terminal.host_execution.enabled in server config. Returns job_id and seq; "
+        "Run an allowlisted command on the real host via SSH. Requires "
+        "terminal.host_execution.enabled and ssh settings. Returns job_id and seq; "
         "poll terminal_get_status."
     )
     category: ClassVar[str] = "custom"
@@ -41,7 +42,22 @@ class TerminalRunHostCommand(Command):
 
     @classmethod
     def get_schema(cls) -> Dict[str, Any]:
-        return get_terminal_run_host_schema()
+        return get_terminal_host_exec_schema()
+
+    def validate_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        params = super().validate_params(params)
+        execution_kind = str(params.get("execution_kind", "")).strip()
+        if execution_kind not in ("shell", "argv"):
+            raise ValueError("execution_kind must be shell or argv")
+        if execution_kind == "shell":
+            cmd = params.get("command")
+            if cmd is None or not str(cmd).strip():
+                raise ValueError("command is required when execution_kind is shell")
+        if execution_kind == "argv":
+            argv = params.get("argv")
+            if not isinstance(argv, list) or not argv:
+                raise ValueError("argv is required when execution_kind is argv")
+        return params
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)
@@ -51,6 +67,7 @@ class TerminalRunHostCommand(Command):
         command = kwargs.get("command")
         argv = kwargs.get("argv")
         cwd = kwargs.get("cwd")
+        target_user_raw = kwargs.get("target_user")
         timeout_seconds = int(kwargs.get("timeout_seconds", _DEFAULT_TIMEOUT_S))
         use_venv_arg: Optional[bool] = (
             bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
@@ -67,6 +84,10 @@ class TerminalRunHostCommand(Command):
             if not isinstance(argv, list):
                 return CommandResult(success=False, error="INVALID_COMMAND")
             argv_list = [str(x) for x in argv]
+
+        target_user: Optional[str] = None
+        if target_user_raw is not None and str(target_user_raw).strip():
+            target_user = str(target_user_raw).strip()
 
         resolved = registry_resolve_project(project_id)
         if not resolved.success or resolved.project_dir is None:
@@ -86,7 +107,7 @@ class TerminalRunHostCommand(Command):
         use_venv = resolve_use_venv(srec.session_dir, use_venv_arg)
         session_store = get_session_store()
 
-        return await enqueue_host_terminal_run(
+        return await enqueue_host_ssh_terminal_run(
             project_id=project_id,
             session_id=session_id,
             srec=srec,
@@ -96,10 +117,11 @@ class TerminalRunHostCommand(Command):
             effective_cwd=effective_cwd,
             timeout_seconds=timeout_seconds,
             use_venv=use_venv,
+            target_user=target_user,
             project_dir=resolved.project_dir,
             session_store=session_store,
         )
 
     @classmethod
     def metadata(cls) -> Dict[str, Any]:
-        return get_terminal_run_host_metadata(cls)
+        return get_terminal_host_exec_metadata(cls)

@@ -464,6 +464,9 @@ class SessionStore:
                 pass
 
         stop_session_container(project_id, session_id)
+        from mcp_terminal.services.session_ssh_key import teardown_session_ssh_keys
+
+        teardown_session_ssh_keys(session_dir, session_id)
         import shutil
 
         shutil.rmtree(session_dir, ignore_errors=True)
@@ -471,6 +474,10 @@ class SessionStore:
             "Deleted on-disk-only session %s for project %s", session_id, project_id
         )
         return True, None
+
+    def live_session_ids(self) -> frozenset[str]:
+        """Return session ids currently registered in memory."""
+        return frozenset(rec.session_id for rec in self._sessions.values())
 
     def delete_session(
         self,
@@ -495,6 +502,9 @@ class SessionStore:
             restore_workspace_tree_project_owner(record.project_dir)
         stop_session_container(project_id, session_id)
         if record.session_dir.exists():
+            from mcp_terminal.services.session_ssh_key import teardown_session_ssh_keys
+
+            teardown_session_ssh_keys(record.session_dir, session_id)
             import shutil
 
             shutil.rmtree(record.session_dir, ignore_errors=True)

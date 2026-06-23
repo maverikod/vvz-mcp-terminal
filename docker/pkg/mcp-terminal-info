@@ -8,6 +8,7 @@ set -e
 MCP_TERMINAL_USER="${MCP_TERMINAL_USER:-mcp-terminal}"
 MCP_TERMINAL_GROUP="${MCP_TERMINAL_GROUP:-mcp-terminal}"
 MCP_TERMINAL_CONTAINER_USER="${MCP_TERMINAL_CONTAINER_USER:-root}"
+MCP_TERMINAL_SSH_TARGET_USER="${MCP_TERMINAL_SSH_TARGET_USER:-mcp-terminal-host}"
 PORT="${MCP_TERMINAL_PORT:-3011}"
 CONTAINER="${MCP_TERMINAL_CONTAINER:-mcp-terminal}"
 CONFIG_DIR="${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}"
@@ -16,6 +17,7 @@ LOG_DIR="${MCP_TERMINAL_LOG_DIR:-/var/log/mcp-terminal}"
 DATA_DIR="${MCP_TERMINAL_DATA_DIR:-/var/mcp-terminal}"
 IMAGE_SPEC="/usr/lib/mcp-terminal/image-spec"
 WATCH_BIND_SPECS="/usr/lib/mcp-terminal/watch_dir_bind_specs.py"
+DEFAULT_KNOWN_HOSTS="${CONFIG_DIR}/ssh_known_hosts"
 
 if [ -f "$IMAGE_SPEC" ]; then
   # shellcheck source=/dev/null
@@ -35,15 +37,34 @@ echo "  container user: ${MCP_TERMINAL_CONTAINER_USER} (service process inside D
 echo "  package account: ${MCP_TERMINAL_USER}:${MCP_TERMINAL_GROUP} (uid=${uid:-n/a}, gid=${gid:-n/a})"
 echo "  host scripts: root (docker-run, ensure-host-permissions, postinst)"
 
-SUDOERS_FILE="/etc/sudoers.d/mcp-terminal"
-if [ -f "$SUDOERS_FILE" ]; then
-  if grep -q 'NOPASSWD:' "$SUDOERS_FILE" 2>/dev/null; then
-    echo "  host sudo:   ${SUDOERS_FILE} (NOPASSWD rules present)"
-  else
-    echo "  host sudo:   ${SUDOERS_FILE} (no active NOPASSWD rules)"
-  fi
+kh_path="$DEFAULT_KNOWN_HOSTS"
+if [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ] && command -v python3 >/dev/null 2>&1; then
+  kh_path="$(python3 - <<'PY' "${CONFIG_DIR}/${CONFIG_FILE}" "$DEFAULT_KNOWN_HOSTS"
+import json, sys
+from pathlib import Path
+cfg_path, default = sys.argv[1], sys.argv[2]
+try:
+    cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print(default)
+    raise SystemExit(0)
+he = (cfg.get("terminal") or {}).get("host_execution") or {}
+ssh = he.get("ssh") or {}
+print(ssh.get("known_hosts_path") or default)
+PY
+)"
+fi
+if [ -f "$kh_path" ] && [ -s "$kh_path" ]; then
+  echo "  host ssh:    ${kh_path} (pinned host key present)"
+elif [ -f "$kh_path" ]; then
+  echo "  host ssh:    ${kh_path} (empty — pin host key before terminal_host_exec)"
 else
-  echo "  host sudo:   ${SUDOERS_FILE} missing (run mcp-terminal-docker recreate as root)"
+  echo "  host ssh:    ${kh_path} missing (run mcp-terminal-docker recreate as root)"
+fi
+if getent passwd "$MCP_TERMINAL_SSH_TARGET_USER" >/dev/null 2>&1; then
+  echo "  ssh target:  ${MCP_TERMINAL_SSH_TARGET_USER} ($(getent passwd "$MCP_TERMINAL_SSH_TARGET_USER" | cut -d: -f6))"
+else
+  echo "  ssh target:  ${MCP_TERMINAL_SSH_TARGET_USER} (missing — run ensure-ssh-target-user.sh)"
 fi
 
 watch_count=0

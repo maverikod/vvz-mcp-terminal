@@ -62,35 +62,25 @@ Two command paths share sessions and shell state but differ in where processes r
 Container/sandbox execution. Uses \fBruntime\fR (image profile, network, limits) and
 spawns per-session Docker containers on the host daemon (via mounted \fBdocker.sock\fR).
 .TP
-.B terminal_run_host
-Host execution. Uses \fBterminal.host_execution\fR (\fBenabled\fR plus
-\fBallowed_commands\fR allowlist). By default commands run via passwordless
-\fBsudo\fR as the project directory owner, or as an explicit user from
-\fBrun_as.sudo\fR (e.g. \fBcasmgr\fR → \fBcasuser\fR). When
-\fBrun_as.default\fR is \fBroot\fR, allowed commands run directly as the
-service user (no \fBsudo\fR) — use for \fBdocker\fR, \fBsystemctl\fR,
-\fBjournalctl\fR when the service container runs as root. Set
-\fBforbidden_executables_override\fR to an empty array \fB[]\fR to disable
-the built-in host-shell denylist (which blocks \fBdocker\fR and similar by
-default); omit the key to keep built-in defaults. Per-command
-\fBrun_as.sudo\fR overrides still take precedence over \fBrun_as.default\fR.
-The service container typically runs as \fBmcp-terminal\fR; production
-installs with root in-container use \fBservice_user\fR \fBroot\fR and
-\fBrun_as.default\fR \fBroot\fR. \fBsync-host-sudo.sh\fR (root) generates
-\fB/etc/sudoers.d/mcp-terminal\fR from the allowlist when
-\fBrun_as.default\fR is \fBproject_owner\fR.
+.B terminal_host_exec
+Real host execution via SSH. Uses \fBterminal.host_execution\fR (\fBenabled\fR plus
+\fBallowed_commands\fR allowlist and \fBssh\fR settings). The service container runs
+\fBssh\fR to \fBssh.host\fR as a configured \fBssh.target_users\fR login. Each session
+gets an ephemeral ed25519 key registered in the target user's \fBauthorized_keys\fR
+via \fBmanage-session-keys.sh\fR. Host key verification uses \fBssh.known_hosts_path\fR
+(\fBStrictHostKeyChecking=yes\fR). Set \fBforbidden_executables_override\fR to an empty
+array \fB[]\fR to disable the built-in host-shell denylist (which blocks \fBdocker\fR
+and similar by default); omit the key to keep built-in defaults.
 .PP
-After changing \fBallowed_commands\fR, \fBrun_as.default\fR, or \fBrun_as.sudo\fR
-(when using \fBproject_owner\fR mode):
+After changing \fBallowed_commands\fR or \fBssh.target_users\fR:
 .RS
 .EX
-sudo /usr/lib/mcp-terminal/sync-host-sudo.sh
 sudo mcp-terminal-docker recreate
 .EE
 .RE
 .PP
-Configure both sections in production; disable \fBhost_execution.enabled\fR or empty
-the allowlist to reject all host-side runs.
+Default \fBhost_execution.enabled\fR is \fBfalse\fR. Enable only when a trusted operator
+explicitly needs host-side tools; keep the allowlist minimal.
 .SH PRODUCTION PATHS
 .TP
 .B Configuration
@@ -143,9 +133,10 @@ into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR in
 .TP
 .B terminal
 Terminal domain: session TTL, output limits, cleanup, admin flags, and
-\fBhost_execution\fR (allowlist for \fBterminal_run_host\fR, \fBservice_user\fR,
-\fBforbidden_executables_override\fR, \fBrun_as.default\fR (\fBproject_owner\fR or
-\fBroot\fR), \fBrun_as.command_paths\fR, \fBrun_as.sudo\fR overrides).
+\fBhost_execution\fR (allowlist for \fBterminal_host_exec\fR,
+\fBforbidden_executables_override\fR, \fBssh.host\fR, \fBssh.port\fR,
+\fBssh.target_users\fR, \fBssh.known_hosts_path\fR, \fBssh.connect_timeout\fR,
+\fBssh.key_manager_script\fR).
 .TP
 .B runtime
 Sandbox defaults for \fBterminal_run\fR: image profile, network mode, timeouts,
@@ -206,8 +197,8 @@ Sample project roots writable for \fB.terminals/\fR
 \fB/var/run/docker.sock\fR accessible; Docker CLI API \(\fGe\fR 1.44 (mount host
 \fB/usr/bin/docker\fR when \fBMCP_TERMINAL_MOUNT_HOST_DOCKER=1\fR)
 .IP \(bu
-\fB/etc/sudoers.d/mcp-terminal\fR when \fBterminal.host_execution.enabled\fR
-and \fBrun_as.default\fR is \fBproject_owner\fR (skipped for \fBroot\fR mode)
+\fBssh.known_hosts_path\fR readable when \fBterminal.host_execution.enabled\fR
+and allowlist is non-empty
 .IP \(bu
 \fBregistration.instance_uuid\fR finalized (not \fBREPLACE_ON_INSTALL\fR)
 .RE
@@ -237,8 +228,8 @@ and \fBchmod g+w\fR on project roots.
 .B docker client API 1.41 is too old
 Enable \fBMCP_TERMINAL_MOUNT_HOST_DOCKER=1\fR and recreate container.
 .TP
-.B terminal.host_execution ... sudoers missing
-Run \fBsudo /usr/lib/mcp-terminal/sync-host-sudo.sh\fR then recreate.
+.B terminal.host_execution ... ssh.known_hosts_path missing
+Pin the host SSH key into \fB/etc/mcp-terminal/ssh_known_hosts\fR and recreate.
 .SH SANDBOX IMAGES
 Session containers use pre-published worker images on Docker Hub (default
 \fB<user>/mcp-terminal-python-dev:3.12\fR, \fB<user>/mcp-terminal-node-dev:20\fR,
@@ -268,31 +259,26 @@ paths into the service container).
   "terminal": {
     "host_execution": {
       "enabled": true,
-      "service_user": "root",
-      "allowed_commands": ["docker", "systemctl", "journalctl", "git"],
+      "allowed_commands": ["docker", "systemctl", "journalctl", "git", "hostname"],
       "forbidden_executables_override": [],
-      "run_as": {
-        "default": "root",
-        "sudo": {
-          "casmgr": { "as_user": "casuser", "group": "casgrp" }
-        },
-        "command_paths": {
-          "docker": "/usr/bin/docker",
-          "systemctl": "/usr/bin/systemctl",
-          "journalctl": "/usr/bin/journalctl"
-        }
+      "ssh": {
+        "host": "host.docker.internal",
+        "port": 22,
+        "target_users": ["mcp-terminal-host"],
+        "known_hosts_path": "/etc/mcp-terminal/ssh_known_hosts",
+        "connect_timeout": 10,
+        "key_manager_script": "/usr/lib/mcp-terminal/manage-session-keys.sh"
       }
     }
   }
 }
 .fi
 .PP
-With \fBrun_as.default\fR \fBroot\fR, \fBterminal_run_host\fR invokes allowlisted
-commands without \fBsudo\fR. Use \fBforbidden_executables_override: []\fR when
-allowlisting \fBdocker\fR or other tools blocked by the built-in denylist.
-With \fBproject_owner\fR (default), run
-\fBsync-host-sudo.sh\fR after allowlist edits. \fBrun_as.sudo\fR entries apply
-only when the matching command is invoked and override \fBrun_as.default\fR.
+With \fBhost_execution.enabled\fR \fBtrue\fR, \fBterminal_host_exec\fR runs allowlisted
+commands on the real host via SSH as a \fBssh.target_users\fR login. Use
+\fBforbidden_executables_override: []\fR when allowlisting \fBdocker\fR or other tools
+blocked by the built-in denylist. Run \fBensure-ssh-target-user.sh\fR on install and
+pin the host key into \fBssh.known_hosts_path\fR before enabling in production.
 .SH FILES
 .TP
 .B /etc/mcp-terminal/term_server.json

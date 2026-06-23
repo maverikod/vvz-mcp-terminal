@@ -1,8 +1,5 @@
 """
-Host-side terminal command execution (no Docker session container).
-
-Used when ``terminal.host_execution`` is enabled and the command is on the allowlist.
-Commands run via ``sudo -n`` as the project owner or a configured override user.
+Real host command execution via SSH (not in-container subprocess).
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -24,12 +21,7 @@ from mcp_terminal.services.host_execution_config import (
     get_host_execution_config,
     validate_host_run_request,
 )
-from mcp_terminal.services.host_run_identity import (
-    HostRunIdentity,
-    build_sudo_argv,
-    resolve_host_identity,
-    segments_for_request,
-)
+from mcp_terminal.services.session_ssh_key import session_key_paths
 from mcp_terminal.services.shell_state import (
     ShellState,
     normalize_cwd,
@@ -66,35 +58,19 @@ _SAVE_CWD_PY = textwrap.dedent(
     """
 )
 
-_SUDO_BIN = "/usr/bin/sudo"
-
 
 @dataclass(frozen=True)
-class HostRunResult:
-    """Outcome of one host-side execution including identity metadata."""
+class HostSSHRunResult:
+    """Outcome of one SSH host-side execution."""
 
     exit_code: Optional[int]
     timed_out: bool
     status: str
-    identity: Optional[HostRunIdentity] = None
+    target_user: Optional[str] = None
     error_code: Optional[str] = None
 
 
-def sudo_nopasswd_available() -> bool:
-    """Return True when passwordless sudo is available for the current user."""
-    try:
-        proc = subprocess.run(  # noqa: S603
-            [_SUDO_BIN, "-n", "true"],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        return proc.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-
-
-def _write_host_exec_script(
+def _write_remote_exec_script(
     session_dir: Path,
     prefix: str,
     *,
@@ -105,7 +81,7 @@ def _write_host_exec_script(
     argv: Optional[List[str]],
     use_venv: bool = True,
 ) -> Path:
-    """Write a bash script under the session dir for one host-side execution."""
+    """Write a bash script locally; contents are sent to the remote host via SSH."""
     cwd = normalize_cwd(effective_cwd)
     project = project_dir.resolve()
     if execution_kind == "shell":
@@ -144,22 +120,37 @@ def _write_host_exec_script(
         exit $ec
         """
     )
-    path = session_dir / f"{prefix}.host.exec.sh"
+    path = session_dir / f"{prefix}.host_ssh.exec.sh"
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
     return path
 
 
-class HostSessionExecutor:
-    """Run one command on the host under sudo as project owner or override user."""
+def _classify_ssh_failure(stderr_text: str) -> Optional[str]:
+    lower = stderr_text.lower()
+    if "host key verification failed" in lower or "no matching host key" in lower:
+        return ErrorCode.HOST_HOST_KEY_MISMATCH
+    if (
+        "connection refused" in lower
+        or "connection timed out" in lower
+        or "no route to host" in lower
+        or "network is unreachable" in lower
+        or "could not resolve hostname" in lower
+    ):
+        return ErrorCode.HOST_SSH_UNREACHABLE
+    return None
+
+
+class HostSSHExecutor:
+    """Run one allowlisted command on the real host via SSH."""
 
     def __init__(self) -> None:
         self._logger = logging.getLogger(__name__)
-        self._last_identity: Optional[HostRunIdentity] = None
+        self._last_target_user: Optional[str] = None
 
     @property
-    def last_identity(self) -> Optional[HostRunIdentity]:
-        return self._last_identity
+    def last_target_user(self) -> Optional[str]:
+        return self._last_target_user
 
     def run(
         self,
@@ -175,61 +166,57 @@ class HostSessionExecutor:
         command: Optional[str],
         argv: Optional[List[str]],
         use_venv: bool = True,
-    ) -> HostRunResult:
-        """Run host execution and return outcome with effective identity metadata."""
-        self._last_identity = None
+        target_user: Optional[str] = None,
+    ) -> HostSSHRunResult:
+        """Execute on the real host via SSH."""
+        self._last_target_user = None
         he = get_host_execution_config()
-        if not he.enabled:
-            self._logger.error("host exec rejected seq=%d: host_execution disabled", seq)
-            return HostRunResult(
+        if not he.enabled or he.ssh is None or not he.ssh_ready():
+            return HostSSHRunResult(
                 None,
                 False,
                 "failed",
                 error_code=ErrorCode.HOST_EXECUTION_DISABLED,
             )
 
-        validation = validate_host_run_request(execution_kind, command, argv)
+        validation = validate_host_run_request(
+            execution_kind,
+            command,
+            argv,
+            session_dir=session_dir,
+            target_user=target_user,
+        )
         if not validation.ok:
-            self._logger.error(
-                "host exec rejected seq=%d: %s %s",
-                seq,
-                validation.error_code,
-                validation.detail,
-            )
-            return HostRunResult(
+            return HostSSHRunResult(
                 None,
                 False,
                 "failed",
                 error_code=validation.error_code or ErrorCode.HOST_COMMAND_NOT_ALLOWED,
             )
 
-        segments = segments_for_request(
-            execution_kind=execution_kind,
-            command=command,
-            argv=argv,
-            allowed_commands=he.allowed_commands,
-        )
-        identity = resolve_host_identity(
-            project_dir=project_dir,
-            config=he,
-            execution_kind=execution_kind,
-            command=command,
-            argv=argv,
-            segments=segments,
-        )
-        self._last_identity = identity
+        from mcp_terminal.services.host_execution_config import resolve_target_user
 
-        if identity.run_as_mode != "root" and not sudo_nopasswd_available():
-            self._logger.error("host exec rejected seq=%d: sudo not configured", seq)
-            return HostRunResult(
+        resolved_user, tu_err = resolve_target_user(target_user, config=he)
+        if tu_err is not None or resolved_user is None:
+            return HostSSHRunResult(
                 None,
                 False,
                 "failed",
-                error_code=ErrorCode.HOST_SUDO_NOT_CONFIGURED,
+                error_code=tu_err or ErrorCode.TARGET_USER_NOT_ALLOWED,
+            )
+        self._last_target_user = resolved_user
+
+        private_key, _pub = session_key_paths(session_dir)
+        if not private_key.is_file():
+            return HostSSHRunResult(
+                None,
+                False,
+                "failed",
+                error_code=ErrorCode.HOST_EXECUTION_DISABLED,
             )
 
         prefix = CommandHistory.seq_to_prefix(seq)
-        script_path = _write_host_exec_script(
+        script_path = _write_remote_exec_script(
             session_dir,
             prefix,
             project_dir=project_dir,
@@ -242,24 +229,39 @@ class HostSessionExecutor:
         stdout_path = session_dir / f"{prefix}.stdout.log"
         stderr_path = session_dir / f"{prefix}.stderr.log"
 
-        inner = ["/bin/bash", str(script_path)]
-        if identity.run_as_mode == "root":
-            launch_argv = inner
-        else:
-            launch_argv = build_sudo_argv(identity, inner_argv=inner)
+        remote_script = script_path.read_text(encoding="utf-8")
+        ssh_argv = [
+            "ssh",
+            "-i",
+            str(private_key),
+            "-p",
+            str(he.ssh.port),
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            f"UserKnownHostsFile={he.ssh.known_hosts_path}",
+            "-o",
+            f"ConnectTimeout={he.ssh.connect_timeout}",
+            "-o",
+            "BatchMode=yes",
+            f"{resolved_user}@{he.ssh.host}",
+            "bash",
+            "-s",
+        ]
 
         exit_code: Optional[int] = None
         timed_out = False
         status = "failed"
+        error_code: Optional[str] = None
         proc: Optional[subprocess.Popen] = None
 
         try:
             with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
                 proc = subprocess.Popen(  # noqa: S603
-                    launch_argv,
+                    ssh_argv,
+                    stdin=subprocess.PIPE,
                     stdout=out,
                     stderr=err,
-                    cwd=str(project_dir.resolve()),
                 )
                 from mcp_terminal.services.running_terminal_jobs import (  # noqa: PLC0415
                     register,
@@ -268,9 +270,15 @@ class HostSessionExecutor:
 
                 register(session_id, seq, proc)
                 try:
+                    assert proc.stdin is not None
+                    proc.stdin.write(remote_script.encode("utf-8"))
+                    proc.stdin.close()
                     proc.wait(timeout=timeout_seconds)
                     exit_code = proc.returncode
                     status = "completed"
+                    if exit_code == 255 and stderr_path.is_file():
+                        stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
+                        error_code = _classify_ssh_failure(stderr_text)
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
@@ -279,8 +287,9 @@ class HostSessionExecutor:
                 finally:
                     unregister(session_id, seq)
         except Exception as exc:  # noqa: BLE001
-            self._logger.error("host exec failed seq=%d: %s", seq, exc)
+            self._logger.error("host ssh exec failed seq=%d: %s", seq, exc)
             status = "failed"
+            error_code = ErrorCode.HOST_SSH_UNREACHABLE
 
         new_state = read_shell_state(session_dir)
         write_shell_state(
@@ -293,4 +302,10 @@ class HostSessionExecutor:
         except OSError:
             pass
 
-        return HostRunResult(exit_code, timed_out, status, identity=identity)
+        return HostSSHRunResult(
+            exit_code,
+            timed_out,
+            status,
+            target_user=resolved_user,
+            error_code=error_code,
+        )

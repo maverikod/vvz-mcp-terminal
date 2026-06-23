@@ -28,6 +28,6 @@ def schema_seq(*, description: Optional[str] = None) -> Dict[str, Any]:
         "description": description
         or (
             "Session-local command sequence number from terminal_run or "
-            "terminal_run_host."
+            "terminal_host_exec."
         ),
     }

@@ -14,7 +14,8 @@ JSON schema and cross-field rules (\fBconfig_validator\fR)
 .IP 3.
 Runtime preflight: TLS files readable, \fBwatch_dirs\fR visibility and write access,
 \fB/var/mcp-terminal\fR writable, Docker socket and CLI API version,
-\fBcode_analysis.ssl.ca\fR sanity, host sudoers when \fBterminal_run_host\fR is enabled.
+\fBcode_analysis.ssl.ca\fR sanity, SSH host-execution prerequisites when
+\fBterminal_host_exec\fR is enabled (\fBssh.known_hosts_path\fR, key manager script).
 .RE
 .PP
 When the \fBmcp-terminal\fR container is running, validation executes inside the

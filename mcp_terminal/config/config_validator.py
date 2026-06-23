@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from mcp_terminal.config.host_execution_schema import HOST_RUN_AS_DEFAULT_MODES
+from mcp_terminal.config.host_execution_schema import HOST_EXECUTION_CONFIG
 from mcp_terminal.config.tls_protocol import is_tls_protocol
 
 
@@ -246,13 +246,21 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
 
     service_user = section.get("service_user")
     if service_user is not None:
-        if not isinstance(service_user, str) or not service_user.strip():
-            errors.append(
-                ValidationError(
-                    field="terminal.host_execution.service_user",
-                    message="service_user must be a non-empty string when present",
-                )
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.service_user",
+                message="service_user is obsolete; remove it (SSH target users use ssh.target_users)",
             )
+        )
+
+    run_as = section.get("run_as")
+    if run_as is not None:
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.run_as",
+                message="run_as is obsolete; host execution uses ssh.target_users",
+            )
+        )
 
     forbidden_override = section.get("forbidden_executables_override")
     if forbidden_override is not None:
@@ -276,136 +284,59 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
                         )
                     )
 
-    run_as = section.get("run_as")
-    if run_as is None:
-        return errors
-    if not isinstance(run_as, dict):
-        errors.append(
-            ValidationError(
-                field="terminal.host_execution.run_as",
-                message="run_as must be an object when present",
-            )
-        )
-        return errors
-
-    default_mode = run_as.get("default", "project_owner")
-    if default_mode is not None:
-        if not isinstance(default_mode, str) or default_mode not in HOST_RUN_AS_DEFAULT_MODES:
-            allowed = ", ".join(HOST_RUN_AS_DEFAULT_MODES)
+    ssh = section.get("ssh")
+    if enabled is True:
+        if not isinstance(ssh, dict):
             errors.append(
                 ValidationError(
-                    field="terminal.host_execution.run_as.default",
-                    message=f"run_as.default must be one of: {allowed}",
+                    field="terminal.host_execution.ssh",
+                    message="ssh object is required when host_execution.enabled is true",
                 )
             )
-
-    command_paths = run_as.get("command_paths")
-    if command_paths is not None:
-        if not isinstance(command_paths, dict):
-            errors.append(
-                ValidationError(
-                    field="terminal.host_execution.run_as.command_paths",
-                    message="run_as.command_paths must be an object when present",
+        elif isinstance(ssh, dict):
+            target_users = ssh.get("target_users")
+            if not isinstance(target_users, list) or not target_users:
+                errors.append(
+                    ValidationError(
+                        field="terminal.host_execution.ssh.target_users",
+                        message="target_users must be a non-empty array when host execution is enabled",
+                    )
                 )
-            )
-        else:
-            for key, path_val in command_paths.items():
-                if not isinstance(key, str) or not key.strip():
-                    errors.append(
-                        ValidationError(
-                            field="terminal.host_execution.run_as.command_paths",
-                            message="command_paths keys must be non-empty command basenames",
-                        )
-                    )
-                    continue
-                if key.strip().lower() not in allowed_lower:
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.command_paths.{key}",
-                            message="command_paths key must appear in allowed_commands",
-                        )
-                    )
-                if not isinstance(path_val, str) or not path_val.startswith("/"):
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.command_paths.{key}",
-                            message="command_paths values must be absolute paths",
-                        )
-                    )
-                elif any(ch in path_val for ch in ("*", "?", "$", "`", ";", "|", "&")):
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.command_paths.{key}",
-                            message="command_paths values must not contain shell metacharacters",
-                        )
-                    )
-
-    sudo_map = run_as.get("sudo")
-    if sudo_map is not None:
-        if not isinstance(sudo_map, dict):
-            errors.append(
-                ValidationError(
-                    field="terminal.host_execution.run_as.sudo",
-                    message="run_as.sudo must be an object when present",
-                )
-            )
-        else:
-            for key, entry in sudo_map.items():
-                if not isinstance(key, str) or not key.strip():
-                    errors.append(
-                        ValidationError(
-                            field="terminal.host_execution.run_as.sudo",
-                            message="run_as.sudo keys must be non-empty command basenames",
-                        )
-                    )
-                    continue
-                if key.strip().lower() not in allowed_lower:
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.sudo.{key}",
-                            message="run_as.sudo key must appear in allowed_commands",
-                        )
-                    )
-                if not isinstance(entry, dict):
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.sudo.{key}",
-                            message="run_as.sudo entry must be an object",
-                        )
-                    )
-                    continue
-                as_user = entry.get("as_user")
-                if not isinstance(as_user, str) or not as_user.strip():
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.sudo.{key}.as_user",
-                            message="as_user must be a non-empty string",
-                        )
-                    )
-                group = entry.get("group")
-                if group is not None and (not isinstance(group, str) or not group.strip()):
-                    errors.append(
-                        ValidationError(
-                            field=f"terminal.host_execution.run_as.sudo.{key}.group",
-                            message="group must be a non-empty string when present",
-                        )
-                    )
-                path = entry.get("path")
-                if path is not None:
-                    if not isinstance(path, str) or not path.startswith("/"):
+            elif isinstance(target_users, list):
+                for i, item in enumerate(target_users):
+                    if not isinstance(item, str) or not item.strip():
                         errors.append(
                             ValidationError(
-                                field=f"terminal.host_execution.run_as.sudo.{key}.path",
-                                message="path must be an absolute path when present",
+                                field=f"terminal.host_execution.ssh.target_users[{i}]",
+                                message="each target_users entry must be a non-empty string",
                             )
                         )
-                    elif any(ch in path for ch in ("*", "?", "$", "`", ";", "|", "&")):
-                        errors.append(
-                            ValidationError(
-                                field=f"terminal.host_execution.run_as.sudo.{key}.path",
-                                message="path must not contain shell metacharacters",
-                            )
-                        )
+            known_hosts = ssh.get("known_hosts_path")
+            if not isinstance(known_hosts, str) or not known_hosts.strip():
+                errors.append(
+                    ValidationError(
+                        field="terminal.host_execution.ssh.known_hosts_path",
+                        message="known_hosts_path is required when host execution is enabled",
+                    )
+                )
+            port = ssh.get("port")
+            if port is not None and (
+                not isinstance(port, int) or port < 1 or port > 65535
+            ):
+                errors.append(
+                    ValidationError(
+                        field="terminal.host_execution.ssh.port",
+                        message="port must be an integer between 1 and 65535",
+                    )
+                )
+            host = ssh.get("host")
+            if host is not None and (not isinstance(host, str) or not host.strip()):
+                errors.append(
+                    ValidationError(
+                        field="terminal.host_execution.ssh.host",
+                        message="host must be a non-empty string when present",
+                    )
+                )
     return errors
 
 

@@ -11,11 +11,11 @@ CONFIG_PATH="${CONFIG_DIR}/${CONFIG_FILE}"
 CONTAINER="${MCP_TERMINAL_CONTAINER:-mcp-terminal}"
 
 run_in_container() {
-  docker exec "$CONTAINER" python3 -m mcp_terminal.config.config_cli validate -c "/etc/mcp-terminal/${CONFIG_FILE}"
+  docker exec "$CONTAINER" python3 -m mcp_terminal.config.config_cli validate "/etc/mcp-terminal/${CONFIG_FILE}"
 }
 
 run_on_host() {
-  python3 -m mcp_terminal.config.config_cli validate -c "$CONFIG_PATH"
+  python3 -m mcp_terminal.config.config_cli validate "$CONFIG_PATH"
 }
 
 if [ ! -f "$CONFIG_PATH" ]; then

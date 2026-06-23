@@ -204,6 +204,10 @@ class TerminalSessionCreateCommand(Command):
                 )
             return CommandResult(success=False, error=ensure_err or "INVALID_SESSION")
 
+        from mcp_terminal.services.session_ssh_key import provision_session_ssh_keys
+
+        provision_session_ssh_keys(rec.session_dir, session_id)
+
         if not created and use_venv_create is not None:
             state = read_shell_state(rec.session_dir)
             if state.use_venv != use_venv_create:

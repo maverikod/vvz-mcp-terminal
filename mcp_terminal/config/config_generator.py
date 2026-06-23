@@ -14,10 +14,7 @@ import copy
 from typing import Any, Dict, List, Optional
 
 from mcp_terminal.config.config_validator import validate_terminal_config
-from mcp_terminal.config.host_execution_schema import (
-    HOST_EXECUTION_CONFIG,
-    HOST_RUN_AS_DEFAULT_MODES,
-)
+from mcp_terminal.config.host_execution_schema import HOST_EXECUTION_CONFIG
 from mcp_terminal.config.terminal_admin_schema import TERMINAL_ADMIN_CONFIG
 from mcp_terminal.config.terminal_defaults_schema import TERMINAL_DEFAULTS_CONFIG
 
@@ -126,8 +123,6 @@ def generate_terminal_config(
     terminal_admin_allow_purge_sessions: Optional[bool] = None,
     host_execution_enabled: Optional[bool] = None,
     host_execution_allowed_commands: Optional[List[str]] = None,
-    host_execution_run_as_default: Optional[str] = None,
-    host_execution_service_user: Optional[str] = None,
     host_execution_forbidden_executables_override: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Merge terminal-specific default sections into base_config.
@@ -177,9 +172,6 @@ def generate_terminal_config(
         terminal_admin_allow_purge_sessions: Overrides ``terminal.admin.allow_purge_sessions``.
         host_execution_enabled: Overrides ``terminal.host_execution.enabled``.
         host_execution_allowed_commands: Replaces ``terminal.host_execution.allowed_commands``.
-        host_execution_run_as_default: Overrides ``terminal.host_execution.run_as.default``
-            (``project_owner`` or ``root``).
-        host_execution_service_user: Overrides ``terminal.host_execution.service_user``.
         host_execution_forbidden_executables_override: Replaces
             ``terminal.host_execution.forbidden_executables_override`` (empty list
             clears all hard-forbidden executables).
@@ -307,8 +299,6 @@ def generate_terminal_config(
         he_updates["allowed_commands"] = [
             str(item).strip() for item in host_execution_allowed_commands if str(item).strip()
         ]
-    if host_execution_service_user is not None:
-        he_updates["service_user"] = str(host_execution_service_user).strip()
     if host_execution_forbidden_executables_override is not None:
         if not isinstance(host_execution_forbidden_executables_override, list):
             raise TypeError(
@@ -320,18 +310,6 @@ def generate_terminal_config(
             if str(item).strip()
         ]
 
-    run_as_updates: Dict[str, Any] = {}
-    if host_execution_run_as_default is not None:
-        mode = str(host_execution_run_as_default).strip()
-        if mode not in HOST_RUN_AS_DEFAULT_MODES:
-            allowed = ", ".join(HOST_RUN_AS_DEFAULT_MODES)
-            raise ValueError(
-                f"host_execution_run_as_default must be one of: {allowed}; got {mode!r}"
-            )
-        run_as_updates["default"] = mode
-    if run_as_updates:
-        he_updates["run_as"] = run_as_updates
-
     if he_updates:
         term = result.setdefault("terminal", {})
         if not isinstance(term, dict):
@@ -341,15 +319,6 @@ def generate_terminal_config(
         if not isinstance(he_block, dict):
             he_block = copy.deepcopy(HOST_EXECUTION_CONFIG)
             term["host_execution"] = he_block
-        if "run_as" in he_updates and isinstance(he_updates["run_as"], dict):
-            run_as_block = he_block.setdefault(
-                "run_as",
-                copy.deepcopy(HOST_EXECUTION_CONFIG["run_as"]),
-            )
-            if not isinstance(run_as_block, dict):
-                run_as_block = copy.deepcopy(HOST_EXECUTION_CONFIG["run_as"])
-                he_block["run_as"] = run_as_block
-            run_as_block.update(he_updates.pop("run_as"))
         he_block.update(he_updates)
 
     if overrides:

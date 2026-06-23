@@ -1,5 +1,5 @@
 """
-Enqueue host-side terminal runs (``terminal_run_host`` only).
+Enqueue real host-side terminal runs (``terminal_host_exec`` only).
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -16,7 +16,7 @@ from mcp_proxy_adapter.commands.base import CommandResult
 from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
 
 from mcp_terminal.errors import ErrorCode
-from mcp_terminal.jobs.terminal_host_execution_job import HostJobParams, TerminalHostExecutionJob
+from mcp_terminal.jobs.terminal_host_ssh_job import HostSSHJobParams, TerminalHostSSHJob
 from mcp_terminal.services.audit_writer import (
     AuditWriter,
     allowed_commands_snapshot_hash,
@@ -25,12 +25,13 @@ from mcp_terminal.services.audit_writer import (
 from mcp_terminal.services.command_history import CommandHistory, CommandRecord
 from mcp_terminal.services.host_execution_config import (
     get_host_execution_config,
+    resolve_target_user,
     validate_host_run_request,
 )
 from mcp_terminal.services.session_store import SessionRecord
 
 
-async def enqueue_host_terminal_run(
+async def enqueue_host_ssh_terminal_run(
     *,
     project_id: str,
     session_id: str,
@@ -41,11 +42,18 @@ async def enqueue_host_terminal_run(
     effective_cwd: str,
     timeout_seconds: int,
     use_venv: bool,
+    target_user: Optional[str],
     project_dir: Path,
     session_store: Any,
 ) -> CommandResult:
-    """Allocate seq, append history, and queue ``TerminalHostExecutionJob``."""
-    validation = validate_host_run_request(execution_kind, cmd_str, argv_list)
+    """Allocate seq, append history, and queue ``TerminalHostSSHJob``."""
+    validation = validate_host_run_request(
+        execution_kind,
+        cmd_str,
+        argv_list,
+        session_dir=srec.session_dir,
+        target_user=target_user,
+    )
     if not validation.ok:
         he = get_host_execution_config()
         now = datetime.now(timezone.utc)
@@ -63,7 +71,7 @@ async def enqueue_host_terminal_run(
             cwd=effective_cwd,
             mode="host",
             network="host",
-            image_profile="host",
+            image_profile="host_ssh",
             container_id=None,
             start_time=now,
             finish_time=now,
@@ -75,7 +83,7 @@ async def enqueue_host_terminal_run(
             stderr_bytes=0,
             policy_decision="rejected",
             error_code=validation.error_code,
-            execution_target="host",
+            execution_target="host_ssh",
             resolved_cwd_on_host=effective_cwd,
             use_venv_resolved=use_venv,
             allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(he.allowed_commands),
@@ -86,6 +94,7 @@ async def enqueue_host_terminal_run(
             error=validation.error_code or ErrorCode.HOST_COMMAND_NOT_ALLOWED,
         )
 
+    resolved_target, _tu_err = resolve_target_user(target_user)
     session_store.touch_activity(project_id, session_id)
     history = CommandHistory(srec.session_dir)
     seq = history.allocate_seq()
@@ -110,7 +119,7 @@ async def enqueue_host_terminal_run(
         cwd=effective_cwd,
         mode="host",
         network="host",
-        image_profile="host",
+        image_profile="host_ssh",
         status="pending",
         stdout_file=stdout_file,
         stderr_file=stderr_file,
@@ -118,7 +127,7 @@ async def enqueue_host_terminal_run(
     )
     history.append_record(record)
 
-    job_params = HostJobParams(
+    job_params = HostSSHJobParams(
         project_id=project_id,
         session_id=session_id,
         seq=seq,
@@ -130,8 +139,9 @@ async def enqueue_host_terminal_run(
         command=cmd_str if execution_kind == "shell" else None,
         argv=argv_list if execution_kind == "argv" else None,
         use_venv=use_venv,
+        target_user=resolved_target,
     )
-    job = TerminalHostExecutionJob(job_params)
+    job = TerminalHostSSHJob(job_params)
 
     async def _run_sync() -> dict:
         return await asyncio.to_thread(job.run)
@@ -149,6 +159,7 @@ async def enqueue_host_terminal_run(
             "meta_file": meta_file,
             "cwd": effective_cwd,
             "use_venv": use_venv,
-            "execution_target": "host",
+            "target_user": resolved_target,
+            "execution_target": "host_ssh",
         },
     )

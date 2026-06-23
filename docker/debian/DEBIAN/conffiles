@@ -1,1 +1,2 @@
 /etc/default/mcp-terminal
+/etc/mcp-terminal/ssh_known_hosts

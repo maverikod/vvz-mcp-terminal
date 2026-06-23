@@ -16,7 +16,7 @@ DEFAULT_CONFIG="${CONFIG_DIR}/${CONFIG_FILE}"
 CONFIG_TEMPLATE="/usr/share/mcp-terminal/term_server.json.template"
 INSTALL_CONFIG="/usr/lib/mcp-terminal/install-server-config.sh"
 ENSURE_MTLS="/usr/lib/mcp-terminal/ensure-mtls-certificates.sh"
-SYNC_SUDO="/usr/lib/mcp-terminal/sync-host-sudo.sh"
+ENSURE_SSH_TARGET="/usr/lib/mcp-terminal/ensure-ssh-target-user.sh"
 ENSURE_PERMISSIONS="/usr/lib/mcp-terminal/ensure-host-permissions.sh"
 PREPARE_LAYOUT="/usr/lib/mcp-terminal/prepare_project_layout.py"
 WATCH_BIND_SPECS="/usr/lib/mcp-terminal/watch_dir_bind_specs.py"
@@ -49,27 +49,23 @@ ensure_dirs() {
     chmod 644 "$DEFAULT_CONFIG"
   fi
 
-  sync_host_sudo_rules || true
+  ensure_ssh_target_users || true
 
   if [ -x "$ENSURE_PERMISSIONS" ]; then
     "$ENSURE_PERMISSIONS" || true
   fi
 }
 
-sync_host_sudo_rules() {
+ensure_ssh_target_users() {
   if [ "$(id -u)" -ne 0 ]; then
     return 0
   fi
-  if [ ! -x "$SYNC_SUDO" ]; then
-    echo "[mcp-terminal-docker] WARNING: ${SYNC_SUDO} not executable" >&2
+  if [ ! -x "$ENSURE_SSH_TARGET" ]; then
+    echo "[mcp-terminal-docker] WARNING: ${ENSURE_SSH_TARGET} not executable" >&2
     return 1
   fi
-  if [ ! -f "$DEFAULT_CONFIG" ]; then
-    echo "[mcp-terminal-docker] Skipping sudo sync (config missing: ${DEFAULT_CONFIG})" >&2
-    return 0
-  fi
-  echo "[mcp-terminal-docker] Syncing host sudoers for terminal_run_host ..."
-  "$SYNC_SUDO" "$DEFAULT_CONFIG"
+  echo "[mcp-terminal-docker] Ensuring SSH target user for terminal_host_exec ..."
+  "$ENSURE_SSH_TARGET"
 }
 
 config_has_unresolved_placeholders() {
@@ -123,7 +119,7 @@ print_post_install_banner() {
   local image_ref="unknown"
   local watch_bind_count=0
   local watch_bind_sample=""
-  local item line smode sgroup sudoers_file
+  local item line watch_bind_count watch_bind_sample kh_path
 
   if [ -f "$IMAGE_SPEC" ]; then
     # shellcheck source=/dev/null
@@ -176,7 +172,7 @@ print_post_install_banner() {
   echo "  Service container user:      ${MCP_TERMINAL_CONTAINER_USER} (see ${DEFAULT_FILE})"
   echo "  Package account:             ${MCP_TERMINAL_USER}:${MCP_TERMINAL_GROUP} (mTLS group, metadata)"
   echo "  On install/recreate:         ${ENSURE_PERMISSIONS}"
-  echo "                               → sudoers/mTLS modes, project .terminals/ ownership"
+  echo "                               → SSH target user, mTLS modes, project .terminals/ ownership"
   echo ""
   echo "Paths:"
   echo "  Config:   ${DEFAULT_CONFIG}"
@@ -206,7 +202,7 @@ print_post_install_banner() {
     echo "     - registration URLs, advertised_host, watch_dirs (review if not set yet)"
   fi
   echo "     - server.port default: 3011 (host publish: MCP_TERMINAL_PORT in ${DEFAULT_FILE})"
-  echo "     - terminal.host_execution.service_user should be root (matches container user)"
+  echo "     - terminal.host_execution.ssh (host, target_users, known_hosts_path) when enabling terminal_host_exec"
   echo ""
   echo "3) Watch directories and project layout:"
   echo "     Auto-bind: MCP_TERMINAL_AUTO_BIND_WATCH_DIRS=${MCP_TERMINAL_AUTO_BIND_WATCH_DIRS:-1}"
@@ -238,20 +234,17 @@ print_post_install_banner() {
     echo "     Docker network: ${MCP_TERMINAL_NETWORK}"
   fi
   echo ""
-  echo "4) Host execution (terminal_run_host) and sudo:"
-  sudoers_file="/etc/sudoers.d/mcp-terminal"
-  if [ -f "$sudoers_file" ]; then
-    if grep -q 'NOPASSWD:' "$sudoers_file" 2>/dev/null; then
-      echo "     ${sudoers_file}: OK (passwordless rules for terminal.host_execution)"
-    else
-      echo "     ${sudoers_file}: present but no NOPASSWD (host_execution disabled or empty allowlist)"
-    fi
-    smode="$(stat -c '%a' "$sudoers_file" 2>/dev/null || echo '?')"
-    sgroup="$(stat -c '%G' "$sudoers_file" 2>/dev/null || echo '?')"
-    echo "     sudoers mode: ${smode} root:${sgroup} (set by ensure-host-permissions)"
+  echo "4) Host execution (terminal_host_exec) and SSH:"
+  local kh_path="/etc/mcp-terminal/ssh_known_hosts"
+  if [ -f "$kh_path" ] && [ -s "$kh_path" ]; then
+    echo "     ${kh_path}: OK (pinned host key present)"
+  elif [ -f "$kh_path" ]; then
+    echo "     ${kh_path}: EMPTY — add host SSH key before enabling host_execution"
   else
-    echo "     ${sudoers_file}: MISSING — will be created on recreate or run:"
-    echo "       sudo ${SYNC_SUDO} ${DEFAULT_CONFIG}"
+    echo "     ${kh_path}: MISSING — created on recreate or: sudo touch ${kh_path}"
+  fi
+  if [ -x "$ENSURE_SSH_TARGET" ]; then
+    echo "     SSH target user: ensured by ${ENSURE_SSH_TARGET}"
   fi
   echo "     Allowed commands/users: terminal.host_execution in ${DEFAULT_CONFIG}"
   echo ""
@@ -270,7 +263,7 @@ print_post_install_banner() {
   echo ""
   echo "After any config change:"
   echo "  sudo mcp-terminal-docker recreate"
-  echo "  (root: ensure-host-permissions → sync-host-sudo → docker container recreate)"
+  echo "  (root: ensure-host-permissions → ensure-ssh-target-user → docker container recreate)"
   echo ""
   echo "================================================================================"
   echo ""
@@ -331,10 +324,12 @@ case "${1:-}" in
       fi
     fi
     update_documentation_index
-    print_post_install_banner "$CONTAINER_STARTED"
     if [ "$CONTAINER_STARTED" = "1" ]; then
       show_host_info
     fi
+    # Banner is printed LAST so the required user actions stay on screen
+    # at the very end of installation, after any host-info diagnostics.
+    print_post_install_banner "$CONTAINER_STARTED"
     ;;
   abort-upgrade|abort-remove|abort-deconfigure)
     ;;

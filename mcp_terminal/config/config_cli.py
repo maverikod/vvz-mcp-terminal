@@ -17,7 +17,6 @@ from typing import Any, Dict, Optional
 
 from mcp_terminal.config.config_validator import validate_terminal_config
 from mcp_terminal.config.create_config import build_term_server_config
-from mcp_terminal.config.host_execution_schema import HOST_RUN_AS_DEFAULT_MODES
 
 
 def _optional_bool(raw: Optional[str]) -> Optional[bool]:
@@ -82,10 +81,6 @@ def _collect_host_execution_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
         out["host_execution_enabled"] = args.host_execution_enabled
     if getattr(args, "host_execution_allowed_commands", None) is not None:
         out["host_execution_allowed_commands"] = args.host_execution_allowed_commands
-    if getattr(args, "host_execution_run_as_default", None) is not None:
-        out["host_execution_run_as_default"] = args.host_execution_run_as_default
-    if getattr(args, "host_execution_service_user", None) is not None:
-        out["host_execution_service_user"] = args.host_execution_service_user
     if hasattr(args, "host_execution_forbidden_executables_override"):
         out["host_execution_forbidden_executables_override"] = (
             args.host_execution_forbidden_executables_override
@@ -292,19 +287,6 @@ def main() -> None:
         default=None,
         metavar="CMD",
         help="terminal.host_execution.allowed_commands (space-separated basenames)",
-    )
-    gen.add_argument(
-        "--host-execution-run-as-default",
-        type=str,
-        default=None,
-        choices=HOST_RUN_AS_DEFAULT_MODES,
-        help="terminal.host_execution.run_as.default",
-    )
-    gen.add_argument(
-        "--host-execution-service-user",
-        type=str,
-        default=None,
-        help="terminal.host_execution.service_user",
     )
     gen.add_argument(
         "--host-execution-forbidden-executables-override",

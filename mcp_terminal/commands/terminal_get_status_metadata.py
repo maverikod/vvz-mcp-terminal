@@ -20,22 +20,23 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "email": cls.email,
         "detailed_description": (
             "Polls adapter queue status and terminal command completion for one "
-            "``terminal_run``, ``terminal_run_host``, or future attached-target run "
+            "``terminal_run``, ``terminal_host_exec``, or future attached-target run "
             "seq. **Queue completed ≠ command succeeded** — always check "
             "``exit_code`` and ``timed_out`` when the queue shows completion.\n\n"
             "``execution_target`` is read from ``NNNNNN.meta.json`` when present: "
-            "``sandbox`` (Docker sandbox from ``terminal_run``), ``host`` "
-            "(``terminal_run_host``), or ``attached`` (future). Legacy meta values "
-            "``container`` are reported as ``sandbox``.\n\n"
+            "``sandbox`` (Docker sandbox from ``terminal_run``), ``host_ssh`` "
+            "(real host via SSH from ``terminal_host_exec``), or ``attached`` (future). "
+            "Legacy meta values ``container`` are reported as ``sandbox``; legacy "
+            "``host`` is reported as ``host_ssh``.\n\n"
             "Use the same project_id and session_id as the run command. Typical loop: "
-            "terminal_run (or terminal_run_host) → terminal_get_status (repeat) → "
+            "terminal_run (or terminal_host_exec) → terminal_get_status (repeat) → "
             "terminal_tail."
         ),
         "parameters": {
             "project_id": {"description": "Project UUID4.", "type": "string", "required": True},
             "session_id": {"description": "Session UUID4.", "type": "string", "required": True},
             "seq": {
-                "description": "seq returned by terminal_run.",
+                "description": "seq returned by terminal_run or terminal_host_exec.",
                 "type": "integer",
                 "required": True,
             },
@@ -55,9 +56,10 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "exit_code": "Shell exit code from meta when completed; null while pending.",
                     "timed_out": "True when the run hit timeout_seconds.",
                     "execution_target": (
-                        "Where the command ran: ``sandbox``, ``host``, or ``attached``. "
+                        "Where the command ran: ``sandbox``, ``host_ssh``, or ``attached``. "
                         "Read from ``NNNNNN.meta.json``; omitted if meta has no field yet. "
-                        "Legacy meta value ``container`` is returned as ``sandbox``."
+                        "Legacy meta value ``container`` is returned as ``sandbox``; legacy "
+                        "``host`` as ``host_ssh``."
                     ),
                     "stdout_file": "Relative stdout log name under the session dir.",
                     "stderr_file": "Relative stderr log name under the session dir.",
@@ -72,7 +74,7 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
                         "terminal_status": "success",
                         "exit_code": 0,
                         "timed_out": False,
-                        "execution_target": "host",
+                        "execution_target": "host_ssh",
                         "stdout_file": "000001.stdout.log",
                         "stderr_file": "000001.stderr.log",
                         "stdout_bytes": 128,
@@ -128,7 +130,7 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
         ),
         "best_practices": [
             "Do not assume success when queue status is completed.",
-            "Use execution_target to choose the right follow-up (sandbox logs vs host policy).",
+            "Use execution_target to choose the right follow-up (sandbox vs host_ssh policy).",
             "Read stdout via terminal_tail after exit_code is known.",
         ],
     }

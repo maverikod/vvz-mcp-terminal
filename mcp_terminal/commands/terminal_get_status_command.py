@@ -28,7 +28,7 @@ from mcp_terminal.services.output_reader import OutputReader
 
 
 def _execution_target_from_meta(session_dir: Path, seq: int) -> Optional[str]:
-    """Read execution_target from NNNNNN.meta.json; map legacy ``container`` to ``sandbox``."""
+    """Read execution_target from meta; map legacy ``container``/``host`` values."""
     prefix = CommandHistory.seq_to_prefix(seq)
     meta_path = session_dir / f"{prefix}.meta.json"
     if not meta_path.is_file():
@@ -42,6 +42,8 @@ def _execution_target_from_meta(session_dir: Path, seq: int) -> Optional[str]:
         return None
     if target == "container":
         return "sandbox"
+    if target == "host":
+        return "host_ssh"
     return target
 
 
@@ -68,7 +70,7 @@ class TerminalGetStatusCommand(Command):
                 "project_id": schema_project_id(),
                 "session_id": schema_session_id(),
                 "seq": schema_seq(
-                    description="seq returned by terminal_run or terminal_run_host."
+                    description="seq returned by terminal_run or terminal_host_exec."
                 ),
             },
             "required": ["project_id", "session_id", "seq"],

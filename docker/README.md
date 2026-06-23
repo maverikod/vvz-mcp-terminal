@@ -56,10 +56,10 @@ The package:
 
 1. Creates system user/group `mcp-terminal` (adds user to `docker` group)
 2. Creates `/etc/mcp-terminal`, `/var/log/mcp-terminal`, `/var/mcp-terminal`
-3. Installs `term_server.json` from template and runs `sync-host-sudo.sh` → `/etc/sudoers.d/mcp-terminal`
-4. Normalizes host ownership/modes via `ensure-host-permissions.sh` (sudoers `640 root:mcp-terminal`, mTLS tree group-readable)
+3. Installs `term_server.json` from template and ensures SSH target user via `ensure-ssh-target-user.sh`
+4. Normalizes host ownership/modes via `ensure-host-permissions.sh` (mTLS tree group-readable)
 5. `docker pull` service image + sandbox worker images
-6. Creates and starts container `mcp-terminal` as user `mcp-terminal` with `docker.sock` and sudoers bind-mounted
+6. Creates and starts container `mcp-terminal` with `docker.sock` and optional SSH known_hosts bind
 7. Enables `mcp-terminal-docker.service`
 
 ## Host layout
@@ -67,7 +67,8 @@ The package:
 | Path | Purpose |
 |------|---------|
 | `/etc/mcp-terminal/term_server.json` | Service JSON (created on first install; preserved on upgrade) |
-| `/etc/sudoers.d/mcp-terminal` | Generated NOPASSWD rules for `terminal_run_host` |
+| `/etc/mcp-terminal/ssh_known_hosts` | Pinned SSH host key for `terminal_host_exec` |
+| `/usr/lib/mcp-terminal/manage-session-keys.sh` | Ephemeral session key add/remove on host |
 | `/etc/mcp-terminal/mtls_certificates/` | TLS material |
 | `/etc/default/mcp-terminal` | Port, paths, extra bind mounts |
 | `/var/log/mcp-terminal/` | Logs |
@@ -79,8 +80,7 @@ The package:
 ```bash
 sudo systemctl status mcp-terminal-docker
 # After config edits (especially terminal.host_execution):
-sudo /usr/lib/mcp-terminal/sync-host-sudo.sh /etc/mcp-terminal/term_server.json
-sudo mcp-terminal-docker recreate    # sync + permission fix run automatically
+sudo mcp-terminal-docker recreate    # SSH target user + permission fix run automatically
 sudo mcp-terminal-docker status
 man mcp-terminal-docker
 info mcp-terminal-docker

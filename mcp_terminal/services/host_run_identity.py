@@ -1,5 +1,5 @@
 """
-Resolve effective host execution identity (project owner vs sudo override).
+Project directory ownership helpers for sandbox and session state.
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -7,33 +7,10 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
-import grp
 import os
 import pwd
 import stat
-from dataclasses import dataclass
 from pathlib import Path
-from typing import FrozenSet, Optional
-
-from mcp_terminal.services.host_execution_config import HostExecutionConfig
-
-
-@dataclass(frozen=True)
-class HostRunIdentity:
-    """Effective user context for one host-side execution."""
-
-    run_as_mode: str
-    """``project_owner``, ``sudo_override``, or ``root`` (direct, no sudo)."""
-    sudo_user: str
-    """First argument to ``sudo -u`` (account name preferred; numeric uid fallback)."""
-    sudo_group: Optional[str]
-    """Optional argument to ``sudo -g``."""
-    effective_uid: Optional[int]
-    """Numeric uid when known (project owner path)."""
-    effective_gid: Optional[int]
-    """Numeric gid when known (project owner path)."""
-    primary_basename: str
-    """Leading executable basename for this invocation."""
 
 
 def project_owner_ids(project_dir: Path) -> tuple[int, int]:
@@ -43,11 +20,7 @@ def project_owner_ids(project_dir: Path) -> tuple[int, int]:
 
 
 def project_owner_login(project_dir: Path) -> str:
-    """Return the project owner account name for ``sudo -u`` inside the service container.
-
-    Requires host ``/etc/passwd`` (bind-mounted into the service container). Falls
-    back to numeric uid string when the name is not resolvable.
-    """
+    """Return the project owner account name; falls back to numeric uid string."""
     uid, _ = project_owner_ids(project_dir)
     try:
         return pwd.getpwuid(uid).pw_name
@@ -65,11 +38,7 @@ def project_owner_user_spec(project_dir: Path, *, fallback: str = "65534:65534")
 
 
 def prepare_path_for_project_owner_access(project_dir: Path, path: Path) -> None:
-    """Make *path* owned by the project directory owner (requires root on the host).
-
-    Session state (``.terminals/``) must belong to the project owner so host
-    executors can read/write ``shell_state.json`` under sudo as that owner.
-    """
+    """Make *path* owned by the project directory owner (requires root on the host)."""
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -146,11 +115,7 @@ def _strip_other_write_tree(path: Path) -> None:
 
 
 def prepare_workspace_tree_for_sandbox_write(project_dir: Path) -> None:
-    """Legacy helper: temporarily open the project tree for root-in-container writes.
-
-    Writer sessions now run as the project owner (see ``writer_session_user``) and
-    do not call this function. Kept for tests and any remaining root-container paths.
-    """
+    """Legacy helper: temporarily open the project tree for root-in-container writes."""
     root = project_dir.resolve()
     if os.geteuid() == 0:
         _chown_tree(root, 0, 0)
@@ -172,10 +137,7 @@ def restore_workspace_tree_project_owner(project_dir: Path) -> None:
 
 
 def prepare_workspace_for_sandbox_write(project_dir: Path) -> None:
-    """Allow hardened sandbox root to create files under ``/workspace`` (bind mount).
-
-    Deprecated alias for :func:`prepare_workspace_tree_for_sandbox_write`.
-    """
+    """Deprecated alias for :func:`prepare_workspace_tree_for_sandbox_write`."""
     prepare_workspace_tree_for_sandbox_write(project_dir)
 
 
@@ -185,11 +147,7 @@ def prepare_session_dir_for_sandbox(
     *,
     container_user: str,
 ) -> None:
-    """Make *session_dir* writable by the sandbox container process.
-
-    Writer sessions run as the project owner; read-only sessions still use root
-    inside the boundary and need a root-owned session dir (or dev-mode other-write).
-    """
+    """Make *session_dir* writable by the sandbox container process."""
     if container_user == "0:0":
         _prepare_session_dir_for_root_container(session_dir)
         return
@@ -250,147 +208,3 @@ def restore_session_dir_project_owner(project_dir: Path, session_dir: Path) -> N
         os.chmod(session_dir, 0o777)
     except OSError:
         pass
-
-
-def _basename_lower(name: str) -> str:
-    return Path(name).name.lower()
-
-
-def primary_executable_basename(
-    *,
-    execution_kind: str,
-    command: Optional[str],
-    argv: Optional[list[str]],
-    segments: tuple[str, ...],
-) -> str:
-    """Return the leading executable basename for identity resolution."""
-    if execution_kind == "argv" and argv:
-        return _basename_lower(str(argv[0]))
-    if segments:
-        from mcp_terminal.services.host_shell_scanner import segment_executable_name
-
-        exe = segment_executable_name(segments[0])
-        if exe:
-            return exe.lower()
-    if command and command.strip():
-        from mcp_terminal.services.host_shell_scanner import segment_executable_name
-
-        exe = segment_executable_name(command.strip())
-        if exe:
-            return exe.lower()
-    return "bash"
-
-
-def resolve_host_identity(
-    *,
-    project_dir: Path,
-    config: HostExecutionConfig,
-    execution_kind: str,
-    command: Optional[str],
-    argv: Optional[list[str]],
-    segments: tuple[str, ...] = (),
-) -> HostRunIdentity:
-    """Resolve sudo target user/group for a validated host execution request."""
-    primary = primary_executable_basename(
-        execution_kind=execution_kind,
-        command=command,
-        argv=argv,
-        segments=segments,
-    )
-
-    override = config.sudo_overrides.get(primary)
-    if override is not None and len(segments) <= 1:
-        as_user = override["as_user"]
-        group = override.get("group")
-        return HostRunIdentity(
-            run_as_mode="sudo_override",
-            sudo_user=as_user,
-            sudo_group=group,
-            effective_uid=None,
-            effective_gid=None,
-            primary_basename=primary,
-        )
-
-    if config.run_as_default == "root":
-        return HostRunIdentity(
-            run_as_mode="root",
-            sudo_user="root",
-            sudo_group=None,
-            effective_uid=0,
-            effective_gid=0,
-            primary_basename=primary,
-        )
-
-    uid, gid = project_owner_ids(project_dir)
-    return HostRunIdentity(
-        run_as_mode="project_owner",
-        sudo_user=project_owner_login(project_dir),
-        sudo_group=None,
-        effective_uid=uid,
-        effective_gid=gid,
-        primary_basename=primary,
-    )
-
-
-def resolve_command_path(basename: str, config: HostExecutionConfig) -> Optional[str]:
-    """Return configured absolute path for an allowlisted basename, if any."""
-    return config.command_paths.get(basename.lower())
-
-
-def _sudo_group_for_container(group: Optional[str]) -> Optional[str]:
-    """Return a group name for ``sudo -g`` only when resolvable in this namespace.
-
-    Host numeric gids (e.g. project owner gid 134) are not valid inside the
-    service container and must not be passed to sudo.
-    """
-    if not group or group.isdigit():
-        return None
-    try:
-        grp.getgrnam(group)
-    except KeyError:
-        return None
-    return group
-
-
-def _sudo_user_for_container(login: str) -> str:
-    """Return ``sudo -u`` target when *login* is resolvable in this namespace."""
-    if login.isdigit():
-        return login
-    try:
-        pwd.getpwnam(login)
-    except KeyError:
-        return login
-    return login
-
-
-def build_sudo_argv(
-    identity: HostRunIdentity,
-    *,
-    inner_argv: list[str],
-) -> list[str]:
-    """Build ``sudo -n -u … [-g …] -- …`` argv for a host execution."""
-    sudo_argv = ["/usr/bin/sudo", "-n", "-u", _sudo_user_for_container(identity.sudo_user)]
-    sudo_group = _sudo_group_for_container(identity.sudo_group)
-    if sudo_group:
-        sudo_argv.extend(["-g", sudo_group])
-    sudo_argv.append("--")
-    sudo_argv.extend(inner_argv)
-    return sudo_argv
-
-
-def segments_for_request(
-    *,
-    execution_kind: str,
-    command: Optional[str],
-    argv: Optional[list[str]],
-    allowed_commands: FrozenSet[str],
-) -> tuple[str, ...]:
-    """Return shell segments used for identity resolution (empty for argv)."""
-    if execution_kind == "argv":
-        return ()
-    if not command or not command.strip():
-        return ()
-    from mcp_terminal.services.host_execution_config import validate_host_shell_command
-
-    result = validate_host_shell_command(command.strip(), allowed_commands)
-    return result.segments

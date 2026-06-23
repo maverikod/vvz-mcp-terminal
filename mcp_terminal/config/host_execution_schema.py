@@ -2,31 +2,32 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 HOST_EXECUTION_CONFIG: Dict[str, Any] = {
     "enabled": False,
     "allowed_commands": [],
-    "service_user": "root",
     "forbidden_executables_override": None,
-    "run_as": {
-        "default": "project_owner",
-        "sudo": {},
-        "command_paths": {},
+    "ssh": {
+        "host": "127.0.0.1",
+        "port": 22,
+        "target_users": ["mcp-terminal-host"],
+        "known_hosts_path": "/etc/mcp-terminal/ssh_known_hosts",
+        "connect_timeout": 10,
+        "key_manager_script": "/usr/lib/mcp-terminal/manage-session-keys.sh",
     },
 }
 
-# Logged at startup when enabled=True and allowlist is empty.
 HOST_EXECUTION_EMPTY_ALLOWLIST_LOG = (
     "terminal.host_execution.enabled is true but allowed_commands is empty; "
     "add command names (e.g. casmgr, git) to terminal.host_execution.allowed_commands "
     "to permit host-side execution"
 )
 
-HOST_EXECUTION_SUDO_WARN_LOG = (
-    "terminal.host_execution.enabled is true but host sudo is not configured; "
-    "run sync-host-sudo.sh as root and recreate the service container"
+HOST_EXECUTION_SSH_INCOMPLETE_LOG = (
+    "terminal.host_execution.enabled is true but ssh configuration is incomplete; "
+    "set ssh.target_users (non-empty) and ssh.known_hosts_path"
 )
 
-# Allowed values for terminal.host_execution.run_as.default
-HOST_RUN_AS_DEFAULT_MODES: List[str] = ["project_owner", "root"]
+DEFAULT_SSH_KEY_MANAGER_SCRIPT = "/usr/lib/mcp-terminal/manage-session-keys.sh"
+DEFAULT_SSH_KNOWN_HOSTS_PATH = "/etc/mcp-terminal/ssh_known_hosts"

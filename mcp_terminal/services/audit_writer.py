@@ -77,7 +77,7 @@ class AuditWriter:
 
         Args:
             project_dir: Used only for hashing; the hash is recorded, not the path.
-            execution_target: ``sandbox``, ``host``, or ``attached`` (C-017).
+            execution_target: ``sandbox``, ``host_ssh``, or ``attached`` (C-017).
             resolved_cwd_on_host: Project-relative cwd for host target (C-012).
             use_venv_resolved: Resolved venv flag for host/sandbox runs.
             allowed_commands_snapshot_hash: Host allowlist snapshot (C-012).

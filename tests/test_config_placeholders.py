@@ -31,7 +31,9 @@ def test_packaging_template_full_terminal_shape() -> None:
     assert data["registration"]["instance_uuid"] == "REPLACE_ON_INSTALL"
     assert "terminal" in data
     assert "host_execution" in data["terminal"]
-    assert data["terminal"]["host_execution"]["enabled"] is True
+    assert data["terminal"]["host_execution"]["enabled"] is False
+    assert "ssh" in data["terminal"]["host_execution"]
+    assert data["terminal"]["host_execution"]["ssh"]["known_hosts_path"]
     assert "runtime" in data
     assert data["code_analysis"]["enabled"] is True
     assert data["code_analysis"]["host"] == "CODE_ANALYSIS_HOST"

@@ -139,7 +139,7 @@ def get_terminal_kill_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "message": "KILL_NOT_APPLIED",
                 "solution": (
                     "Poll terminal_get_status; retry only if still pending. Host runs "
-                    "use terminal_run_host — this command targets sandbox subprocesses."
+                    "use terminal_host_exec — this command targets sandbox subprocesses."
                 ),
             },
             },
@@ -148,7 +148,7 @@ def get_terminal_kill_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "best_practices": [
             "Confirm seq status is pending via terminal_get_status before killing.",
             "Poll terminal_get_status after kill to see final exit_code.",
-            "Do not use terminal_kill for terminal_run_host jobs.",
+            "Do not use terminal_kill for terminal_host_exec jobs.",
             "Use terminal_delete to remove the session container and disk state.",
         ],
     }

@@ -15,8 +15,9 @@ from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.host_execution_config import (
     HostCommandValidation,
     HostExecutionConfig,
+    HostSshConfig,
 )
-from mcp_terminal.services.host_run_service import enqueue_host_terminal_run
+from mcp_terminal.services.host_run_service import enqueue_host_ssh_terminal_run
 from mcp_terminal.services.shell_state import ShellState, write_shell_state
 
 
@@ -28,7 +29,16 @@ def _mock_enqueue_coroutine(coro: Any, *, job_id: str = "mock-job") -> str:
 
 
 _HE_CFG = HostExecutionConfig(
-    enabled=True, allowed_commands=frozenset({"pytest", "git", "true", "sleep"})
+    enabled=True,
+    allowed_commands=frozenset({"pytest", "git", "true", "sleep"}),
+    ssh=HostSshConfig(
+        host="127.0.0.1",
+        port=22,
+        target_users=("hostuser",),
+        known_hosts_path="/etc/mcp-terminal/ssh_known_hosts",
+        connect_timeout=10,
+        key_manager_script="/usr/lib/mcp-terminal/manage-session-keys.sh",
+    ),
 )
 
 
@@ -104,7 +114,7 @@ async def _enqueue_host_mock(
     project_id: str,
     session_id: str,
 ) -> int:
-    """Run terminal_run_host enqueue path with mocked job queue (no host spawn)."""
+    """Run terminal_host_exec enqueue path with mocked job queue (no host spawn)."""
     srec = SimpleNamespace(session_dir=session_dir)
     session_store = SimpleNamespace(touch_activity=lambda *_a, **_k: None)
 
@@ -119,7 +129,7 @@ async def _enqueue_host_mock(
             side_effect=lambda coro: _mock_enqueue_coroutine(coro, job_id="host-job"),
         ),
     ):
-        result = await enqueue_host_terminal_run(
+        result = await enqueue_host_ssh_terminal_run(
             project_id=project_id,
             session_id=session_id,
             srec=srec,
@@ -129,6 +139,7 @@ async def _enqueue_host_mock(
             effective_cwd=".",
             timeout_seconds=30,
             use_venv=False,
+            target_user=None,
             project_dir=project_dir,
             session_store=session_store,
         )
@@ -191,21 +202,25 @@ def test_h10_sandbox_and_host_share_monotonic_seq(tmp_path: Path) -> None:
 
 
 def test_h5_docker_enqueue_rejected_without_queueing(tmp_path: Path) -> None:
-    """H-5: enqueue_host_terminal_run rejects docker without queueing a host job."""
+    """H-5: enqueue_host_ssh_terminal_run rejects docker without queueing a host job."""
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     session_dir = tmp_path / "session"
     session_dir.mkdir()
     srec = SimpleNamespace(session_dir=session_dir)
     session_store = SimpleNamespace(touch_activity=lambda *_a, **_k: None)
-    cfg = HostExecutionConfig(enabled=True, allowed_commands=frozenset({"docker", "pytest"}))
+    cfg = HostExecutionConfig(
+        enabled=True,
+        allowed_commands=frozenset({"docker", "pytest"}),
+        ssh=_HE_CFG.ssh,
+    )
 
     async def _run() -> None:
         with (
             _patch_host_config(cfg),
             patch("mcp_terminal.services.host_run_service.enqueue_coroutine") as mock_enqueue,
         ):
-            result = await enqueue_host_terminal_run(
+            result = await enqueue_host_ssh_terminal_run(
                 project_id="00000000-0000-4000-8000-000000000001",
                 session_id="00000000-0000-4000-8000-000000000002",
                 srec=srec,
@@ -215,6 +230,7 @@ def test_h5_docker_enqueue_rejected_without_queueing(tmp_path: Path) -> None:
                 effective_cwd=".",
                 timeout_seconds=30,
                 use_venv=False,
+                target_user=None,
                 project_dir=project_dir,
                 session_store=session_store,
             )

@@ -41,8 +41,8 @@ from mcp_terminal.commands.terminal_registry_refresh_command import (
 )
 from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
 from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
+from mcp_terminal.commands.terminal_host_exec_command import TerminalHostExecCommand
 from mcp_terminal.commands.terminal_purge_sessions_command import TerminalPurgeSessionsCommand
-from mcp_terminal.commands.terminal_run_host_command import TerminalRunHostCommand
 from mcp_terminal.commands.terminal_search_commands_command import (
     TerminalSearchCommandsCommand,
 )
@@ -69,8 +69,9 @@ from mcp_terminal.services.ttl_cleanup import TtlCleanupService
 from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.services.host_execution_config import (
     warn_if_host_execution_enabled_without_commands,
-    warn_if_host_sudo_not_configured,
+    warn_if_host_ssh_incomplete,
 )
+from mcp_terminal.services.session_ssh_key import reap_orphaned_keys
 from mcp_terminal.term_config import (
     DEFAULT_TERM_SERVER_LISTEN_PORT,
     load_validated_term_simple_config,
@@ -95,7 +96,7 @@ _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
     TerminalSessionCreateCommand,
     TerminalGetSessionBootstrapCommand,
     TerminalRunCommand,
-    TerminalRunHostCommand,
+    TerminalHostExecCommand,
     TerminalListCommand,
     TerminalListWatchCommand,
     TerminalRegistryRefreshCommand,
@@ -196,9 +197,12 @@ def main() -> None:
         _die(str(exc))
 
     warn_if_host_execution_enabled_without_commands(app_config)
-    warn_if_host_sudo_not_configured(app_config)
+    warn_if_host_ssh_incomplete(app_config)
 
     _install_project_registry(app_config, cfg_path)
+
+    live_session_ids = _SESSION_STORE.live_session_ids()
+    reap_orphaned_keys(set(live_session_ids))
 
     app_config.setdefault("server", {})
     app_config["server"].setdefault("debug", False)

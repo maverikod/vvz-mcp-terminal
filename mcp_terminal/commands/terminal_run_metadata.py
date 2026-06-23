@@ -60,7 +60,7 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "(``casmgr``, ``pytest``, …) work by name. Set ``use_venv: false`` on create "
             "or run for system Python only.\n\n"
             "For host-side tools (e.g. ``casmgr`` against a host daemon), use "
-            "``terminal_run_host`` when ``terminal.host_execution.enabled`` is set in "
+            "``terminal_host_exec`` when ``terminal.host_execution.enabled`` is set in "
             "config — not this command."
         ),
         "parameters": {

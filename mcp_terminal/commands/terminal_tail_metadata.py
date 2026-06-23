@@ -56,7 +56,7 @@ def get_terminal_tail_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "seq": {
                 "description": (
                     "Session-local command sequence number from terminal_run, "
-                    "terminal_run_host, or terminal_list."
+                    "terminal_host_exec, or terminal_list."
                 ),
                 "type": "integer",
                 "required": True,

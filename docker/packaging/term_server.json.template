@@ -1,5 +1,24 @@
 {
+  "_template_doc": [
+    "MCP Terminal production seed for /etc/mcp-terminal/term_server.json.",
+    "Created on first package install; never overwritten on upgrade if the live file already exists.",
+    "After edits: python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_server.json",
+    "Then: sudo mcp-terminal-docker recreate",
+    "Keys starting with '_' are documentation only (ignored by the service)."
+  ],
+  "_placeholders": {
+    "_doc": "Replace before first start. Service refuses to start while any marker remains.",
+    "CHANGE_ME": "server.advertised_host — this host IP or DNS name for MCP proxy registration",
+    "MCP_PROXY_HOST": "registration.* URLs and heartbeat.url — MCP proxy hostname or IP",
+    "REPLACE_ON_INSTALL": "registration.instance_uuid — replaced with UUID4 on first install",
+    "CODE_ANALYSIS_HOST": "code_analysis.host — casmgr-server hostname or IP (production port 15010)",
+    "WATCH_DIRS_ROOT": "watch_dirs.directories[0] — parent path scanned for project roots (must be bind-mounted)"
+  },
   "server": {
+    "_doc": [
+      "HTTPS listener inside the service container.",
+      "log_dir must be writable (package default /var/log/mcp-terminal)."
+    ],
     "host": "0.0.0.0",
     "port": 3011,
     "protocol": "https",
@@ -19,6 +38,7 @@
     "log_level": "INFO"
   },
   "client": {
+    "_doc": "Outbound mTLS client profile (optional). Usually disabled on the term server.",
     "enabled": false,
     "protocol": "https",
     "ssl": {
@@ -31,6 +51,10 @@
     }
   },
   "registration": {
+    "_doc": [
+      "Registers this term server with mcp-proxy-adapter.",
+      "ssl.ca must trust the proxy; use MCP-Proxy CA paths under mtls_certificates/mtls_certificates/."
+    ],
     "enabled": true,
     "protocol": "https",
     "register_url": "https://MCP_PROXY_HOST:3004/register",
@@ -41,7 +65,7 @@
     "metadata": {
       "server_id": "mcp-terminal",
       "server_name": "MCP Terminal",
-      "description": "Sandboxed terminal sessions per project: Docker session containers (terminal_run), optional host allowlist (terminal_run_host), shell_state.json (persistent cwd), keep_container for multi-step work.",
+      "description": "Sandboxed terminal sessions per project: Docker session containers (terminal_run), optional real-host SSH allowlist (terminal_host_exec), shell_state.json (persistent cwd), keep_container for multi-step work.",
       "version": "@VERSION@"
     },
     "instance_uuid": "REPLACE_ON_INSTALL",
@@ -61,6 +85,7 @@
     }
   },
   "server_validation": {
+    "_doc": "Optional inbound API token/roles validation (usually disabled).",
     "enabled": false,
     "protocol": "http",
     "ssl": null,
@@ -75,12 +100,14 @@
     "check_hostname": false
   },
   "auth": {
+    "_doc": "Legacy auth block (adapter compatibility).",
     "use_token": false,
     "use_roles": false,
     "tokens": {},
     "roles": {}
   },
   "queue_manager": {
+    "_doc": "Job queue for terminal MCP commands.",
     "enabled": true,
     "in_memory": true,
     "registry_path": null,
@@ -95,6 +122,7 @@
     "stop_job_wait_timeout": null
   },
   "orchestration": {
+    "_doc": "Multi-server orchestration (disabled in typical single-node install).",
     "discovery_enabled": false,
     "polling_interval": 30.0,
     "initial_poll_timeout": 60.0,
@@ -103,84 +131,62 @@
     "static_servers": []
   },
   "terminal": {
+    "_doc": [
+      "Terminal domain: sessions, output limits, admin, and host_execution (terminal_host_exec).",
+      "terminal_run uses runtime.* (Docker sandbox); terminal_host_exec uses host_execution.* below."
+    ],
     "defaults": {
+      "_doc": "Defaults for terminal_run sandbox sessions.",
       "workspace_write": true,
       "pid_namespace": "host",
       "keep_container": true,
       "use_venv": true
     },
     "sessions": {
+      "_doc": "Session TTL and per-project caps.",
       "ttl_seconds": 86400,
       "cleanup_interval_seconds": 3600,
       "max_sessions_per_project": 50,
       "max_commands_per_session": 1000
     },
     "output": {
+      "_doc": "Captured stdout/stderr size limits on disk.",
       "max_stdout_file_bytes": 100000000,
       "max_stderr_file_bytes": 100000000,
       "default_read_bytes": 65536,
       "max_read_bytes": 262144
     },
     "commands": {
+      "_doc": "History/tail limits for terminal_read_output and related commands.",
       "default_history_limit": 25,
       "max_history_limit": 200,
       "default_tail_lines": 100,
       "max_tail_lines": 5000
     },
     "cleanup": {
+      "_doc": "Background session cleanup behavior.",
       "delete_expired_sessions": true,
       "delete_running_sessions": false
     },
     "admin": {
+      "_doc": "Administrative MCP commands.",
       "allow_purge_sessions": true
     },
     "host_execution": {
-      "enabled": true,
-      "service_user": "root",
-      "run_as": {
-        "default": "project_owner",
-        "sudo": {
-          "casmgr": {
-            "as_user": "casuser",
-            "group": "casgrp",
-            "path": "/usr/bin/casmgr"
-          }
-        },
-        "command_paths": {
-          "termgr": "/usr/local/bin/termgr",
-          "python": "/usr/local/bin/python3",
-          "python3": "/usr/local/bin/python3",
-          "pip": "/usr/local/bin/pip3",
-          "pip3": "/usr/local/bin/pip3",
-          "bash": "/bin/bash",
-          "sh": "/bin/sh",
-          "grep": "/usr/bin/grep",
-          "jq": "/usr/bin/jq",
-          "sed": "/usr/bin/sed",
-          "awk": "/usr/bin/awk",
-          "cat": "/bin/cat",
-          "ls": "/bin/ls",
-          "cp": "/bin/cp",
-          "mv": "/bin/mv",
-          "mkdir": "/bin/mkdir",
-          "rm": "/bin/rm",
-          "find": "/usr/bin/find",
-          "head": "/usr/bin/head",
-          "tail": "/usr/bin/tail",
-          "wc": "/usr/bin/wc",
-          "sort": "/usr/bin/sort",
-          "diff": "/usr/bin/diff",
-          "tee": "/usr/bin/tee",
-          "true": "/usr/bin/true",
-          "false": "/usr/bin/false",
-          "test": "/usr/bin/test",
-          "env": "/usr/bin/env",
-          "printenv": "/usr/bin/printenv",
-          "which": "/usr/bin/which",
-          "git": "/usr/bin/git",
-          "pytest": "/usr/bin/pytest"
-        }
-      },
+      "_doc": [
+        "terminal_host_exec — allowlisted commands on the real host via SSH (not the service container).",
+        "",
+        "Default enabled=false. When enabled, set ssh.host (reachable from service container),",
+        "ssh.target_users (non-empty), and ssh.known_hosts_path (pinned host key; required).",
+        "Ephemeral session keys are registered via manage-session-keys.sh on install/recreate.",
+        "",
+        "forbidden_executables_override:",
+        "  null (omit or null) — built-in denylist blocks docker, kubectl, systemctl, sudo, …",
+        "  []                 — disable denylist (required to allowlist docker/systemctl)",
+        "  [\"kubectl\", …]     — custom denylist replaces the built-in list"
+      ],
+      "enabled": false,
+      "forbidden_executables_override": null,
       "allowed_commands": [
         "bash",
         "sh",
@@ -201,38 +207,39 @@
         "yarn",
         "pnpm",
         "git",
-        "make",
-        "rg",
         "grep",
         "jq",
         "sed",
         "awk",
         "cat",
         "ls",
-        "cp",
-        "mv",
-        "mkdir",
-        "rm",
         "find",
         "head",
         "tail",
-        "wc",
-        "sort",
-        "diff",
-        "tee",
-        "true",
-        "false",
-        "test",
-        "which",
-        "env",
-        "printenv",
-        "pwd",
-        "cd",
-        "echo"
-      ]
+        "hostname",
+        "id"
+      ],
+      "ssh": {
+        "_doc": [
+          "SSH platzdarm for terminal_host_exec. Service container runs ssh client to ssh.host.",
+          "target_users: SSH login names on the host; first entry is the default target_user.",
+          "known_hosts_path: host file bind-mounted read-only (StrictHostKeyChecking=yes).",
+          "key_manager_script: host script to add/remove session public keys in authorized_keys."
+        ],
+        "host": "host.docker.internal",
+        "port": 22,
+        "target_users": ["mcp-terminal-host"],
+        "known_hosts_path": "/etc/mcp-terminal/ssh_known_hosts",
+        "connect_timeout": 10,
+        "key_manager_script": "/usr/lib/mcp-terminal/manage-session-keys.sh"
+      }
     }
   },
   "runtime": {
+    "_doc": [
+      "terminal_run sandbox defaults — per-session Docker containers on the host daemon.",
+      "Image profiles: python_dev_3_12, node_dev_20, base_tools (see sandbox-images-spec)."
+    ],
     "default_image_profile": "python_dev_3_12",
     "default_network": "none",
     "timeout_seconds": 60,
@@ -244,12 +251,21 @@
     "cleanup_always": true
   },
   "watch_dirs": {
+    "_doc": [
+      "Project registry refresh — each directory must contain project subdirs with a projectid file.",
+      "Paths must be bind-mounted read-write into the service container (auto-bind or MCP_TERMINAL_EXTRA_BINDS).",
+      "With casmgr-server prefer UUID anchor paths from list_watch_dirs, not the catalog root."
+    ],
     "directories": [
       "WATCH_DIRS_ROOT"
     ],
     "refresh_interval_seconds": 60
   },
   "code_analysis": {
+    "_doc": [
+      "JSON-RPC client to casmgr-server for project registry / terminal_session_create validation.",
+      "ssl.ca must trust casmgr (MCP-Proxy CA), not only the install-time mcp-terminal-install-ca."
+    ],
     "enabled": true,
     "protocol": "https",
     "host": "CODE_ANALYSIS_HOST",
@@ -264,6 +280,37 @@
       "crl": null,
       "dnscheck": false,
       "check_hostname": false
+    }
+  },
+  "_examples": {
+    "_doc": "Reference only — not read by the service. Copy into terminal.host_execution when enabling host SSH.",
+    "host_execution_ssh_docker": {
+      "_doc": "Example: enable real-host SSH for docker/systemctl (empty forbidden override).",
+      "enabled": true,
+      "forbidden_executables_override": [],
+      "allowed_commands": [
+        "docker",
+        "systemctl",
+        "journalctl",
+        "git",
+        "bash",
+        "grep",
+        "jq",
+        "hostname",
+        "id"
+      ],
+      "ssh": {
+        "host": "host.docker.internal",
+        "port": 22,
+        "target_users": ["mcp-terminal-host"],
+        "known_hosts_path": "/etc/mcp-terminal/ssh_known_hosts",
+        "connect_timeout": 10,
+        "key_manager_script": "/usr/lib/mcp-terminal/manage-session-keys.sh"
+      }
+    },
+    "cli_generate_host_ssh": {
+      "_doc": "Equivalent generator invocation (dev venv or container with mcp-terminal installed):",
+      "_command": "python3 -m mcp_terminal.config.config_cli generate --host-execution-enabled true --host-execution-allowed-commands docker systemctl journalctl git hostname --host-execution-forbidden-executables-override"
     }
   },
   "_term_config_format": 5

@@ -4,7 +4,7 @@ Host-side command execution policy from ``terminal.host_execution``.
 Shell chain parsing and forbidden-pattern scanning is delegated to
 mcp_terminal/services/host_shell_scanner.py.
 
-Use ``terminal_run_host`` (not ``terminal_run``) for host execution.
+Use ``terminal_host_exec`` (not ``terminal_run``) for real host execution via SSH.
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -15,13 +15,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Mapping, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 
 from mcp_terminal.config.host_execution_schema import (
+    DEFAULT_SSH_KEY_MANAGER_SCRIPT,
+    DEFAULT_SSH_KNOWN_HOSTS_PATH,
     HOST_EXECUTION_CONFIG,
     HOST_EXECUTION_EMPTY_ALLOWLIST_LOG,
-    HOST_EXECUTION_SUDO_WARN_LOG,
-    HOST_RUN_AS_DEFAULT_MODES,
+    HOST_EXECUTION_SSH_INCOMPLETE_LOG,
 )
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.host_shell_scanner import (
@@ -40,11 +41,11 @@ from mcp_terminal.services.host_shell_scanner import (
 _logger = logging.getLogger(__name__)
 
 __all__ = [
-    "HOST_EXECUTION_SUDO_WARN_LOG",
     "HOST_FORBIDDEN_EXECUTABLES",
     "HOST_FORBIDDEN_SUBSTRINGS",
     "HostCommandValidation",
     "HostExecutionConfig",
+    "HostSshConfig",
     "collect_shell_scan_texts",
     "command_executable_name",
     "decompose_shell_command",
@@ -54,13 +55,32 @@ __all__ = [
     "host_shell_command_is_safe",
     "is_host_execution_eligible",
     "iter_shell_scan_fragments",
+    "resolve_target_user",
     "segment_executable_name",
     "shell_command_has_chain",
     "validate_host_argv_command",
     "validate_host_run_request",
     "validate_host_shell_command",
+    "validate_key_access_guard",
     "warn_if_host_execution_enabled_without_commands",
+    "warn_if_host_ssh_incomplete",
 ]
+
+
+@dataclass(frozen=True)
+class HostSshConfig:
+    """SSH connection settings for real host execution."""
+
+    host: str
+    port: int
+    target_users: tuple[str, ...]
+    known_hosts_path: str
+    connect_timeout: int
+    key_manager_script: str
+
+    @property
+    def default_target_user(self) -> str:
+        return self.target_users[0]
 
 
 @dataclass(frozen=True)
@@ -69,23 +89,21 @@ class HostExecutionConfig:
 
     enabled: bool
     allowed_commands: FrozenSet[str]
-    service_user: str = "mcp-terminal"
-    run_as_default: str = "project_owner"
-    sudo_overrides: Mapping[str, Dict[str, Optional[str]]] = None  # type: ignore[assignment]
-    command_paths: Mapping[str, str] = None  # type: ignore[assignment]
     forbidden_executables: Optional[FrozenSet[str]] = None
+    ssh: Optional[HostSshConfig] = None
     """When set, replaces ``DEFAULT_HOST_FORBIDDEN_EXECUTABLES`` entirely (empty = none)."""
-
-    def __post_init__(self) -> None:
-        if self.sudo_overrides is None:
-            object.__setattr__(self, "sudo_overrides", {})
-        if self.command_paths is None:
-            object.__setattr__(self, "command_paths", {})
 
     def effective_forbidden_executables(self) -> FrozenSet[str]:
         if self.forbidden_executables is not None:
             return self.forbidden_executables
         return HOST_FORBIDDEN_EXECUTABLES
+
+    def ssh_ready(self) -> bool:
+        return (
+            self.ssh is not None
+            and bool(self.ssh.target_users)
+            and bool(self.ssh.known_hosts_path.strip())
+        )
 
 
 @dataclass(frozen=True)
@@ -110,51 +128,58 @@ def _host_execution_section(config: Dict[str, Any] | None) -> Dict[str, Any]:
     return raw
 
 
-def _parse_run_as(
-    section: Dict[str, Any],
-) -> tuple[str, Dict[str, Dict[str, Optional[str]]], Dict[str, str]]:
-    run_as = section.get("run_as")
-    if not isinstance(run_as, dict):
-        return "project_owner", {}, {}
+def _parse_ssh(section: Dict[str, Any]) -> Optional[HostSshConfig]:
+    raw = section.get("ssh")
+    if not isinstance(raw, dict):
+        defaults = HOST_EXECUTION_CONFIG.get("ssh")
+        if not isinstance(defaults, dict):
+            return None
+        raw = defaults
 
-    default_mode = run_as.get("default", "project_owner")
-    if not isinstance(default_mode, str) or not default_mode.strip():
-        default_mode = "project_owner"
-    else:
-        default_mode = default_mode.strip()
-        if default_mode not in HOST_RUN_AS_DEFAULT_MODES:
-            _logger.warning(
-                "Unknown run_as.default %r; falling back to project_owner",
-                default_mode,
-            )
-            default_mode = "project_owner"
+    host = raw.get("host", HOST_EXECUTION_CONFIG["ssh"]["host"])
+    if not isinstance(host, str) or not host.strip():
+        host = str(HOST_EXECUTION_CONFIG["ssh"]["host"])
 
-    command_paths: Dict[str, str] = {}
-    raw_paths = run_as.get("command_paths")
-    if isinstance(raw_paths, dict):
-        for key, val in raw_paths.items():
-            if isinstance(key, str) and key.strip() and isinstance(val, str) and val.strip():
-                command_paths[key.strip().lower()] = val.strip()
+    port = raw.get("port", HOST_EXECUTION_CONFIG["ssh"]["port"])
+    if not isinstance(port, int) or port < 1 or port > 65535:
+        port = int(HOST_EXECUTION_CONFIG["ssh"]["port"])
 
-    sudo_overrides: Dict[str, Dict[str, Optional[str]]] = {}
-    raw_sudo = run_as.get("sudo")
-    if isinstance(raw_sudo, dict):
-        for key, entry in raw_sudo.items():
-            if not isinstance(key, str) or not key.strip() or not isinstance(entry, dict):
-                continue
-            as_user = entry.get("as_user")
-            if not isinstance(as_user, str) or not as_user.strip():
-                continue
-            override: Dict[str, Optional[str]] = {"as_user": as_user.strip()}
-            group = entry.get("group")
-            if isinstance(group, str) and group.strip():
-                override["group"] = group.strip()
-            path = entry.get("path")
-            if isinstance(path, str) and path.strip():
-                override["path"] = path.strip()
-            sudo_overrides[key.strip().lower()] = override
+    users: List[str] = []
+    raw_users = raw.get("target_users", HOST_EXECUTION_CONFIG["ssh"]["target_users"])
+    if isinstance(raw_users, list):
+        for item in raw_users:
+            if isinstance(item, str) and item.strip():
+                users.append(item.strip())
 
-    return default_mode, sudo_overrides, command_paths
+    known_hosts = raw.get(
+        "known_hosts_path",
+        HOST_EXECUTION_CONFIG["ssh"]["known_hosts_path"],
+    )
+    if not isinstance(known_hosts, str) or not known_hosts.strip():
+        known_hosts = DEFAULT_SSH_KNOWN_HOSTS_PATH
+
+    connect_timeout = raw.get(
+        "connect_timeout",
+        HOST_EXECUTION_CONFIG["ssh"]["connect_timeout"],
+    )
+    if not isinstance(connect_timeout, int) or connect_timeout < 1:
+        connect_timeout = int(HOST_EXECUTION_CONFIG["ssh"]["connect_timeout"])
+
+    key_script = raw.get(
+        "key_manager_script",
+        HOST_EXECUTION_CONFIG["ssh"]["key_manager_script"],
+    )
+    if not isinstance(key_script, str) or not key_script.strip():
+        key_script = DEFAULT_SSH_KEY_MANAGER_SCRIPT
+
+    return HostSshConfig(
+        host=host.strip(),
+        port=port,
+        target_users=tuple(users),
+        known_hosts_path=known_hosts.strip(),
+        connect_timeout=connect_timeout,
+        key_manager_script=key_script.strip(),
+    )
 
 
 def _parse_forbidden_executables_override(section: Dict[str, Any]) -> Optional[FrozenSet[str]]:
@@ -194,22 +219,32 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
             if isinstance(item, str) and item.strip():
                 names.append(item.strip())
 
-    service_user = section.get("service_user", HOST_EXECUTION_CONFIG["service_user"])
-    if not isinstance(service_user, str) or not service_user.strip():
-        service_user = str(HOST_EXECUTION_CONFIG["service_user"])
-
-    run_as_default, sudo_overrides, command_paths = _parse_run_as(section)
     forbidden_executables = _parse_forbidden_executables_override(section)
+    ssh = _parse_ssh(section)
 
     return HostExecutionConfig(
         enabled=enabled,
         allowed_commands=frozenset(names),
-        service_user=service_user.strip(),
-        run_as_default=run_as_default,
-        sudo_overrides=sudo_overrides,
-        command_paths=command_paths,
         forbidden_executables=forbidden_executables,
+        ssh=ssh,
     )
+
+
+def resolve_target_user(
+    requested: Optional[str],
+    *,
+    config: HostExecutionConfig | None = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """Resolve target_user; return (user, error_code)."""
+    he = config or get_host_execution_config()
+    if he.ssh is None or not he.ssh.target_users:
+        return None, ErrorCode.HOST_EXECUTION_DISABLED
+    if requested is None or not str(requested).strip():
+        return he.ssh.default_target_user, None
+    user = str(requested).strip()
+    if user not in he.ssh.target_users:
+        return None, ErrorCode.TARGET_USER_NOT_ALLOWED
+    return user, None
 
 
 def warn_if_host_execution_enabled_without_commands(config: Dict[str, Any]) -> None:
@@ -219,17 +254,79 @@ def warn_if_host_execution_enabled_without_commands(config: Dict[str, Any]) -> N
         _logger.warning(HOST_EXECUTION_EMPTY_ALLOWLIST_LOG)
 
 
-def warn_if_host_sudo_not_configured(config: Dict[str, Any]) -> None:
-    """Log when host execution is enabled but passwordless sudo is unavailable."""
+def warn_if_host_ssh_incomplete(config: Dict[str, Any]) -> None:
+    """Log when host execution is enabled but SSH settings are incomplete."""
     he = get_host_execution_config(config)
-    if not he.enabled or not he.allowed_commands:
-        return
-    if he.run_as_default == "root":
-        return
-    from mcp_terminal.services.host_session_executor import sudo_nopasswd_available
+    if he.enabled and he.allowed_commands and not he.ssh_ready():
+        _logger.warning(HOST_EXECUTION_SSH_INCOMPLETE_LOG)
 
-    if not sudo_nopasswd_available():
-        _logger.warning(HOST_EXECUTION_SUDO_WARN_LOG)
+
+def _command_text_fragments(
+    execution_kind: str,
+    command: Optional[str],
+    argv: Optional[List[str]],
+) -> List[str]:
+    """User-supplied command text only (not session key paths)."""
+    fragments: List[str] = []
+    if execution_kind == "shell" and command:
+        fragments.append(command)
+        for frag in iter_shell_scan_fragments(command):
+            if isinstance(frag, tuple):
+                fragments.append(str(frag[0]))
+            else:
+                fragments.append(str(frag))
+    elif execution_kind == "argv" and argv:
+        fragments.extend(str(x) for x in argv)
+    return fragments
+
+
+def validate_key_access_guard(
+    execution_kind: str,
+    command: Optional[str],
+    argv: Optional[List[str]],
+    session_dir: Path,
+) -> HostCommandValidation:
+    """Reject commands that reference the session private key path (R-KEY-GUARD)."""
+    from mcp_terminal.services.session_ssh_key import (  # noqa: PLC0415
+        SESSION_KEY_DIRNAME,
+        SESSION_KEY_FILENAME,
+        session_key_paths,
+    )
+
+    priv, pub = session_key_paths(session_dir)
+    priv_resolved = str(priv.resolve())
+    pub_resolved = str(pub.resolve())
+    key_dir_resolved = str((session_dir / SESSION_KEY_DIRNAME).resolve())
+    key_rel = f"{SESSION_KEY_DIRNAME}/{SESSION_KEY_FILENAME}"
+
+    needles = [
+        priv_resolved,
+        pub_resolved,
+        key_dir_resolved,
+        key_rel,
+        SESSION_KEY_FILENAME,
+    ]
+
+    for fragment in _command_text_fragments(execution_kind, command, argv):
+        if not fragment:
+            continue
+        frag_lower = fragment.lower()
+        for needle in needles:
+            if not needle:
+                continue
+            if needle in fragment or needle.lower() in frag_lower:
+                return HostCommandValidation(
+                    ok=False,
+                    error_code=ErrorCode.HOST_KEY_ACCESS_FORBIDDEN,
+                    detail="command references session SSH key material",
+                )
+        if SESSION_KEY_DIRNAME in frag_lower and SESSION_KEY_FILENAME in frag_lower:
+            return HostCommandValidation(
+                ok=False,
+                error_code=ErrorCode.HOST_KEY_ACCESS_FORBIDDEN,
+                detail="command references session SSH key file",
+            )
+    return HostCommandValidation(ok=True)
 
 
 def _allowed_names_lower(allowed: FrozenSet[str]) -> FrozenSet[str]:
@@ -362,8 +459,11 @@ def validate_host_run_request(
     execution_kind: str,
     command: Optional[str],
     argv: Optional[List[str]],
+    *,
+    session_dir: Optional[Path] = None,
+    target_user: Optional[str] = None,
 ) -> HostCommandValidation:
-    """Require ``terminal.host_execution.enabled`` and validate allowlist / forbidden rules."""
+    """Require enabled host_execution and validate allowlist / forbidden / key-guard."""
     he = get_host_execution_config()
     if not he.enabled:
         return HostCommandValidation(
@@ -380,6 +480,25 @@ def validate_host_run_request(
             error_code=ErrorCode.HOST_EXECUTION_DISABLED,
             detail="terminal.host_execution.allowed_commands is empty",
         )
+    if not he.ssh_ready():
+        return HostCommandValidation(
+            ok=False,
+            error_code=ErrorCode.HOST_EXECUTION_DISABLED,
+            detail="terminal.host_execution.ssh is incomplete (target_users, known_hosts_path)",
+        )
+
+    _user, tu_err = resolve_target_user(target_user, config=he)
+    if tu_err is not None:
+        return HostCommandValidation(
+            ok=False,
+            error_code=tu_err,
+            detail="target_user is not in terminal.host_execution.ssh.target_users",
+        )
+
+    if session_dir is not None:
+        key_guard = validate_key_access_guard(execution_kind, command, argv, session_dir)
+        if not key_guard.ok:
+            return key_guard
 
     if execution_kind == "argv":
         if not argv:
@@ -417,7 +536,7 @@ def is_host_execution_eligible(
     """True when host execution is enabled and the request passes host validation."""
     if config is not None:
         he = get_host_execution_config(config)
-        if not he.enabled or not he.allowed_commands:
+        if not he.enabled or not he.allowed_commands or not he.ssh_ready():
             return False
         if execution_kind == "argv" and argv:
             return validate_host_argv_command(

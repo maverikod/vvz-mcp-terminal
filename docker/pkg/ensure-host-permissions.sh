@@ -1,11 +1,12 @@
 #!/bin/bash
-# Normalize host permissions for mcp-terminal-docker (postinst, recreate, sync).
+# Normalize host permissions for mcp-terminal-docker (postinst, recreate).
 #
 # Must run as root. Bind-mounting foreign watch directories and chown on project
 # trees requires root on the host — there is no unprivileged alternative.
 #
 # Sets:
-#   - sudoers/mTLS for the service container
+#   - SSH host-execution prerequisites (known_hosts, target user home)
+#   - mTLS for the service container
 #   - log/data/config dirs
 #   - watch_dirs mount paths (verify) and project .terminals/ ownership
 #
@@ -22,18 +23,56 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MCP_TERMINAL_USER="${MCP_TERMINAL_USER:-mcp-terminal}"
 MCP_TERMINAL_GROUP="${MCP_TERMINAL_GROUP:-mcp-terminal}"
 MCP_TERMINAL_CONTAINER_USER="${MCP_TERMINAL_CONTAINER_USER:-root}"
+MCP_TERMINAL_SSH_TARGET_USER="${MCP_TERMINAL_SSH_TARGET_USER:-mcp-terminal-host}"
 CONFIG_DIR="${MCP_TERMINAL_CONFIG_DIR:-/etc/mcp-terminal}"
 CONFIG_FILE="${CONFIG_DIR}/${MCP_TERMINAL_CONFIG_FILE:-term_server.json}"
 LOG_DIR="${MCP_TERMINAL_LOG_DIR:-/var/log/mcp-terminal}"
 DATA_DIR="${MCP_TERMINAL_DATA_DIR:-/var/mcp-terminal}"
 MTLS_DIR="${MCP_TERMINAL_MTLS_DIR:-/etc/mcp-terminal/mtls_certificates}"
-SUDOERS_PATH="${MCP_TERMINAL_SUDOERS_FILE:-/etc/sudoers.d/mcp-terminal}"
+DEFAULT_KNOWN_HOSTS="${CONFIG_DIR}/ssh_known_hosts"
 PREPARE_LAYOUT="${LIB_DIR}/prepare_project_layout.py"
+ENSURE_SSH_TARGET="${LIB_DIR}/ensure-ssh-target-user.sh"
 
-fix_sudoers_permissions() {
-  [ -f "$SUDOERS_PATH" ] || return 0
-  chown root:"$MCP_TERMINAL_GROUP" "$SUDOERS_PATH"
-  chmod 0640 "$SUDOERS_PATH"
+fix_ssh_host_exec_prereqs() {
+  local kh_path="$DEFAULT_KNOWN_HOSTS"
+  if [ -f "$CONFIG_FILE" ] && command -v python3 >/dev/null 2>&1; then
+    kh_path="$(python3 - <<'PY' "$CONFIG_FILE" "$DEFAULT_KNOWN_HOSTS"
+import json, sys
+from pathlib import Path
+cfg_path, default = sys.argv[1], sys.argv[2]
+try:
+    cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print(default)
+    raise SystemExit(0)
+he = (cfg.get("terminal") or {}).get("host_execution") or {}
+ssh = he.get("ssh") or {}
+print(ssh.get("known_hosts_path") or default)
+PY
+)"
+  fi
+  install -d -o root -g root -m 755 "$(dirname "$kh_path")"
+  if [ ! -f "$kh_path" ]; then
+    touch "$kh_path"
+  fi
+  chown root:root "$kh_path"
+  chmod 0644 "$kh_path"
+
+  if [ -x "$ENSURE_SSH_TARGET" ]; then
+    MCP_TERMINAL_SSH_TARGET_USER="$MCP_TERMINAL_SSH_TARGET_USER" "$ENSURE_SSH_TARGET"
+  fi
+
+  local home=""
+  if getent passwd "$MCP_TERMINAL_SSH_TARGET_USER" >/dev/null 2>&1; then
+    home="$(getent passwd "$MCP_TERMINAL_SSH_TARGET_USER" | cut -d: -f6)"
+    if [ -n "$home" ] && [ -d "${home}/.ssh" ]; then
+      chown -R "${MCP_TERMINAL_SSH_TARGET_USER}:${MCP_TERMINAL_SSH_TARGET_USER}" "${home}/.ssh"
+      chmod 0700 "${home}/.ssh"
+      if [ -f "${home}/.ssh/authorized_keys" ]; then
+        chmod 0600 "${home}/.ssh/authorized_keys"
+      fi
+    fi
+  fi
 }
 
 fix_mtls_permissions() {
@@ -79,9 +118,26 @@ verify_service_container_access() {
     reader="$MCP_TERMINAL_USER"
   fi
 
-  if [ -f "$SUDOERS_PATH" ]; then
-    if ! runuser -u "$reader" -- test -r "$SUDOERS_PATH" 2>/dev/null; then
-      echo "[WARN] ${SUDOERS_PATH} not readable by ${reader}" >&2
+  local kh_path="$DEFAULT_KNOWN_HOSTS"
+  if [ -f "$CONFIG_FILE" ] && command -v python3 >/dev/null 2>&1; then
+    kh_path="$(python3 - <<'PY' "$CONFIG_FILE" "$DEFAULT_KNOWN_HOSTS"
+import json, sys
+from pathlib import Path
+cfg_path, default = sys.argv[1], sys.argv[2]
+try:
+    cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print(default)
+    raise SystemExit(0)
+he = (cfg.get("terminal") or {}).get("host_execution") or {}
+ssh = he.get("ssh") or {}
+print(ssh.get("known_hosts_path") or default)
+PY
+)"
+  fi
+  if [ -f "$kh_path" ]; then
+    if ! runuser -u "$reader" -- test -r "$kh_path" 2>/dev/null; then
+      echo "[WARN] ${kh_path} not readable by ${reader}" >&2
     fi
   fi
 
@@ -105,7 +161,7 @@ main() {
   ensure_mcp_terminal_host_user
 
   fix_runtime_dirs
-  fix_sudoers_permissions
+  fix_ssh_host_exec_prereqs
   fix_mtls_permissions
   prepare_watch_and_projects
   verify_service_container_access

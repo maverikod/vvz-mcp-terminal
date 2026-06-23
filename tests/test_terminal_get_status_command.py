@@ -69,7 +69,7 @@ def test_terminal_get_status_returns_execution_target_from_meta(tmp_path: Path) 
 
     assert result.success is True
     assert result.data is not None
-    assert result.data["execution_target"] == "host"
+    assert result.data["execution_target"] == "host_ssh"
 
 
 def test_terminal_get_status_maps_legacy_container_meta_to_sandbox(tmp_path: Path) -> None:

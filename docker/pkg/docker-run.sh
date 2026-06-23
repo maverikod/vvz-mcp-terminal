@@ -58,21 +58,33 @@ ensure_host_owner() {
   ensure_mcp_terminal_host_user
 }
 
-ensure_sudoers_for_container() {
-  local sudoers="/etc/sudoers.d/mcp-terminal"
+ensure_host_ssh_prereqs() {
   local config="${CONFIG_DIR}/${CONFIG_FILE}"
-  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/sync-host-sudo.sh" ] && [ -f "$config" ]; then
-    if [ ! -f "$sudoers" ]; then
-      echo "[INFO] Creating ${sudoers} via sync-host-sudo.sh ..."
-      "${LIB_DIR}/sync-host-sudo.sh" "$config"
+  if [ "$(id -u)" -ne 0 ]; then
+    return 0
+  fi
+  if [ -x "${LIB_DIR}/ensure-ssh-target-user.sh" ]; then
+    "${LIB_DIR}/ensure-ssh-target-user.sh" || true
+  fi
+  if [ -f "$config" ] && command -v python3 >/dev/null 2>&1; then
+    local kh_path
+    kh_path="$(python3 - <<'PY' "$config"
+import json, sys
+from pathlib import Path
+cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+he = (cfg.get("terminal") or {}).get("host_execution") or {}
+ssh = he.get("ssh") or {}
+print(ssh.get("known_hosts_path") or "/etc/mcp-terminal/ssh_known_hosts")
+PY
+)"
+    if [ -n "$kh_path" ] && [ ! -f "$kh_path" ]; then
+      install -d -o root -g root -m 755 "$(dirname "$kh_path")"
+      touch "$kh_path"
+      chmod 644 "$kh_path"
+      echo "[WARN] Created empty ${kh_path}; pin host SSH key before enabling host_execution" >&2
     fi
   fi
-  if [ ! -f "$sudoers" ]; then
-    echo "[ERROR] Missing ${sudoers} (required for container bind-mount)." >&2
-    echo "[ERROR] Run as root: ${LIB_DIR}/sync-host-sudo.sh ${config}" >&2
-    return 1
-  fi
-  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
+  if [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
     "${LIB_DIR}/ensure-host-permissions.sh"
   fi
 }
@@ -147,10 +159,7 @@ container_create() {
   fi
 
   ensure_host_owner
-  if [ -x "${LIB_DIR}/sync-host-sudo.sh" ] && [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ]; then
-    "${LIB_DIR}/sync-host-sudo.sh" "${CONFIG_DIR}/${CONFIG_FILE}" || exit 1
-  fi
-  ensure_sudoers_for_container || exit 1
+  ensure_host_ssh_prereqs
 
   mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR" "$MTLS_DIR"
   if [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
@@ -186,7 +195,6 @@ container_create() {
     -v "${LOG_DIR}:/var/log/mcp-terminal"
     -v "${DATA_DIR}:/var/mcp-terminal"
     -v "${MTLS_DIR}:/etc/mcp-terminal/mtls_certificates:ro"
-    -v /etc/sudoers.d/mcp-terminal:/etc/sudoers.d/mcp-terminal:ro
     -v /etc/passwd:/etc/passwd:ro
     -v /etc/group:/etc/group:ro
     -v /var/run/docker.sock:/var/run/docker.sock
@@ -200,6 +208,19 @@ container_create() {
     --add-host host.docker.internal:host-gateway
     --restart=always
   )
+
+  if [ -f /etc/mcp-terminal/ssh_known_hosts ]; then
+    docker_opts+=(-v /etc/mcp-terminal/ssh_known_hosts:/etc/mcp-terminal/ssh_known_hosts:ro)
+  fi
+  for host_script in manage-session-keys.sh ensure-ssh-target-user.sh; do
+    if [ -f "${LIB_DIR}/${host_script}" ]; then
+      docker_opts+=(-v "${LIB_DIR}/${host_script}:${LIB_DIR}/${host_script}:ro")
+    fi
+  done
+  local ssh_target_home="/var/lib/mcp-terminal-host"
+  if [ -d "$ssh_target_home" ]; then
+    docker_opts+=(-v "${ssh_target_home}:${ssh_target_home}")
+  fi
 
   if [ "${MCP_TERMINAL_CONTAINER_USER:-root}" != "root" ]; then
     docker_opts+=(--user "${MCP_TERMINAL_UID}:${MCP_TERMINAL_GID}")
@@ -275,8 +296,8 @@ cmd_restart() {
   if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/ensure-host-permissions.sh" ]; then
     "${LIB_DIR}/ensure-host-permissions.sh" || exit 1
   fi
-  if [ "$(id -u)" -eq 0 ] && [ -x "${LIB_DIR}/sync-host-sudo.sh" ] && [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ]; then
-    "${LIB_DIR}/sync-host-sudo.sh" "${CONFIG_DIR}/${CONFIG_FILE}" || exit 1
+  if [ "$(id -u)" -eq 0 ]; then
+    ensure_host_ssh_prereqs || true
   fi
   cmd_stop
   docker start "$CONTAINER_NAME"

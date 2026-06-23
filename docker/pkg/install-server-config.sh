@@ -19,20 +19,20 @@ MCP_TERMINAL_GROUP="${3:-mcp-terminal}"
 
 CONFIG="${CONFIG_DIR}/term_server.json"
 CONFIG_TEMPLATE_LOCAL="${CONFIG_DIR}/term_server.json.template"
-SYNC_SUDO="${SYNC_SUDO:-/usr/lib/mcp-terminal/sync-host-sudo.sh}"
-if [ -x "$(dirname "$0")/sync-host-sudo.sh" ]; then
-  SYNC_SUDO="$(cd "$(dirname "$0")" && pwd)/sync-host-sudo.sh"
+ENSURE_SSH_TARGET="${ENSURE_SSH_TARGET:-/usr/lib/mcp-terminal/ensure-ssh-target-user.sh}"
+if [ -x "$(dirname "$0")/ensure-ssh-target-user.sh" ]; then
+  ENSURE_SSH_TARGET="$(cd "$(dirname "$0")" && pwd)/ensure-ssh-target-user.sh"
 fi
 
-_run_sync_host_sudo() {
+_run_ensure_ssh_target() {
   if [ "$(id -u)" -ne 0 ]; then
     return 0
   fi
-  if [ ! -x "$SYNC_SUDO" ] || [ ! -f "$CONFIG" ]; then
+  if [ ! -x "$ENSURE_SSH_TARGET" ]; then
     return 0
   fi
-  echo "[INFO] Refreshing host sudoers from ${CONFIG} ..."
-  "$SYNC_SUDO" "$CONFIG"
+  echo "[INFO] Ensuring SSH target user for terminal_host_exec ..."
+  "$ENSURE_SSH_TARGET"
 }
 
 _resolve_template_source() {
@@ -81,7 +81,7 @@ if [ -f "$CONFIG" ]; then
     fi
     chmod 644 "$CONFIG"
     echo "Finalized new ${CONFIG} from package template"
-    _run_sync_host_sudo
+    _run_ensure_ssh_target
     exit 0
   fi
   _copy_template_to "$TEMPLATE_SRC" "$CONFIG_TEMPLATE_LOCAL"
@@ -90,7 +90,7 @@ if [ -f "$CONFIG" ]; then
   fi
   chmod 644 "$CONFIG_TEMPLATE_LOCAL"
   echo "Preserved existing ${CONFIG}; new package template at ${CONFIG_TEMPLATE_LOCAL}"
-  _run_sync_host_sudo
+  _run_ensure_ssh_target
   exit 0
 fi
 
@@ -101,4 +101,4 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 chmod 644 "$CONFIG"
 echo "Installed new ${CONFIG} from package template"
-_run_sync_host_sudo
+_run_ensure_ssh_target

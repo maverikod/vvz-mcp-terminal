@@ -110,7 +110,7 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "server config. At most one session per project may be true. If another "
                     "session already holds write, creation fails with "
                     "``WORKSPACE_WRITE_NOT_ALLOWED``; the error payload may include "
-                    "``workspace_writer_session_id``. ``terminal_run_host`` does not require "
+                    "``workspace_writer_session_id``. ``terminal_host_exec`` does not require "
                     "this flag."
                 ),
                 "type": "boolean",
@@ -271,7 +271,7 @@ def get_terminal_session_create_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "solution": (
                     "Read data.workspace_writer_session_id if present; call terminal_delete "
                     "with that session_id (or reuse that session_id for your tab). "
-                    "terminal_run_host does not require workspace_write."
+                    "terminal_host_exec does not require workspace_write."
                 ),
             },
             "CLIENT_SESSION_NOT_FOUND": {

@@ -1,24 +1,20 @@
-"""Input schema for ``terminal_run_host``."""
+"""Input schema for ``terminal_host_exec``."""
 
 from __future__ import annotations
 
 from typing import Any, Dict
 
+from mcp_terminal.commands.schema_common import schema_project_id, schema_session_id
+
 _DEFAULT_TIMEOUT_S = 600
 
 
-def get_terminal_run_host_schema() -> Dict[str, Any]:
+def get_terminal_host_exec_schema() -> Dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "project_id": {
-                "type": "string",
-                "description": "Project UUID. Use list_projects or terminal_list_watch to discover valid values.",
-            },
-            "session_id": {
-                "type": "string",
-                "description": "Session UUID from terminal_session_create.",
-            },
+            "project_id": schema_project_id(),
+            "session_id": schema_session_id(),
             "execution_kind": {
                 "type": "string",
                 "enum": ["shell", "argv"],
@@ -33,6 +29,14 @@ def get_terminal_run_host_schema() -> Dict[str, Any]:
                 "items": {"type": "string"},
                 "description": "Argv list when execution_kind is argv.",
             },
+            "target_user": {
+                "type": "string",
+                "description": (
+                    "SSH login on the real host. Must be listed in "
+                    "terminal.host_execution.ssh.target_users. "
+                    "Omitted: first target_users entry."
+                ),
+            },
             "cwd": {
                 "type": "string",
                 "description": (
@@ -45,7 +49,7 @@ def get_terminal_run_host_schema() -> Dict[str, Any]:
                 "default": _DEFAULT_TIMEOUT_S,
                 "minimum": 1,
                 "maximum": 86400,
-                "description": "Max seconds before the host process is killed.",
+                "description": "Max seconds before the remote host process is killed.",
             },
             "use_venv": {
                 "type": "boolean",

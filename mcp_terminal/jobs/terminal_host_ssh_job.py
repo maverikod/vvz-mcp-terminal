@@ -1,7 +1,5 @@
 """
-TerminalHostExecutionJob: queue job for host-side command execution.
-
-Separate from ``TerminalExecutionJob`` (Docker session container path).
+TerminalHostSSHJob: queue job for real host execution via SSH.
 
 Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
@@ -23,12 +21,12 @@ from mcp_terminal.services.audit_writer import (
 )
 from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.host_execution_config import get_host_execution_config
-from mcp_terminal.services.host_session_executor import HostSessionExecutor
+from mcp_terminal.services.host_ssh_executor import HostSSHExecutor
 
 
 @dataclass(frozen=True)
-class HostJobParams:
-    """Immutable parameters for one TerminalHostExecutionJob invocation."""
+class HostSSHJobParams:
+    """Immutable parameters for one TerminalHostSSHJob invocation."""
 
     project_id: str
     session_id: str
@@ -41,22 +39,23 @@ class HostJobParams:
     command: Optional[str] = None
     argv: Optional[List[str]] = None
     use_venv: bool = True
+    target_user: Optional[str] = None
 
 
-class TerminalHostExecutionJob:
-    """Queue job that runs an allowlisted command on the host (not in Docker)."""
+class TerminalHostSSHJob:
+    """Queue job that runs an allowlisted command on the real host via SSH."""
 
     def __init__(
         self,
-        params: HostJobParams,
-        executor: Optional[HostSessionExecutor] = None,
+        params: HostSSHJobParams,
+        executor: Optional[HostSSHExecutor] = None,
     ) -> None:
         self._params = params
-        self._executor = executor or HostSessionExecutor()
+        self._executor = executor or HostSSHExecutor()
         self._logger = logging.getLogger(__name__)
 
     def run(self) -> dict:
-        """Execute on the host and write output/meta files."""
+        """Execute via SSH and write output/meta files."""
         p = self._params
         prefix = CommandHistory.seq_to_prefix(p.seq)
         meta_path = p.session_dir / f"{prefix}.meta.json"
@@ -74,25 +73,21 @@ class TerminalHostExecutionJob:
             command=p.command,
             argv=p.argv,
             use_venv=p.use_venv,
+            target_user=p.target_user,
         )
         exit_code = run_result.exit_code
         timed_out = run_result.timed_out
         status = run_result.status
-        identity = run_result.identity
 
         meta = {
             "seq": p.seq,
             "status": status,
             "exit_code": exit_code,
             "timed_out": timed_out,
-            "execution_target": "host",
+            "execution_target": "host_ssh",
         }
-        if identity is not None:
-            meta["run_as_mode"] = identity.run_as_mode
-            if identity.effective_uid is not None:
-                meta["effective_uid"] = identity.effective_uid
-            if identity.effective_gid is not None:
-                meta["effective_gid"] = identity.effective_gid
+        if run_result.target_user is not None:
+            meta["target_user"] = run_result.target_user
         if run_result.error_code is not None:
             meta["error_code"] = run_result.error_code
         meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -108,6 +103,7 @@ class TerminalHostExecutionJob:
             resolved_argv: List[str] = list(p.argv)
         else:
             resolved_argv = ["bash", "-lc", p.command or "true"]
+
         AuditWriter(session_audit_log_path(p.session_dir)).write(
             project_id=p.project_id,
             session_id=p.session_id,
@@ -118,7 +114,7 @@ class TerminalHostExecutionJob:
             cwd=p.effective_cwd,
             mode="host",
             network="host",
-            image_profile="host",
+            image_profile="host_ssh",
             container_id=None,
             start_time=start_time,
             finish_time=finish_time,
@@ -130,20 +126,21 @@ class TerminalHostExecutionJob:
             stderr_bytes=stderr_path.stat().st_size if stderr_path.exists() else 0,
             policy_decision="executed" if status == "completed" else "failed",
             error_code=run_result.error_code,
-            execution_target="host",
+            execution_target="host_ssh",
             resolved_cwd_on_host=p.effective_cwd,
             use_venv_resolved=p.use_venv,
             allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(he.allowed_commands),
-            run_as_mode=identity.run_as_mode if identity else None,
-            effective_uid=identity.effective_uid if identity else None,
-            effective_gid=identity.effective_gid if identity else None,
+            run_as_mode=None,
+            effective_uid=None,
+            effective_gid=None,
         )
 
         self._logger.info(
-            "Host job complete seq=%d status=%s exit_code=%s timed_out=%s",
+            "Host SSH job complete seq=%d status=%s exit_code=%s timed_out=%s target=%s",
             p.seq,
             status,
             exit_code,
             timed_out,
+            run_result.target_user,
         )
         return {"exit_code": exit_code, "timed_out": timed_out, "status": status}

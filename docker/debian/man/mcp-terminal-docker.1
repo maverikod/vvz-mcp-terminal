@@ -83,6 +83,15 @@ TLS certificates for HTTPS and MCP proxy registration.
 .B /usr/lib/mcp-terminal/image-spec
 Docker service image repository and tag baked at package build time.
 .TP
+.B /etc/mcp-terminal/ssh_known_hosts
+Pinned SSH host key for \fBterminal_host_exec\fR (\fBssh.known_hosts_path\fR).
+.TP
+.B /usr/lib/mcp-terminal/manage-session-keys.sh
+Host script to register ephemeral session public keys for \fBterminal_host_exec\fR.
+.TP
+.B /usr/lib/mcp-terminal/ensure-ssh-target-user.sh
+Creates the SSH target user and \fB~/.ssh/authorized_keys\fR for host execution.
+.TP
 .B /usr/lib/mcp-terminal/sandbox-images-spec
 Sandbox worker image references pulled on install/upgrade.
 .SH SEE ALSO

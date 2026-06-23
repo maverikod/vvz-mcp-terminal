@@ -611,102 +611,65 @@ def _host_execution_enabled(app_config: dict) -> bool:
     return bool(host_exec.get("enabled", False))
 
 
-def _host_execution_run_as_default(app_config: dict) -> str:
+def _check_host_execution_ssh(app_config: dict) -> List[RuntimeIssue]:
+    if not _host_execution_enabled(app_config):
+        return []
     terminal = app_config.get("terminal")
     if not isinstance(terminal, dict):
-        return "project_owner"
+        return []
     host_exec = terminal.get("host_execution")
     if not isinstance(host_exec, dict):
-        return "project_owner"
-    run_as = host_exec.get("run_as")
-    if not isinstance(run_as, dict):
-        return "project_owner"
-    default_mode = run_as.get("default", "project_owner")
-    if isinstance(default_mode, str) and default_mode.strip():
-        return default_mode.strip()
-    return "project_owner"
-
-
-def _check_host_execution_sudoers(app_config: dict) -> List[RuntimeIssue]:
-    if not _host_execution_enabled(app_config):
         return []
-    if _host_execution_run_as_default(app_config) == "root":
-        return []
-    sudoers = Path("/etc/sudoers.d/mcp-terminal")
-    if not sudoers.is_file():
+    ssh = host_exec.get("ssh")
+    if not isinstance(ssh, dict):
         return [
             RuntimeIssue(
                 "warning",
-                f"terminal.host_execution.enabled but {sudoers} missing — "
-                f"run: sudo /usr/lib/mcp-terminal/sync-host-sudo.sh",
-                "terminal.host_execution",
+                "terminal.host_execution.enabled but ssh section is missing",
+                "terminal.host_execution.ssh",
             )
         ]
-    if not os.access(sudoers, os.R_OK):
-        return [
-            RuntimeIssue(
-                "error",
-                f"terminal.host_execution.enabled but {sudoers} not readable",
-                "terminal.host_execution",
+    issues: List[RuntimeIssue] = []
+    known_hosts = ssh.get("known_hosts_path")
+    if isinstance(known_hosts, str) and known_hosts.strip():
+        kh_path = Path(known_hosts.strip())
+        if not kh_path.is_file():
+            issues.append(
+                RuntimeIssue(
+                    "warning",
+                    f"terminal.host_execution.ssh.known_hosts_path not found: {kh_path}",
+                    "terminal.host_execution.ssh.known_hosts_path",
+                )
             )
-        ]
-    try:
-        text = sudoers.read_text(encoding="utf-8")
-    except OSError as exc:
-        return [
-            RuntimeIssue(
-                "error",
-                f"cannot read {sudoers}: {exc}",
-                "terminal.host_execution",
+    key_script = ssh.get("key_manager_script", "/usr/lib/mcp-terminal/manage-session-keys.sh")
+    if isinstance(key_script, str) and key_script.strip():
+        script_path = Path(key_script.strip())
+        if not script_path.is_file():
+            issues.append(
+                RuntimeIssue(
+                    "warning",
+                    f"ssh key manager script not found: {script_path}",
+                    "terminal.host_execution.ssh.key_manager_script",
+                )
             )
-        ]
-    if "NOPASSWD:" not in text:
-        return [
-            RuntimeIssue(
-                "warning",
-                f"{sudoers} has no NOPASSWD rules — terminal_run_host will fail until allowlist is synced",
-                "terminal.host_execution",
+        elif not os.access(script_path, os.X_OK):
+            issues.append(
+                RuntimeIssue(
+                    "warning",
+                    f"ssh key manager script is not executable: {script_path}",
+                    "terminal.host_execution.ssh.key_manager_script",
+                )
             )
-        ]
-    if _host_execution_enabled(app_config) and "root ALL=(ALL) NOPASSWD:" not in text:
-        return [
-            RuntimeIssue(
-                "warning",
-                f"{sudoers} has no root NOPASSWD rules — recreate container after sync-host-sudo "
-                f"(service container runs as root)",
-                "terminal.host_execution",
-            )
-        ]
-    return []
-
-
-def _check_host_execution_passwd(app_config: dict) -> List[RuntimeIssue]:
-    """Warn when the service container lacks a host-like ``/etc/passwd`` (sudo -u names)."""
-    if not _host_execution_enabled(app_config):
-        return []
-    if _host_execution_run_as_default(app_config) == "root":
-        return []
-    passwd = Path("/etc/passwd")
-    try:
-        line_count = sum(1 for line in passwd.read_text(encoding="utf-8").splitlines() if line.strip())
-    except OSError as exc:
-        return [
-            RuntimeIssue(
-                "error",
-                f"terminal.host_execution.enabled but {passwd} is not readable: {exc}",
-                "terminal.host_execution",
-            )
-        ]
-    if line_count < 8:
-        return [
+    target_users = ssh.get("target_users")
+    if not isinstance(target_users, list) or not target_users:
+        issues.append(
             RuntimeIssue(
                 "warning",
-                f"{passwd} has only {line_count} entries — bind-mount host /etc/passwd and "
-                f"/etc/group into the service container (mcp-terminal-docker recreate)",
-                "terminal.host_execution",
+                "terminal.host_execution.enabled but ssh.target_users is empty",
+                "terminal.host_execution.ssh.target_users",
             )
-        ]
-    return []
+        )
+    return issues
 
 
 def collect_config_runtime_issues(
@@ -728,8 +691,7 @@ def collect_config_runtime_issues(
         "yes",
     ):
         issues.extend(_check_docker_environment())
-    issues.extend(_check_host_execution_sudoers(app_config))
-    issues.extend(_check_host_execution_passwd(app_config))
+    issues.extend(_check_host_execution_ssh(app_config))
     issues.extend(_check_instance_uuid(app_config))
     return issues
 

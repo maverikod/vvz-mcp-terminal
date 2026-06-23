@@ -1208,7 +1208,7 @@ The system supports three execution targets:
 | target_kind | Status | MCP command | Isolation |
 |-------------|--------|-------------|-----------|
 | `sandbox`   | Required, default product mode. | `terminal_run` | Per-session Docker container with fixed `/workspace` mount, runtime security profile of §8, network policy of §9. |
-| `host`      | Required, gated by config. Transitional. Scheduled for removal once `code-analysis-server` and `mcp_terminal` themselves run inside containers. | `terminal_run_host` | None at the container level. Defense-in-depth via host-side allowlist (`terminal.host_execution.allowed_commands`), hard-forbidden executables, and forbidden-pattern scanning over command text, redirect targets, here-strings, and heredoc bodies. |
+| `host_ssh`  | Required, gated by config. Real host via SSH from the service container. | `terminal_host_exec` | SSH to host sshd as configured `ssh.target_users` login. Defense-in-depth via allowlist, hard-forbidden executables, forbidden-pattern scan, session key-guard, and pinned `known_hosts_path`. |
 | `attached`  | Reserved for future implementation. Not exposed in MCP `help`. Not validated by any policy yet. | (planned) `terminal_run_attached` | Will be `docker exec` into a pre-existing running container chosen from a server-side allowlist of infrastructure containers. The container itself is not owned by `mcp_terminal`; its runtime profile is determined by its owner. |
 
 The `sandbox` target is the original system as described in §§3–17 of this specification. The `host` and `attached` targets are extensions on the execution axis. They share session storage (§14.1), command sequencing (§14, §15), output store, audit (§17), and error contract (§18), but each carries its own validation policy and execution lifecycle.
@@ -1234,7 +1234,7 @@ The table below indicates which sections of §§1–27 apply to which target. Se
 | §11 Working Directory Policy               | `cwd` must be project-relative for all targets. For `sandbox`, it resolves under `/workspace`. For `host`, it resolves under the project root on the host. For `attached`, it resolves under whatever workdir the attached container exposes. Absolute paths and `..` are rejected universally. | all |
 | §12 Environment Policy                     | Minimal environment, no host-secret injection. Applies universally. Specifics differ: `host` PATH may be augmented by `use_venv` per session config; `sandbox` PATH comes from the image. | all (interpreted) |
 | §13 Container Image Policy                 | Image profiles, allowlist, default user — sandbox only. `host` has no image; `attached` does not control the image. | sandbox-only |
-| §14 API Commands                           | Session storage (§14.1) and reader commands (§14.4–§14.12) are shared. The execution commands diverge per target: `terminal_run` (sandbox), `terminal_run_host` (host), planned `terminal_run_attached` (attached). | all (with target-specific runners) |
+| §14 API Commands                           | Session storage (§14.1) and reader commands (§14.4–§14.12) are shared. The execution commands diverge per target: `terminal_run` (sandbox), `terminal_host_exec` (host), planned `terminal_run_attached` (attached). | all (with target-specific runners) |
 | §15 Execution Lifecycle                    | The 12-step lifecycle in §15 is the sandbox lifecycle. `host` follows an analogous but shorter lifecycle without container start/stop steps. `attached` lifecycle will add a step to resolve the target container by allowlisted label/name instead of creating one. | all (with per-target shape) |
 | §16 Configuration, TTL, Generator, Validator | Shared. New sections `terminal.host_execution` and (future) `terminal.attached_execution` are governed by the same generator/validator overlay pattern. | all |
 | §17 Audit Requirements                     | Every target produces audit records. Field `execution_target` is mandatory and is one of `sandbox`, `host`, `attached`. Audit content per target is described in §28.6. | all |
@@ -1242,7 +1242,7 @@ The table below indicates which sections of §§1–27 apply to which target. Se
 | §19 Safety Invariants                      | Invariants 1–17 of §19 were written for sandbox. §28.7 retags each invariant with applicable targets and adds host-specific invariants. | sandbox-tagged, host extends |
 | §20 Queue Result Semantics                 | Identical across targets. Queue completion ≠ command success regardless of target. | all |
 | §21 MVP Acceptance Criteria                | Sandbox MVP criteria are still valid. `host` adds its own acceptance criteria; see §28.8. | sandbox-tagged, host extends |
-| §22 Current Code State and Required Structural Refactor | Updated facts: §28.10 reflects what is actually implemented today, including `terminal_run_host`, `terminal_kill`, `terminal_purge_sessions`, `terminal_get_session_bootstrap`, `terminal_list_watch`. | sandbox + host (current) |
+| §22 Current Code State and Required Structural Refactor | Updated facts: §28.10 reflects what is actually implemented today, including `terminal_host_exec`, `terminal_kill`, `terminal_purge_sessions`, `terminal_get_session_bootstrap`, `terminal_list_watch`. | sandbox + host (current) |
 | §23 Implementation Phases                  | Phases for sandbox apply. Host-execution implementation is already underway and not phased separately in this specification. | sandbox (literal), host (already underway) |
 | §24 Testing Strategy                       | Sandbox tests still apply. Host-execution adds its own test set; see §28.9. | sandbox + host extends |
 | §25 Operational Defaults                   | The defaults block applies to sandbox. `terminal.host_execution` defaults are defined in §28.4. | sandbox + host extends |
@@ -1264,7 +1264,7 @@ The target is **disabled by default**. It is enabled only when both of the follo
 - `terminal.host_execution.enabled` is `true`.
 - `terminal.host_execution.allowed_commands` is a non-empty list of executable basenames.
 
-If the feature is disabled or the allowlist is empty, `terminal_run_host` rejects every request with `HOST_EXECUTION_DISABLED` before queueing. The validator emits a warning at server startup when `enabled` is `true` but `allowed_commands` is empty.
+If the feature is disabled or the allowlist is empty, `terminal_host_exec` rejects every request with `HOST_EXECUTION_DISABLED` before queueing. The validator emits a warning at server startup when `enabled` is `true` but `allowed_commands` is empty.
 
 #### 28.4.2 Authorization model
 
@@ -1279,16 +1279,28 @@ terminal:
   host_execution:
     enabled: false
     allowed_commands: []   # basenames only, e.g. ["casmgr", "pytest", "git", "systemctl"]
+    forbidden_executables_override: null
+    ssh:
+      host: "host.docker.internal"
+      port: 22
+      target_users: ["mcp-terminal-host"]
+      known_hosts_path: "/etc/mcp-terminal/ssh_known_hosts"
+      connect_timeout: 10
+      key_manager_script: "/usr/lib/mcp-terminal/manage-session-keys.sh"
 ```
 
 - `enabled` (bool, default `false`): master switch.
 - `allowed_commands` (list[str], default `[]`): basenames of executables the host channel may invoke. Comparison is case-insensitive on basename only. Paths are not accepted in this list.
+- `ssh.host`, `ssh.port`: SSH endpoint reachable from the service container.
+- `ssh.target_users` (non-empty when enabled): SSH login names on the real host; first entry is the default `target_user`.
+- `ssh.known_hosts_path` (required when enabled): pinned host key file (`StrictHostKeyChecking=yes`).
+- `ssh.key_manager_script`: host script to add/remove ephemeral session public keys in `authorized_keys`.
 
-The generated default config produced by the terminal config CLI contains this section with `enabled: false` and an empty allowlist. The validator rejects non-list `allowed_commands` and emits the empty-allowlist warning described above.
+The generated default config produced by the terminal config CLI contains this section with `enabled: false` and an empty allowlist. The validator rejects non-list `allowed_commands`, obsolete `run_as`/`service_user` keys, and emits warnings when SSH settings are incomplete.
 
 #### 28.4.4 Validation policy (`HostExecutionPolicy`)
 
-For every `terminal_run_host` request, the policy applies the following checks in order, before the request is queued:
+For every `terminal_host_exec` request, the policy applies the following checks in order, before the request is queued:
 
 1. **Gate**: `enabled=true` and `allowed_commands` non-empty, else `HOST_EXECUTION_DISABLED`.
 2. **Session existence**: `(project_id, session_id)` resolves to an existing session, else `INVALID_SESSION`.
@@ -1299,7 +1311,8 @@ For every `terminal_run_host` request, the policy applies the following checks i
 7. **Allowlist (argv and shell-segments)**: each leading executable basename must be present (case-insensitive) in `allowed_commands`. The validator must use basename comparison only; absolute paths and relative paths in the request are not bypasses but explicit failures (`HOST_COMMAND_NOT_ALLOWED`).
 8. **Hard-forbidden executables**: regardless of allowlist content, a fixed set of executables is always rejected: `docker`, `podman`, `kubectl`, `helm`, `sudo`, `su`, `mount`, `umount`, `iptables`, `nft`, `ip`, `ifconfig`, `tcpdump`, `nmap`, `socat`, `nc`, `netcat`. Match is by basename, case-insensitive. Failure code: `HOST_FORBIDDEN_COMMAND`.
 9. **Forbidden patterns (shell only)**: the policy scans the command string, redirection targets, here-string operands, and heredoc bodies for forbidden substrings such as `--pid=host`, `/var/run/docker.sock`, command substitution `$(...)`, backtick substitution, and the same hard-forbidden executable names when they appear in non-leading positions. Match: `HOST_FORBIDDEN_COMMAND`.
-10. **Forbidden patterns (argv)**: same forbidden-substring scan over each argv element.
+10. **Key-guard**: scan command text and argv for references to the session private key path or `.ssh/session_ed25519`; reject with `HOST_KEY_ACCESS_FORBIDDEN`.
+11. **target_user** (when provided): must be listed in `ssh.target_users`, else `TARGET_USER_NOT_ALLOWED`.
 
 The policy never queues a request that fails any check. Audit (§28.6) is recorded both for rejected and accepted requests.
 
@@ -1317,7 +1330,7 @@ The shell_state.json `cwd` field is updated after a successful host command in t
 
 #### 28.4.6 Lifecycle (host job)
 
-For each `terminal_run_host`:
+For each `terminal_host_exec`:
 
 1. Validate request shape.
 2. Apply `HostExecutionPolicy` (§28.4.4).
@@ -1325,10 +1338,10 @@ For each `terminal_run_host`:
 4. Allocate the next session-local sequence number.
 5. Create `NNNNNN.meta.json`, `NNNNNN.stdout.log`, `NNNNNN.stderr.log`.
 6. Append the pending record to `history.jsonl`.
-7. Add a `TerminalHostExecutionJob` to the queue. The job carries `(project_id, session_id, seq, execution_kind, command|argv, cwd_resolved_on_host, timeout_seconds, use_venv_resolved)`.
-8. Return `job_id`, `seq`, and output file names with `execution_target: host`.
-9. Worker runs the command directly on the host (no container), redirecting stdout/stderr to the per-seq files.
-10. Worker updates `NNNNNN.meta.json` with `exit_code`, `timed_out`, and `execution_target: host` on completion, failure, stop, or timeout.
+7. Add a `TerminalHostSSHJob` to the queue. The job carries `(project_id, session_id, seq, execution_kind, command|argv, cwd_resolved_on_host, timeout_seconds, use_venv_resolved, target_user)`.
+8. Return `job_id`, `seq`, and output file names with `execution_target: host_ssh`.
+9. Worker runs `ssh` from the service container to the real host, redirecting stdout/stderr to the per-seq files.
+10. Worker updates `NNNNNN.meta.json` with `exit_code`, `timed_out`, and `execution_target: host_ssh` on completion, failure, stop, or timeout.
 11. Worker writes the audit record (§28.6).
 
 The lifecycle has no container start, no container stop, no mount step.
@@ -1355,8 +1368,8 @@ Until implementation begins, no operational behavior is defined here.
 
 Every audit record produced by any target must additionally include:
 
-- `execution_target` (string): one of `sandbox`, `host`, `attached`.
-- For `host`: `resolved_cwd_on_host` (redacted to project-relative form), `use_venv_resolved`, `allowed_commands_snapshot_hash` (hash of the active allowlist at decision time).
+- `execution_target` (string): one of `sandbox`, `host_ssh`, `attached`.
+- For `host_ssh`: `target_user`, `resolved_cwd_on_host` (redacted to project-relative form), `use_venv_resolved`, `allowed_commands_snapshot_hash` (hash of the active allowlist at decision time).
 - For `attached` (future): `attached_target_id`, `container_match`, `resolved_container_id` (redacted or hashed).
 
 For rejected requests, the audit record must additionally include the policy code that caused rejection (`HOST_EXECUTION_DISABLED`, `HOST_COMMAND_NOT_ALLOWED`, `HOST_FORBIDDEN_COMMAND`, or a sandbox-side code).
@@ -1387,32 +1400,34 @@ This subsection tags invariants of §19 with their applicable target set and add
 
 Host-specific invariants (must be covered by tests when `terminal.host_execution.enabled` is true):
 
-- **H-1** Disabled gate rejects all `terminal_run_host` requests with `HOST_EXECUTION_DISABLED` and never queues a job.
-- **H-2** Empty allowlist with `enabled=true` produces a startup warning and rejects every `terminal_run_host` request with `HOST_EXECUTION_DISABLED`.
+- **H-1** Disabled gate rejects all `terminal_host_exec` requests with `HOST_EXECUTION_DISABLED` and never queues a job.
+- **H-2** Empty allowlist with `enabled=true` produces a startup warning and rejects every `terminal_host_exec` request with `HOST_EXECUTION_DISABLED`.
 - **H-3** Hard-forbidden executables are rejected even when listed in `allowed_commands`.
 - **H-4** Forbidden patterns are rejected in command text, redirection targets, here-string operands, and heredoc bodies.
-- **H-5** `docker`, `podman`, `kubectl`, `helm`, `sudo`, `su` are not invocable from `terminal_run_host` regardless of allowlist or path manipulation.
+- **H-5** `docker`, `podman`, `kubectl`, `helm`, `sudo`, `su` are not invocable from `terminal_host_exec` regardless of allowlist or path manipulation.
 - **H-6** Absolute or `..`-bearing `cwd` is rejected before the host process is spawned.
 - **H-7** Host commands cannot read or modify files outside the resolved project root through cwd manipulation alone; symlink escape and traversal are bounded by cwd validation.
 - **H-8** A successful host command updates `shell_state.json` cwd; a failed host command does not corrupt `shell_state.json`.
 - **H-9** Audit record is produced for every rejected and accepted host request, including the allowlist-snapshot identifier.
-- **H-10** `terminal_run_host` and `terminal_run` share the same session and sequence space; sequences are monotonic across both.
-- **H-11** The job timeout terminates a runaway host process; `timed_out=true` is recorded.
+- **H-10** `terminal_host_exec` and `terminal_run` share the same session and sequence space; sequences are monotonic across both.
+- **H-11** The job timeout terminates a runaway SSH remote process; `timed_out=true` is recorded.
+- **H-12** Key-guard rejects commands that reference session SSH private key material (`HOST_KEY_ACCESS_FORBIDDEN`).
+- **H-13** Session public keys are revoked on session delete; startup reaper removes orphaned keys.
 
 ### 28.8 MVP Acceptance Criteria (host extension to §21)
 
 In addition to §21 sandbox MVP criteria, the host target is feature-complete when:
 
-- `terminal_run_host` appears in MCP `help`.
-- `terminal_run_host` rejects every request when `terminal.host_execution.enabled` is `false`.
-- `terminal_run_host` rejects every request when `allowed_commands` is empty even if `enabled=true`.
-- `terminal_run_host` accepts an allowlisted basename via `argv`.
-- `terminal_run_host` accepts a chain of allowlisted segments via `shell`.
-- `terminal_run_host` rejects any chain containing a non-allowlisted segment.
-- `terminal_run_host` rejects any hard-forbidden executable regardless of allowlist.
-- `terminal_run_host` rejects forbidden patterns in command, redirect, here-string, and heredoc.
-- `terminal_run_host` writes stdout and stderr to per-seq files identical in shape to sandbox output.
-- `terminal_get_status` returns `execution_target: host` after a host command completes.
+- `terminal_host_exec` appears in MCP `help`.
+- `terminal_host_exec` rejects every request when `terminal.host_execution.enabled` is `false`.
+- `terminal_host_exec` rejects every request when `allowed_commands` is empty even if `enabled=true`.
+- `terminal_host_exec` accepts an allowlisted basename via `argv`.
+- `terminal_host_exec` accepts a chain of allowlisted segments via `shell`.
+- `terminal_host_exec` rejects any chain containing a non-allowlisted segment.
+- `terminal_host_exec` rejects any hard-forbidden executable regardless of allowlist.
+- `terminal_host_exec` rejects forbidden patterns in command, redirect, here-string, and heredoc.
+- `terminal_host_exec` writes stdout and stderr to per-seq files identical in shape to sandbox output.
+- `terminal_get_status` returns `execution_target: host_ssh` after a host command completes.
 - Audit record for a host command contains all fields enumerated in §28.6.
 - Server startup logs a warning when `enabled=true` and `allowed_commands` is empty.
 - A timeout terminates the host process and produces `timed_out=true` in the meta.
@@ -1430,13 +1445,13 @@ Unit tests, in addition to §24:
 
 Integration tests, in addition to §24:
 
-- `terminal_run_host` returns `HOST_EXECUTION_DISABLED` when `enabled=false`.
-- `terminal_run_host` returns `HOST_EXECUTION_DISABLED` when `allowed_commands=[]`.
-- A successful `terminal_run_host` followed by `terminal_get_status` shows `execution_target: host`.
-- `terminal_run` and `terminal_run_host` interleaved in one session produce a monotonic sequence and a consistent `shell_state.json` cwd.
-- An attempt to invoke `docker` via `terminal_run_host` is rejected even after adding `docker` to `allowed_commands` (H-5).
+- `terminal_host_exec` returns `HOST_EXECUTION_DISABLED` when `enabled=false`.
+- `terminal_host_exec` returns `HOST_EXECUTION_DISABLED` when `allowed_commands=[]`.
+- A successful `terminal_host_exec` followed by `terminal_get_status` shows `execution_target: host_ssh`.
+- `terminal_run` and `terminal_host_exec` interleaved in one session produce a monotonic sequence and a consistent `shell_state.json` cwd.
+- An attempt to invoke `docker` via `terminal_host_exec` is rejected even after adding `docker` to `allowed_commands` (H-5).
 - A host command exceeding `timeout_seconds` is killed and reported as timed-out.
-- Audit record for a host command contains `execution_target: host` and the allowlist-snapshot identifier.
+- Audit record for a host command contains `execution_target: host_ssh` and the allowlist-snapshot identifier.
 
 ### 28.10 Current Code State (extension to §22)
 
@@ -1445,9 +1460,9 @@ As of this revision, the implementation has extended §22 with the following com
 Existing code, beyond §22:
 
 ```text
-mcp_terminal/commands/terminal_run_host_command.py
-mcp_terminal/commands/terminal_run_host_metadata.py
-mcp_terminal/commands/terminal_run_host_schema.py
+mcp_terminal/commands/terminal_host_exec_command.py
+mcp_terminal/commands/terminal_host_exec_metadata.py
+mcp_terminal/commands/terminal_host_exec_schema.py
 mcp_terminal/commands/terminal_kill_command.py
 mcp_terminal/commands/terminal_get_session_bootstrap_command.py
 mcp_terminal/commands/terminal_list_watch_command.py
@@ -1463,7 +1478,8 @@ mcp_terminal/config/create_config.py
 
 mcp_terminal/services/host_execution_config.py
 mcp_terminal/services/host_run_service.py
-mcp_terminal/services/host_session_executor.py
+mcp_terminal/services/host_ssh_executor.py
+mcp_terminal/services/session_ssh_key.py
 mcp_terminal/services/docker_hosts.py
 mcp_terminal/services/session_container.py
 mcp_terminal/services/session_bootstrap.py
@@ -1479,7 +1495,7 @@ mcp_terminal/services/terminal_container_purge.py
 mcp_terminal/services/terminal_defaults.py
 mcp_terminal/services/venv_activation.py
 
-mcp_terminal/jobs/terminal_host_execution_job.py
+mcp_terminal/jobs/terminal_host_ssh_job.py
 mcp_terminal/jobs/session_bootstrap_job.py
 
 mcp_terminal/code_analysis_watch.py
@@ -1490,7 +1506,7 @@ mcp_terminal/repo_venv.py
 
 MCP commands exposed today (per live `help` of the running `mcp-terminal` server) extend §22 with:
 
-- `terminal_run_host` (host target; this section)
+- `terminal_host_exec` (host target; this section)
 - `terminal_kill` (SIGKILL to a pending sandbox command's docker run client process)
 - `terminal_get_session_bootstrap` (status of optional Python env bootstrap queued at session create)
 - `terminal_list_watch` (read-only snapshot of project registry by watch anchor)
@@ -1515,7 +1531,7 @@ Until that point, `host` remains supported and config-gated as defined above. On
 In addition to §26:
 
 1. The execution target axis is a first-class concept of the system. Every execution request belongs to exactly one target.
-2. Target is selected by the chosen MCP command, not by a parameter on `terminal_run`. `terminal_run` → `sandbox`, `terminal_run_host` → `host`, future `terminal_run_attached` → `attached`.
+2. Target is selected by the chosen MCP command, not by a parameter on `terminal_run`. `terminal_run` → `sandbox`, `terminal_host_exec` → `host_ssh`, future `terminal_run_attached` → `attached`.
 3. Session storage, sequence numbering, output store, history file, audit file location, and error contract are shared across targets.
 4. Each target carries its own validation policy and execution job class.
 5. `sandbox` is always enabled.
