@@ -75,3 +75,19 @@ def test_session_scoped_commands_document_casmgr_errors() -> None:
         documented = set(command_cls.metadata().get("error_cases", {}))
         missing = casmgr_codes - documented
         assert not missing, f"{command_cls.name} missing casmgr error_cases: {sorted(missing)}"
+
+
+def test_server_help_metadata_lists_registered_terminal_commands() -> None:
+    from mcp_terminal import term_server
+
+    app_config: Dict[str, Any] = {"registration": {"metadata": {}}}
+    description = term_server._apply_terminal_server_help_metadata(app_config)
+    command_names = [cmd_cls.name for cmd_cls in _TERMINAL_COMMAND_TYPES]
+
+    assert "Available terminal commands:" in description
+    for name in command_names:
+        assert f"{name}:" in description
+
+    assert app_config["registration"]["description"] == description
+    metadata_commands = app_config["registration"]["metadata"]["commands"]
+    assert [entry["name"] for entry in metadata_commands] == command_names

@@ -114,6 +114,51 @@ _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
 ]
 
 
+def _terminal_command_help_entries() -> list[dict[str, str]]:
+    """Return public terminal command help from the canonical registration list."""
+    return [
+        {
+            "name": str(cmd_cls.name),
+            "description": str(getattr(cmd_cls, "descr", "")).strip(),
+        }
+        for cmd_cls in _TERMINAL_COMMAND_TYPES
+    ]
+
+
+def _terminal_server_help_description() -> str:
+    """Build the server-level help text from registered terminal commands."""
+    command_lines = [
+        f"{entry['name']}: {entry['description']}"
+        for entry in _terminal_command_help_entries()
+    ]
+    return "\n".join(
+        [
+            (
+                "Per-project sandboxed terminals: session-scoped Docker containers, "
+                "shell_state.json for cwd, keep_container mode, terminal_* MCP commands."
+            ),
+            "",
+            "Available terminal commands:",
+            *command_lines,
+        ]
+    )
+
+
+def _apply_terminal_server_help_metadata(app_config: dict[str, Any]) -> str:
+    """Populate server help/registration metadata from the command list."""
+    description = _terminal_server_help_description()
+    registration = app_config.setdefault("registration", {})
+    if isinstance(registration, dict):
+        registration["description"] = description
+        registration.setdefault("version", "0.1.0")
+        metadata = registration.setdefault("metadata", {})
+        if isinstance(metadata, dict):
+            metadata["description"] = description
+            metadata.setdefault("version", registration.get("version", "0.1.0"))
+            metadata["commands"] = _terminal_command_help_entries()
+    return description
+
+
 def _register_terminal_commands(registry: object) -> None:
     """Register all terminal_* commands via the adapter hook mechanism.
 
@@ -209,6 +254,7 @@ def main() -> None:
     app_config.setdefault("server", {})
     app_config["server"].setdefault("debug", False)
     app_config["server"].setdefault("log_level", "INFO")
+    app_description = _apply_terminal_server_help_metadata(app_config)
 
     cfg = get_config()
     cfg.config_path = str(cfg_path)
@@ -271,10 +317,7 @@ def main() -> None:
 
     app = create_app(
         title="MCP Terminal",
-        description=(
-            "Per-project sandboxed terminals: session-scoped Docker containers, "
-            "shell_state.json for cwd, keep_container mode, terminal_* MCP commands."
-        ),
+        description=app_description,
         version="0.1.0",
         app_config=app_config,
         config_path=str(cfg_path),
