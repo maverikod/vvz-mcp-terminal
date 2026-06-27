@@ -17,6 +17,10 @@ from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
 
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.jobs.terminal_host_ssh_job import HostSSHJobParams, TerminalHostSSHJob
+from mcp_terminal.services.host_exec_store import (
+    HOST_EXEC_PROJECT_ID,
+    create_host_exec_run,
+)
 from mcp_terminal.services.audit_writer import (
     AuditWriter,
     allowed_commands_snapshot_hash,
@@ -28,6 +32,7 @@ from mcp_terminal.services.host_execution_config import (
     resolve_target_user,
     validate_host_run_request,
 )
+from mcp_terminal.services.session_ssh_key import host_exec_key_paths
 from mcp_terminal.services.session_store import SessionRecord
 
 
@@ -35,7 +40,7 @@ async def enqueue_host_ssh_terminal_run(
     *,
     project_id: str,
     session_id: str,
-    srec: SessionRecord,
+    srec: Optional[SessionRecord],
     execution_kind: str,
     cmd_str: Optional[str],
     argv_list: Optional[List[str]],
@@ -43,15 +48,30 @@ async def enqueue_host_ssh_terminal_run(
     timeout_seconds: int,
     use_venv: bool,
     target_user: Optional[str],
-    project_dir: Path,
-    session_store: Any,
+    project_dir: Optional[Path],
+    session_store: Optional[Any],
+    host_run_id: Optional[str] = None,
 ) -> CommandResult:
     """Allocate seq, append history, and queue ``TerminalHostSSHJob``."""
+    if srec is None:
+        host_run = create_host_exec_run()
+        run_dir = host_run.run_dir
+        host_run_id = host_run.run_id
+        project_id = project_id or HOST_EXEC_PROJECT_ID
+        session_id = session_id or host_run_id
+        private_key, public_key = host_exec_key_paths()
+        validation_key_paths = (private_key, public_key)
+    else:
+        run_dir = srec.session_dir
+        validation_key_paths = None
+        private_key = None
+
     validation = validate_host_run_request(
         execution_kind,
         cmd_str,
         argv_list,
-        session_dir=srec.session_dir,
+        session_dir=run_dir,
+        key_paths=validation_key_paths,
         target_user=target_user,
     )
     if not validation.ok:
@@ -61,11 +81,11 @@ async def enqueue_host_ssh_terminal_run(
             reject_argv: List[str] = list(argv_list)
         else:
             reject_argv = ["bash", "-lc", cmd_str or ""]
-        AuditWriter(session_audit_log_path(srec.session_dir)).write(
+        AuditWriter(session_audit_log_path(run_dir)).write(
             project_id=project_id,
             session_id=session_id,
             seq=0,
-            project_dir=project_dir,
+            project_dir=project_dir or Path("/"),
             command=cmd_str,
             resolved_argv=reject_argv,
             cwd=effective_cwd,
@@ -95,8 +115,9 @@ async def enqueue_host_ssh_terminal_run(
         )
 
     resolved_target, _tu_err = resolve_target_user(target_user)
-    session_store.touch_activity(project_id, session_id)
-    history = CommandHistory(srec.session_dir)
+    if session_store is not None and srec is not None:
+        session_store.touch_activity(project_id, session_id)
+    history = CommandHistory(run_dir)
     seq = history.allocate_seq()
     stdout_file, stderr_file, meta_file = history.pre_create_output_files(seq)
     ts = datetime.now(timezone.utc).isoformat()
@@ -131,8 +152,8 @@ async def enqueue_host_ssh_terminal_run(
         project_id=project_id,
         session_id=session_id,
         seq=seq,
-        session_dir=srec.session_dir,
-        project_dir=project_dir.resolve(),
+        session_dir=run_dir,
+        project_dir=project_dir.resolve() if project_dir is not None else None,
         timeout_seconds=timeout_seconds,
         effective_cwd=effective_cwd,
         execution_kind=execution_kind,
@@ -140,6 +161,8 @@ async def enqueue_host_ssh_terminal_run(
         argv=argv_list if execution_kind == "argv" else None,
         use_venv=use_venv,
         target_user=resolved_target,
+        private_key=private_key,
+        host_run_id=host_run_id,
     )
     job = TerminalHostSSHJob(job_params)
 
@@ -149,9 +172,21 @@ async def enqueue_host_ssh_terminal_run(
     job_id = enqueue_coroutine(_run_sync())
     history.update_record(seq, status="pending", job_id=job_id)
 
-    return CommandResult(
-        success=True,
-        data={
+    if host_run_id is not None:
+        result_data = {
+            "job_id": job_id,
+            "seq": seq,
+            "host_run_id": host_run_id,
+            "stdout_file": stdout_file,
+            "stderr_file": stderr_file,
+            "meta_file": meta_file,
+            "cwd": effective_cwd,
+            "use_venv": use_venv,
+            "target_user": resolved_target,
+            "execution_target": "host_ssh",
+        }
+    else:
+        result_data = {
             "job_id": job_id,
             "seq": seq,
             "stdout_file": stdout_file,
@@ -161,5 +196,6 @@ async def enqueue_host_ssh_terminal_run(
             "use_venv": use_venv,
             "target_user": resolved_target,
             "execution_target": "host_ssh",
-        },
-    )
+        }
+
+    return CommandResult(success=True, data=result_data)

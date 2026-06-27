@@ -339,6 +339,7 @@ def validate_key_access_guard(
     command: Optional[str],
     argv: Optional[List[str]],
     session_dir: Path,
+    key_paths: Optional[tuple[Path, Path]] = None,
 ) -> HostCommandValidation:
     """Reject commands that reference the session private key path (R-KEY-GUARD)."""
     from mcp_terminal.services.session_ssh_key import (  # noqa: PLC0415
@@ -347,10 +348,10 @@ def validate_key_access_guard(
         session_key_paths,
     )
 
-    priv, pub = session_key_paths(session_dir)
+    priv, pub = key_paths or session_key_paths(session_dir)
     priv_resolved = str(priv.resolve())
     pub_resolved = str(pub.resolve())
-    key_dir_resolved = str((session_dir / SESSION_KEY_DIRNAME).resolve())
+    key_dir_resolved = str(priv.parent.resolve())
     key_rel = f"{SESSION_KEY_DIRNAME}/{SESSION_KEY_FILENAME}"
 
     needles = [
@@ -515,6 +516,7 @@ def validate_host_run_request(
     argv: Optional[List[str]],
     *,
     session_dir: Optional[Path] = None,
+    key_paths: Optional[tuple[Path, Path]] = None,
     target_user: Optional[str] = None,
 ) -> HostCommandValidation:
     """Require enabled host_execution and validate allowlist / forbidden / key-guard."""
@@ -558,7 +560,13 @@ def validate_host_run_request(
         )
 
     if session_dir is not None:
-        key_guard = validate_key_access_guard(execution_kind, command, argv, session_dir)
+        key_guard = validate_key_access_guard(
+            execution_kind,
+            command,
+            argv,
+            session_dir,
+            key_paths=key_paths,
+        )
         if not key_guard.ok:
             return key_guard
 

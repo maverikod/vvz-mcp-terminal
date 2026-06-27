@@ -207,11 +207,14 @@ def test_h5_docker_enqueue_rejected_without_queueing(tmp_path: Path) -> None:
     project_dir.mkdir()
     session_dir = tmp_path / "session"
     session_dir.mkdir()
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
     srec = SimpleNamespace(session_dir=session_dir)
     session_store = SimpleNamespace(touch_activity=lambda *_a, **_k: None)
     cfg = HostExecutionConfig(
         enabled=True,
         allowed_commands=frozenset({"docker", "pytest"}),
+        secrets_path=str(secrets_dir),
         ssh=_HE_CFG.ssh,
     )
 

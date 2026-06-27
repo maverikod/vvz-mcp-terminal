@@ -10,6 +10,7 @@ Email: vasilyvz@gmail.com
 
 from __future__ import annotations
 
+import posixpath
 from typing import Any, ClassVar, Dict, List, Optional, Type
 
 from mcp_proxy_adapter.commands.base import Command, CommandResult
@@ -23,6 +24,18 @@ from mcp_terminal.services.host_run_service import enqueue_host_ssh_terminal_run
 from mcp_terminal.services.shell_state import resolve_cwd, resolve_use_venv
 
 _DEFAULT_TIMEOUT_S: int = 600
+
+
+def _resolve_sessionless_host_cwd(cwd: Any) -> tuple[Optional[str], Optional[str]]:
+    """Resolve sessionless host cwd without touching local/project paths."""
+    if cwd is None or not str(cwd).strip():
+        return "/root", None
+    raw = str(cwd).strip()
+    if "\x00" in raw:
+        return None, ErrorCode.INVALID_CWD
+    if not raw.startswith("/"):
+        return None, ErrorCode.INVALID_CWD
+    return posixpath.normpath(raw) or "/", None
 
 
 class TerminalHostExecCommand(Command):
@@ -69,9 +82,7 @@ class TerminalHostExecCommand(Command):
         cwd = kwargs.get("cwd")
         target_user_raw = kwargs.get("target_user")
         timeout_seconds = int(kwargs.get("timeout_seconds", _DEFAULT_TIMEOUT_S))
-        use_venv_arg: Optional[bool] = (
-            bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
-        )
+        use_venv_arg: Optional[bool] = bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
 
         if execution_kind not in ("shell", "argv"):
             return CommandResult(success=False, error="INVALID_COMMAND")
@@ -88,6 +99,28 @@ class TerminalHostExecCommand(Command):
         target_user: Optional[str] = None
         if target_user_raw is not None and str(target_user_raw).strip():
             target_user = str(target_user_raw).strip()
+
+        if bool(project_id) != bool(session_id):
+            return CommandResult(success=False, error="INVALID_SESSION")
+
+        if not project_id and not session_id:
+            effective_cwd, cwd_err = _resolve_sessionless_host_cwd(cwd)
+            if cwd_err is not None or effective_cwd is None:
+                return CommandResult(success=False, error=cwd_err or "INVALID_CWD")
+            return await enqueue_host_ssh_terminal_run(
+                project_id="host",
+                session_id="",
+                srec=None,
+                execution_kind=execution_kind,
+                cmd_str=cmd_str,
+                argv_list=argv_list,
+                effective_cwd=effective_cwd,
+                timeout_seconds=timeout_seconds,
+                use_venv=bool(use_venv_arg) if use_venv_arg is not None else False,
+                target_user=target_user,
+                project_dir=None,
+                session_store=None,
+            )
 
         resolved = registry_resolve_project(project_id)
         if not resolved.success or resolved.project_dir is None:

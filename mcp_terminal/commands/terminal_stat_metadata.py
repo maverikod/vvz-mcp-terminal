@@ -32,8 +32,8 @@ def get_terminal_stat_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "Use ``terminal_tail`` or ``terminal_read`` to fetch output bytes. "
             "Use ``terminal_get`` for full command history fields including the "
             "same file names.\n\n"
-            "Requires a valid ``project_id`` and ``session_id``. Touching the session "
-            "updates last-activity for TTL cleanup."
+            "Use either a valid ``project_id`` + ``session_id`` pair, or ``host_run_id`` "
+            "from sessionless ``terminal_host_exec``."
         ),
         "parameters": {
             "project_id": {
@@ -42,14 +42,20 @@ def get_terminal_stat_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "terminal_session_create."
                 ),
                 "type": "string",
-                "required": True,
+                "required": False,
                 "examples": [_EXAMPLE_PROJECT],
             },
             "session_id": {
                 "description": "Session UUID4 from terminal_session_create.",
                 "type": "string",
-                "required": True,
+                "required": False,
                 "examples": [_EXAMPLE_SESSION],
+            },
+            "host_run_id": {
+                "description": "Sessionless host_run_id returned by terminal_host_exec.",
+                "type": "string",
+                "required": False,
+                "examples": ["host-550e8400-e29b-41d4-a716-446655440000"],
             },
             "seq": {
                 "description": (

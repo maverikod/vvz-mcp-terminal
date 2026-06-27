@@ -24,6 +24,7 @@ from mcp_terminal.commands.terminal_get_status_metadata import (
 )
 from mcp_terminal.runtime_context import get_session_store
 from mcp_terminal.services.command_history import CommandHistory
+from mcp_terminal.services.host_exec_store import resolve_host_exec_run
 from mcp_terminal.services.output_reader import OutputReader
 
 
@@ -72,8 +73,12 @@ class TerminalGetStatusCommand(Command):
                 "seq": schema_seq(
                     description="seq returned by terminal_run or terminal_host_exec."
                 ),
+                "host_run_id": {
+                    "type": "string",
+                    "description": "Sessionless host_run_id returned by terminal_host_exec.",
+                },
             },
-            "required": ["project_id", "session_id", "seq"],
+            "required": ["seq"],
             "additionalProperties": False,
         }
 
@@ -82,13 +87,21 @@ class TerminalGetStatusCommand(Command):
         kwargs.pop("context", None)
         project_id = str(kwargs.get("project_id", ""))
         session_id = str(kwargs.get("session_id", ""))
+        host_run_id = str(kwargs.get("host_run_id", "")).strip()
         seq = int(kwargs.get("seq", 0))
-        record, err = resolve_session(project_id, session_id)
-        if err is not None:
-            return CommandResult(success=False, error=err)
-        session_store = get_session_store()
-        session_store.touch_activity(record.project_id, record.session_id)
-        history = CommandHistory(record.session_dir)
+        if host_run_id:
+            host_run = resolve_host_exec_run(host_run_id)
+            if host_run is None:
+                return CommandResult(success=False, error="NOT_FOUND")
+            session_dir = host_run.run_dir
+        else:
+            record, err = resolve_session(project_id, session_id)
+            if err is not None:
+                return CommandResult(success=False, error=err)
+            session_store = get_session_store()
+            session_store.touch_activity(record.project_id, record.session_id)
+            session_dir = record.session_dir
+        history = CommandHistory(session_dir)
         all_records = history.list_records(limit=10000)
         cmd_record = next((r for r in all_records if r.seq == seq), None)
         if cmd_record is None:
@@ -104,9 +117,9 @@ class TerminalGetStatusCommand(Command):
             terminal_status = "failure"
         else:
             terminal_status = queue_status
-        reader = OutputReader(record.session_dir)
+        reader = OutputReader(session_dir)
         stat = reader.stat(seq)
-        execution_target = _execution_target_from_meta(record.session_dir, seq)
+        execution_target = _execution_target_from_meta(session_dir, seq)
         data: Dict[str, Any] = {
             "job_id": cmd_record.job_id,
             "queue_status": queue_status,
@@ -120,6 +133,8 @@ class TerminalGetStatusCommand(Command):
         }
         if execution_target is not None:
             data["execution_target"] = execution_target
+        if host_run_id:
+            data["host_run_id"] = host_run_id
         return CommandResult(success=True, data=data)
 
     @classmethod

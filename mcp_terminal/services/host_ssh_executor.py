@@ -8,6 +8,7 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import logging
+import posixpath
 import shlex
 import subprocess
 import textwrap
@@ -71,10 +72,10 @@ class HostSSHRunResult:
 
 
 def _write_remote_exec_script(
-    session_dir: Path,
+    run_dir: Path,
     prefix: str,
     *,
-    project_dir: Path,
+    project_dir: Optional[Path],
     effective_cwd: str,
     execution_kind: str,
     command: Optional[str],
@@ -82,45 +83,58 @@ def _write_remote_exec_script(
     use_venv: bool = True,
 ) -> Path:
     """Write a bash script locally; contents are sent to the remote host via SSH."""
-    cwd = normalize_cwd(effective_cwd)
-    project = project_dir.resolve()
     if execution_kind == "shell":
         user_body = command.strip() if command and command.strip() else "true"
     else:
         parts = [shlex.quote(str(x)) for x in (argv or [])]
         user_body = " ".join(parts) if parts else "false"
 
-    py_load = (
-        "import json,sys;d=json.load(open(sys.argv[1]));"
-        'print(d.get("cwd",".") or ".")'
-    )
-    state_file = session_dir / "shell_state.json"
-    load_cwd = (
-        f"CWD=$(python3 -c {shlex.quote(py_load)} {shlex.quote(str(state_file))} 2>/dev/null)"
-        f" || CWD={shlex.quote(cwd)}"
-    )
-    venv_block = host_venv_activation_shell_block(project, use_venv=use_venv)
-    script = textwrap.dedent(
-        f"""\
-        #!/usr/bin/env bash
-        set -euo pipefail
-        PROJECT={shlex.quote(str(project))}
-        CWD={shlex.quote(cwd)}
-        if [ -f {shlex.quote(str(state_file))} ]; then
-          {load_cwd}
-        fi
-        if [ "$CWD" = "." ]; then
-          cd "$PROJECT"
-        else
-          cd "$PROJECT/$CWD" || cd "$PROJECT"
-        fi
-        {venv_block}{user_body}
-        ec=$?
-        python3 -c {shlex.quote(_SAVE_CWD_PY)} "$PROJECT" {shlex.quote(str(state_file))}
-        exit $ec
-        """
-    )
-    path = session_dir / f"{prefix}.host_ssh.exec.sh"
+    state_file = run_dir / "shell_state.json"
+    if project_dir is None:
+        host_cwd = str(effective_cwd or "/root").strip()
+        host_cwd = host_cwd if host_cwd.startswith("/") else "/root"
+        host_cwd = posixpath.normpath(host_cwd) or "/root"
+        script = textwrap.dedent(
+            f"""\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            cd {shlex.quote(host_cwd)}
+            {user_body}
+            """
+        )
+    else:
+        cwd = normalize_cwd(effective_cwd)
+        project = project_dir.resolve()
+        py_load = (
+            "import json,sys;d=json.load(open(sys.argv[1]));"
+            'print(d.get("cwd",".") or ".")'
+        )
+        load_cwd = (
+            f"CWD=$(python3 -c {shlex.quote(py_load)} {shlex.quote(str(state_file))} 2>/dev/null)"
+            f" || CWD={shlex.quote(cwd)}"
+        )
+        venv_block = host_venv_activation_shell_block(project, use_venv=use_venv)
+        script = textwrap.dedent(
+            f"""\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            PROJECT={shlex.quote(str(project))}
+            CWD={shlex.quote(cwd)}
+            if [ -f {shlex.quote(str(state_file))} ]; then
+              {load_cwd}
+            fi
+            if [ "$CWD" = "." ]; then
+              cd "$PROJECT"
+            else
+              cd "$PROJECT/$CWD" || cd "$PROJECT"
+            fi
+            {venv_block}{user_body}
+            ec=$?
+            python3 -c {shlex.quote(_SAVE_CWD_PY)} "$PROJECT" {shlex.quote(str(state_file))}
+            exit $ec
+            """
+        )
+    path = run_dir / f"{prefix}.host_ssh.exec.sh"
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
     return path
@@ -159,7 +173,7 @@ class HostSSHExecutor:
         session_id: str,
         seq: int,
         session_dir: Path,
-        project_dir: Path,
+        project_dir: Optional[Path],
         timeout_seconds: int,
         effective_cwd: str,
         execution_kind: str,
@@ -167,6 +181,7 @@ class HostSSHExecutor:
         argv: Optional[List[str]],
         use_venv: bool = True,
         target_user: Optional[str] = None,
+        private_key: Optional[Path] = None,
     ) -> HostSSHRunResult:
         """Execute on the real host via SSH."""
         self._last_target_user = None
@@ -179,11 +194,15 @@ class HostSSHExecutor:
                 error_code=ErrorCode.HOST_EXECUTION_DISABLED,
             )
 
+        key_paths = None
+        if private_key is not None:
+            key_paths = (private_key, private_key.with_name(f"{private_key.name}.pub"))
         validation = validate_host_run_request(
             execution_kind,
             command,
             argv,
             session_dir=session_dir,
+            key_paths=key_paths,
             target_user=target_user,
         )
         if not validation.ok:
@@ -206,7 +225,8 @@ class HostSSHExecutor:
             )
         self._last_target_user = resolved_user
 
-        private_key, _pub = session_key_paths(session_dir)
+        if private_key is None:
+            private_key, _pub = session_key_paths(session_dir)
         if not private_key.is_file():
             return HostSSHRunResult(
                 None,

@@ -22,8 +22,10 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "author": cls.author,
         "email": cls.email,
         "detailed_description": (
-            "Runs one allowlisted command on the **real host** via SSH for an existing "
-            "terminal session. This command is **separate** from ``terminal_run``, which "
+            "Runs one allowlisted command on the **real host** via SSH. By default it "
+            "does not require a terminal session; legacy project/session mode is still "
+            "accepted when both ``project_id`` and ``session_id`` are supplied. "
+            "This command is **separate** from ``terminal_run``, which "
             "always uses the sandbox container lifecycle.\n\n"
             "**Server config (required when enabled):**\n"
             "- ``terminal.host_execution.enabled`` must be ``true`` (default is ``false``).\n"
@@ -35,9 +37,10 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "If host execution is disabled, the allowlist is empty, secrets_path is unsafe, "
             "or SSH settings are "
             "incomplete, the command returns ``HOST_EXECUTION_DISABLED`` before queueing.\n\n"
-            "**SSH model:** each session gets an ephemeral ed25519 key registered on the host "
-            "via ``manage-session-keys.sh``. Commands run as ``target_user`` on the real host "
-            "sshd — not inside the service container.\n\n"
+            "**SSH model:** sessionless host exec uses the stable ``host_exec`` key under "
+            "``terminal.host_execution.secrets_path``. Legacy session mode uses the session "
+            "key. Commands run as ``target_user`` on the real host sshd — not inside the "
+            "service container.\n\n"
             "**Validation:** allowlist + forbidden-pattern scan + key-guard (commands referencing "
             "the session private key path are rejected).\n\n"
             "**Asynchronous:** returns immediately with ``job_id`` and ``seq``. Poll "
@@ -48,17 +51,20 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "parameters": {
             "project_id": {
                 "description": (
-                    "Project UUID4. Must match the project used in "
-                    "terminal_session_create."
+                    "Optional legacy project UUID4. If set, session_id must also be set. "
+                    "Omit both project_id and session_id for sessionless host execution."
                 ),
                 "type": "string",
-                "required": True,
+                "required": False,
                 "examples": [_EXAMPLE_PROJECT],
             },
             "session_id": {
-                "description": "Session UUID4 from terminal_session_create.",
+                "description": (
+                    "Optional legacy session UUID4 from terminal_session_create. If set, "
+                    "project_id must also be set."
+                ),
                 "type": "string",
-                "required": True,
+                "required": False,
                 "examples": [_EXAMPLE_SESSION],
             },
             "execution_kind": {
@@ -101,14 +107,14 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             },
             "cwd": {
                 "description": (
-                    "Optional project-relative working directory for this run on the host. "
-                    "If omitted, uses ``shell_state.json`` cwd from the previous "
-                    "terminal_run or terminal_host_exec."
+                    "Sessionless mode: optional absolute host working directory, default "
+                    "``/root``. Legacy session mode: optional project-relative working "
+                    "directory."
                 ),
                 "type": "string",
                 "required": False,
-                "default": "(from shell_state.json, usually '.')",
-                "examples": ["tests", "src/pkg"],
+                "default": "/root in sessionless mode",
+                "examples": ["/root", "/var/log", "tests"],
             },
             "timeout_seconds": {
                 "description": "Maximum wall time in seconds before SIGKILL on the remote process.",
@@ -118,8 +124,8 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             },
             "use_venv": {
                 "description": (
-                    "When omitted, uses session default from shell_state.json. When true, "
-                    "prepends ``<project>/.venv/bin`` to PATH on the host."
+                    "Sessionless mode defaults to false. Legacy session mode uses the session "
+                    "default when omitted; true prepends ``<project>/.venv/bin`` to PATH."
                 ),
                 "type": "boolean",
                 "required": False,

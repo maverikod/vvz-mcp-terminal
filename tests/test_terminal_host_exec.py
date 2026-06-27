@@ -65,6 +65,8 @@ def test_terminal_host_exec_schema_has_target_user() -> None:
 
     schema = get_terminal_host_exec_schema()
     assert "target_user" in schema["properties"]
+    assert "project_id" not in schema["required"]
+    assert "session_id" not in schema["required"]
     assert schema["additionalProperties"] is False
 
 
@@ -123,6 +125,40 @@ def test_terminal_host_exec_command_returns_disabled_error() -> None:
         )
     assert result.success is False
     assert result.error == ErrorCode.HOST_EXECUTION_DISABLED
+
+
+def test_terminal_host_exec_sessionless_enqueues_without_session_lookup() -> None:
+    cmd = TerminalHostExecCommand()
+
+    async def _fake_enqueue(**kwargs):
+        assert kwargs["srec"] is None
+        assert kwargs["project_dir"] is None
+        assert kwargs["session_store"] is None
+        assert kwargs["effective_cwd"] == "/root"
+        return type("R", (), {"success": True, "data": {"host_run_id": "host-x"}})()
+
+    with (
+        patch(
+            "mcp_terminal.commands.terminal_host_exec_command.resolve_session",
+            side_effect=AssertionError("session lookup must not run"),
+        ),
+        patch(
+            "mcp_terminal.commands.terminal_host_exec_command.registry_resolve_project",
+            side_effect=AssertionError("project lookup must not run"),
+        ),
+        patch(
+            "mcp_terminal.commands.terminal_host_exec_command.enqueue_host_ssh_terminal_run",
+            side_effect=_fake_enqueue,
+        ),
+    ):
+        result = asyncio.run(
+            cmd.execute(
+                execution_kind="argv",
+                argv=["hostname"],
+            )
+        )
+
+    assert result.success is True
 
 
 def test_enqueue_host_ssh_reject_writes_audit(tmp_path: Path) -> None:

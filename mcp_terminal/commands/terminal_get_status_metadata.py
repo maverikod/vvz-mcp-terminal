@@ -28,17 +28,22 @@ def get_terminal_get_status_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "(real host via SSH from ``terminal_host_exec``), or ``attached`` (future). "
             "Legacy meta values ``container`` are reported as ``sandbox``; legacy "
             "``host`` is reported as ``host_ssh``.\n\n"
-            "Use the same project_id and session_id as the run command. Typical loop: "
-            "terminal_run (or terminal_host_exec) → terminal_get_status (repeat) → "
-            "terminal_tail."
+            "For sandbox/session runs use the same project_id and session_id as the run "
+            "command. For sessionless host execution pass ``host_run_id`` from "
+            "terminal_host_exec."
         ),
         "parameters": {
-            "project_id": {"description": "Project UUID4.", "type": "string", "required": True},
-            "session_id": {"description": "Session UUID4.", "type": "string", "required": True},
+            "project_id": {"description": "Project UUID4.", "type": "string", "required": False},
+            "session_id": {"description": "Session UUID4.", "type": "string", "required": False},
             "seq": {
                 "description": "seq returned by terminal_run or terminal_host_exec.",
                 "type": "integer",
                 "required": True,
+            },
+            "host_run_id": {
+                "description": "Sessionless host_run_id returned by terminal_host_exec.",
+                "type": "string",
+                "required": False,
             },
         },
         "return_value": {

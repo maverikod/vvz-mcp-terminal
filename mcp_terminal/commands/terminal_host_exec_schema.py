@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from mcp_terminal.commands.schema_common import schema_project_id, schema_session_id
-
 _DEFAULT_TIMEOUT_S = 600
 
 
@@ -13,8 +11,14 @@ def get_terminal_host_exec_schema() -> Dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "project_id": schema_project_id(),
-            "session_id": schema_session_id(),
+            "project_id": {
+                "type": "string",
+                "description": "Optional legacy project id. If set, session_id is required.",
+            },
+            "session_id": {
+                "type": "string",
+                "description": "Optional legacy terminal session id. If omitted, host_run_id is used.",
+            },
             "execution_kind": {
                 "type": "string",
                 "enum": ["shell", "argv"],
@@ -40,8 +44,8 @@ def get_terminal_host_exec_schema() -> Dict[str, Any]:
             "cwd": {
                 "type": "string",
                 "description": (
-                    "Optional project-relative working directory on the host project tree. "
-                    "Omitted: use shell_state.json from the previous run."
+                    "Sessionless mode: absolute host working directory, default /root. "
+                    "Legacy session mode: project-relative working directory."
                 ),
             },
             "timeout_seconds": {
@@ -59,6 +63,6 @@ def get_terminal_host_exec_schema() -> Dict[str, Any]:
                 ),
             },
         },
-        "required": ["project_id", "session_id", "execution_kind"],
+        "required": ["execution_kind"],
         "additionalProperties": False,
     }

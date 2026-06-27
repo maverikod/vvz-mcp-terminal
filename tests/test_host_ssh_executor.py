@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.host_execution_config import HostExecutionConfig, HostSshConfig
-from mcp_terminal.services.host_ssh_executor import HostSSHExecutor
+from mcp_terminal.services.host_ssh_executor import HostSSHExecutor, _write_remote_exec_script
 
 
 def _cfg() -> HostExecutionConfig:
@@ -52,6 +52,21 @@ def test_host_ssh_executor_rejects_missing_session_key(tmp_path: Path) -> None:
         )
     assert result.status == "failed"
     assert result.error_code == ErrorCode.HOST_EXECUTION_DISABLED
+
+
+def test_sessionless_host_script_accepts_absolute_cwd(tmp_path: Path) -> None:
+    script = _write_remote_exec_script(
+        tmp_path,
+        "000001",
+        project_dir=None,
+        effective_cwd="/root",
+        execution_kind="argv",
+        command=None,
+        argv=["true"],
+        use_venv=False,
+    )
+    text = script.read_text(encoding="utf-8")
+    assert "cd /root" in text
 
 
 def test_host_ssh_job_writes_host_ssh_meta(tmp_path: Path) -> None:

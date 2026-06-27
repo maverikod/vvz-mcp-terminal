@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional, Set
 
+from mcp_terminal.services.host_exec_store import HOST_EXEC_SCOPE
 from mcp_terminal.services.host_execution_config import (
     get_host_execution_config,
     host_secrets_path_issue,
@@ -31,12 +32,22 @@ _SESSION_ID_IN_MARKER = re.compile(r"mcp-term-session=([0-9a-fA-F-]{36})")
 
 def session_key_paths(session_dir: Path) -> tuple[Path, Path]:
     """Return (private_key_path, public_key_path) under the host-exec secrets root."""
+    return scoped_key_paths(session_dir.name)
+
+
+def scoped_key_paths(scope_id: str) -> tuple[Path, Path]:
+    """Return (private_key_path, public_key_path) for a host-exec key scope."""
     he = get_host_execution_config()
-    session_secret_dir = Path(he.secrets_path).expanduser() / session_dir.name
+    session_secret_dir = Path(he.secrets_path).expanduser() / scope_id
     key_dir = session_secret_dir / SESSION_KEY_DIRNAME
     private = key_dir / SESSION_KEY_FILENAME
     public = key_dir / f"{SESSION_KEY_FILENAME}{SESSION_KEY_PUB_SUFFIX}"
     return private, public
+
+
+def host_exec_key_paths() -> tuple[Path, Path]:
+    """Return the stable sessionless host execution SSH key paths."""
+    return scoped_key_paths(HOST_EXEC_SCOPE)
 
 
 def session_key_marker(session_id: str) -> str:
@@ -46,18 +57,23 @@ def session_key_marker(session_id: str) -> str:
 
 def generate_session_keypair(session_dir: Path, session_id: str) -> tuple[Path, Path]:
     """Generate ed25519 key pair; return (private, public) paths."""
+    return generate_scoped_keypair(session_dir.name, session_id)
+
+
+def generate_scoped_keypair(scope_id: str, marker_id: str) -> tuple[Path, Path]:
+    """Generate ed25519 key pair for a host-exec key scope."""
     he = get_host_execution_config()
     issue = host_secrets_path_issue(he.secrets_path)
     if issue is not None:
         raise RuntimeError(issue)
-    secret_session_dir = Path(he.secrets_path).expanduser() / session_dir.name
+    secret_session_dir = Path(he.secrets_path).expanduser() / scope_id
     secret_session_dir.mkdir(mode=0o700, exist_ok=True)
     secret_session_dir.chmod(0o700)
     key_dir = secret_session_dir / SESSION_KEY_DIRNAME
     key_dir.mkdir(mode=0o700, exist_ok=True)
     key_dir.chmod(0o700)
-    private, public = session_key_paths(session_dir)
-    comment = session_key_marker(session_id)
+    private, public = scoped_key_paths(scope_id)
+    comment = session_key_marker(marker_id)
     subprocess.run(  # noqa: S603
         [
             "ssh-keygen",
@@ -146,7 +162,7 @@ def remove_session_key_files(session_dir: Path) -> None:
             path.unlink(missing_ok=True)
         except OSError:
             pass
-    key_dir = session_dir / SESSION_KEY_DIRNAME
+    key_dir = private.parent
     try:
         if key_dir.is_dir() and not any(key_dir.iterdir()):
             key_dir.rmdir()

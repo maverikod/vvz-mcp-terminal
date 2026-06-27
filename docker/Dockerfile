@@ -18,6 +18,7 @@ RUN apt-get update && \
     docker.io \
     git \
     jq \
+    openssh-client \
     procps \
     sudo \
     && apt-get clean \

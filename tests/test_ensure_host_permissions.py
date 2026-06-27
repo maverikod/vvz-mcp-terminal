@@ -32,6 +32,13 @@ def test_ensure_host_permissions_syncs_host_exec_keys_to_root() -> None:
     assert "session_ed25519.pub" in text
 
 
+def test_ensure_host_permissions_creates_stable_host_exec_key() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert "ensure_stable_host_exec_key" in text
+    assert "host_exec/.ssh" in text
+    assert "ssh-keygen" in text
+
+
 def _require_mcp_terminal_identity() -> None:
     if os.geteuid() != 0:
         pytest.skip("ensure-host-permissions.sh requires root")

@@ -14,6 +14,7 @@ from mcp_proxy_adapter.commands.base import Command, CommandResult
 from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.commands.terminal_read_metadata import get_terminal_read_metadata
 from mcp_terminal.runtime_context import get_session_store
+from mcp_terminal.services.host_exec_store import resolve_host_exec_run
 from mcp_terminal.services.output_reader import DEFAULT_MAX_BYTES, OutputReader
 
 
@@ -35,6 +36,7 @@ class TerminalReadCommand(Command):
             "properties": {
                 "project_id": {"type": "string"},
                 "session_id": {"type": "string"},
+                "host_run_id": {"type": "string"},
                 "seq": {"type": "integer"},
                 "stream": {
                     "type": "string",
@@ -55,7 +57,7 @@ class TerminalReadCommand(Command):
                     "description": "Maximum bytes to return.",
                 },
             },
-            "required": ["project_id", "session_id", "seq", "stream"],
+            "required": ["seq", "stream"],
             "additionalProperties": False,
         }
 
@@ -67,16 +69,24 @@ class TerminalReadCommand(Command):
         kwargs.pop("context", None)
         project_id = str(kwargs.get("project_id", ""))
         session_id = str(kwargs.get("session_id", ""))
+        host_run_id = str(kwargs.get("host_run_id", "")).strip()
         seq = int(kwargs.get("seq", 0))
         stream = str(kwargs.get("stream", "stdout"))
         offset = int(kwargs.get("offset", 0))
         max_bytes = int(kwargs.get("max_bytes", DEFAULT_MAX_BYTES))
-        record, err = resolve_session(project_id, session_id)
-        if err is not None:
-            return CommandResult(success=False, error=err)
-        session_store = get_session_store()
-        session_store.touch_activity(record.project_id, record.session_id)
-        reader = OutputReader(record.session_dir)
+        if host_run_id:
+            host_run = resolve_host_exec_run(host_run_id)
+            if host_run is None:
+                return CommandResult(success=False, error="NOT_FOUND")
+            session_dir = host_run.run_dir
+        else:
+            record, err = resolve_session(project_id, session_id)
+            if err is not None:
+                return CommandResult(success=False, error=err)
+            session_store = get_session_store()
+            session_store.touch_activity(record.project_id, record.session_id)
+            session_dir = record.session_dir
+        reader = OutputReader(session_dir)
         raw, err = reader.read(seq, stream, offset=offset, max_bytes=max_bytes)
         if err is not None:
             return CommandResult(success=False, error=err)

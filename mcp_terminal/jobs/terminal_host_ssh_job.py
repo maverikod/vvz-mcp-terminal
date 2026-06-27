@@ -32,7 +32,7 @@ class HostSSHJobParams:
     session_id: str
     seq: int
     session_dir: Path
-    project_dir: Path
+    project_dir: Optional[Path]
     timeout_seconds: int
     effective_cwd: str = "."
     execution_kind: str = "shell"
@@ -40,6 +40,8 @@ class HostSSHJobParams:
     argv: Optional[List[str]] = None
     use_venv: bool = True
     target_user: Optional[str] = None
+    private_key: Optional[Path] = None
+    host_run_id: Optional[str] = None
 
 
 class TerminalHostSSHJob:
@@ -66,7 +68,7 @@ class TerminalHostSSHJob:
             session_id=p.session_id,
             seq=p.seq,
             session_dir=p.session_dir,
-            project_dir=p.project_dir,
+            project_dir=p.project_dir or Path("/"),
             timeout_seconds=p.timeout_seconds,
             effective_cwd=p.effective_cwd,
             execution_kind=p.execution_kind,
@@ -74,6 +76,7 @@ class TerminalHostSSHJob:
             argv=p.argv,
             use_venv=p.use_venv,
             target_user=p.target_user,
+            private_key=p.private_key,
         )
         exit_code = run_result.exit_code
         timed_out = run_result.timed_out
@@ -86,6 +89,8 @@ class TerminalHostSSHJob:
             "timed_out": timed_out,
             "execution_target": "host_ssh",
         }
+        if p.host_run_id is not None:
+            meta["host_run_id"] = p.host_run_id
         if run_result.target_user is not None:
             meta["target_user"] = run_result.target_user
         if run_result.error_code is not None:
@@ -136,8 +141,9 @@ class TerminalHostSSHJob:
         )
 
         self._logger.info(
-            "Host SSH job complete seq=%d status=%s exit_code=%s timed_out=%s target=%s",
+            "Host SSH job complete seq=%d host_run_id=%s status=%s exit_code=%s timed_out=%s target=%s",
             p.seq,
+            p.host_run_id,
             status,
             exit_code,
             timed_out,

@@ -103,6 +103,31 @@ sync_host_exec_keys_to_root() {
   fi
 }
 
+ensure_stable_host_exec_key() {
+  local secrets_path="$1"
+  local key_dir private public marker
+  key_dir="${secrets_path}/host_exec/.ssh"
+  private="${key_dir}/session_ed25519"
+  public="${private}.pub"
+  marker="mcp-term-session=00000000-0000-4000-8000-000000000000 host_exec"
+
+  install -d -o root -g root -m 0700 "$key_dir"
+  if [ ! -f "$private" ]; then
+    if ! command -v ssh-keygen >/dev/null 2>&1; then
+      echo "[WARN] ssh-keygen missing; cannot create stable host-exec key" >&2
+      return 0
+    fi
+    ssh-keygen -q -t ed25519 -N "" -C "$marker" -f "$private"
+  fi
+  chown root:root "$key_dir" "$private" 2>/dev/null || true
+  chmod 0700 "$key_dir"
+  chmod 0600 "$private"
+  if [ -f "$public" ]; then
+    chown root:root "$public"
+    chmod 0644 "$public"
+  fi
+}
+
 fix_host_exec_secrets_permissions() {
   local secrets_path
   secrets_path="$(host_execution_secrets_path)"
@@ -121,6 +146,7 @@ fix_host_exec_secrets_permissions() {
   find "$secrets_path" -type f -name 'session_ed25519.pub' -exec chown root:root {} +
   find "$secrets_path" -type f -name 'session_ed25519.pub' -exec chmod 0644 {} +
 
+  ensure_stable_host_exec_key "$secrets_path"
   sync_host_exec_keys_to_root "$secrets_path"
 }
 

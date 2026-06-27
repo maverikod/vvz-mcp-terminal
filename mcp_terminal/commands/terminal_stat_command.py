@@ -14,6 +14,7 @@ from mcp_proxy_adapter.commands.base import Command, CommandResult
 from mcp_terminal.commands.session_resolve import resolve_session
 from mcp_terminal.commands.terminal_stat_metadata import get_terminal_stat_metadata
 from mcp_terminal.runtime_context import get_session_store
+from mcp_terminal.services.host_exec_store import resolve_host_exec_run
 from mcp_terminal.services.output_reader import OutputReader
 
 
@@ -35,9 +36,10 @@ class TerminalStatCommand(Command):
             "properties": {
                 "project_id": {"type": "string"},
                 "session_id": {"type": "string"},
+                "host_run_id": {"type": "string"},
                 "seq": {"type": "integer"},
             },
-            "required": ["project_id", "session_id", "seq"],
+            "required": ["seq"],
             "additionalProperties": False,
         }
 
@@ -49,13 +51,21 @@ class TerminalStatCommand(Command):
         kwargs.pop("context", None)
         project_id = str(kwargs.get("project_id", ""))
         session_id = str(kwargs.get("session_id", ""))
+        host_run_id = str(kwargs.get("host_run_id", "")).strip()
         seq = int(kwargs.get("seq", 0))
-        record, err = resolve_session(project_id, session_id)
-        if err is not None:
-            return CommandResult(success=False, error=err)
-        session_store = get_session_store()
-        session_store.touch_activity(record.project_id, record.session_id)
-        reader = OutputReader(record.session_dir)
+        if host_run_id:
+            host_run = resolve_host_exec_run(host_run_id)
+            if host_run is None:
+                return CommandResult(success=False, error="NOT_FOUND")
+            session_dir = host_run.run_dir
+        else:
+            record, err = resolve_session(project_id, session_id)
+            if err is not None:
+                return CommandResult(success=False, error=err)
+            session_store = get_session_store()
+            session_store.touch_activity(record.project_id, record.session_id)
+            session_dir = record.session_dir
+        reader = OutputReader(session_dir)
         stat = reader.stat(seq)
         return CommandResult(
             success=True,
@@ -65,5 +75,6 @@ class TerminalStatCommand(Command):
                 "stderr_file": stat.stderr_file,
                 "stdout_bytes": stat.stdout_bytes,
                 "stderr_bytes": stat.stderr_bytes,
+                **({"host_run_id": host_run_id} if host_run_id else {}),
             },
         )
