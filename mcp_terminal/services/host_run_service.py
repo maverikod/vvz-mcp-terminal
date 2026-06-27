@@ -8,12 +8,14 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
 from mcp_proxy_adapter.commands.base import CommandResult
-from mcp_proxy_adapter.core.job_manager import enqueue_coroutine
 
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.jobs.terminal_host_ssh_job import HostSSHJobParams, TerminalHostSSHJob
@@ -34,6 +36,39 @@ from mcp_terminal.services.host_execution_config import (
 )
 from mcp_terminal.services.session_ssh_key import host_exec_key_paths
 from mcp_terminal.services.session_store import SessionRecord
+
+_logger = logging.getLogger(__name__)
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _enqueue_host_job(job: TerminalHostSSHJob, history: CommandHistory, seq: int, meta_file: str) -> str:
+    """Run host SSH work in the current event loop without adapter job-manager races."""
+    job_id = str(uuid.uuid4())
+
+    async def _run_sync() -> None:
+        try:
+            await asyncio.to_thread(job.run)
+        except Exception as exc:  # noqa: BLE001
+            _logger.exception("host ssh background job failed job_id=%s seq=%s", job_id, seq)
+            history.update_record(seq, status="failed")
+            meta_path = history.session_dir / meta_file
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "seq": seq,
+                        "status": "failed",
+                        "execution_target": "host_ssh",
+                        "error": str(exc),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+    task = asyncio.create_task(_run_sync())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return job_id
 
 
 async def enqueue_host_ssh_terminal_run(
@@ -166,10 +201,7 @@ async def enqueue_host_ssh_terminal_run(
     )
     job = TerminalHostSSHJob(job_params)
 
-    async def _run_sync() -> dict:
-        return await asyncio.to_thread(job.run)
-
-    job_id = enqueue_coroutine(_run_sync())
+    job_id = _enqueue_host_job(job, history, seq, meta_file)
     history.update_record(seq, status="pending", job_id=job_id)
 
     if host_run_id is not None:

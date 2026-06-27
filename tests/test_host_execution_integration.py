@@ -125,8 +125,8 @@ async def _enqueue_host_mock(
             return_value=HostCommandValidation(ok=True),
         ),
         patch(
-            "mcp_terminal.services.host_run_service.enqueue_coroutine",
-            side_effect=lambda coro: _mock_enqueue_coroutine(coro, job_id="host-job"),
+            "mcp_terminal.services.host_run_service._enqueue_host_job",
+            return_value="host-job",
         ),
     ):
         result = await enqueue_host_ssh_terminal_run(
@@ -221,7 +221,7 @@ def test_h5_docker_enqueue_rejected_without_queueing(tmp_path: Path) -> None:
     async def _run() -> None:
         with (
             _patch_host_config(cfg),
-            patch("mcp_terminal.services.host_run_service.enqueue_coroutine") as mock_enqueue,
+            patch("mcp_terminal.services.host_run_service._enqueue_host_job") as mock_enqueue,
         ):
             result = await enqueue_host_ssh_terminal_run(
                 project_id="00000000-0000-4000-8000-000000000001",

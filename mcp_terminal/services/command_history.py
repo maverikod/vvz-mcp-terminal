@@ -50,6 +50,11 @@ class CommandHistory:
         self._history_file = session_dir / "history.jsonl"
         self._logger = logging.getLogger(__name__)
 
+    @property
+    def session_dir(self) -> Path:
+        """Directory that owns this command history and output files."""
+        return self._session_dir
+
     def allocate_seq(self) -> int:
         """Allocate the next session-local command sequence number.
 

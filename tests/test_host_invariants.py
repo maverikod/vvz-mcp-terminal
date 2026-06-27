@@ -68,7 +68,7 @@ def test_h1_disabled_gate_rejects_without_queueing_job(tmp_path: Path) -> None:
             _patch_host_config(
                 HostExecutionConfig(enabled=False, allowed_commands=frozenset({"true"})),
             ),
-            patch("mcp_terminal.services.host_run_service.enqueue_coroutine") as mock_enqueue,
+            patch("mcp_terminal.services.host_run_service._enqueue_host_job") as mock_enqueue,
         ):
             result = await enqueue_host_ssh_terminal_run(
                 project_id="p",
@@ -157,7 +157,7 @@ def test_h6_terminal_host_exec_rejects_invalid_cwd_before_enqueue(tmp_path: Path
             "mcp_terminal.commands.terminal_host_exec_command.get_session_store",
             return_value=object(),
         ),
-        patch("mcp_terminal.services.host_run_service.enqueue_coroutine") as mock_enqueue,
+        patch("mcp_terminal.services.host_run_service._enqueue_host_job") as mock_enqueue,
     ):
         result = asyncio.run(
             cmd.execute(
