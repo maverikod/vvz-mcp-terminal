@@ -112,3 +112,42 @@ def test_host_ssh_job_writes_host_ssh_meta(tmp_path: Path) -> None:
     meta = (session_dir / "000001.meta.json").read_text(encoding="utf-8")
     assert "host_ssh" in meta
     assert "hostuser" in meta
+
+
+def test_sessionless_host_ssh_job_passes_none_project_dir(tmp_path: Path) -> None:
+    from mcp_terminal.jobs.terminal_host_ssh_job import HostSSHJobParams, TerminalHostSSHJob
+
+    (tmp_path / "000001.stdout.log").touch()
+    (tmp_path / "000001.stderr.log").touch()
+    mock_executor = MagicMock()
+    mock_executor.run.return_value = type(
+        "R",
+        (),
+        {
+            "exit_code": 0,
+            "timed_out": False,
+            "status": "completed",
+            "target_user": "root",
+            "error_code": None,
+        },
+    )()
+    job = TerminalHostSSHJob(
+        HostSSHJobParams(
+            project_id="host",
+            session_id="host-run",
+            seq=1,
+            session_dir=tmp_path,
+            project_dir=None,
+            timeout_seconds=5,
+            execution_kind="argv",
+            argv=["hostname"],
+            target_user="root",
+        ),
+        executor=mock_executor,
+    )
+    with patch(
+        "mcp_terminal.jobs.terminal_host_ssh_job.get_host_execution_config",
+        return_value=_cfg(),
+    ):
+        job.run()
+    assert mock_executor.run.call_args.kwargs["project_dir"] is None

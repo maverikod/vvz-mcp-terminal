@@ -68,7 +68,7 @@ class TerminalHostSSHJob:
             session_id=p.session_id,
             seq=p.seq,
             session_dir=p.session_dir,
-            project_dir=p.project_dir or Path("/"),
+            project_dir=p.project_dir,
             timeout_seconds=p.timeout_seconds,
             effective_cwd=p.effective_cwd,
             execution_kind=p.execution_kind,
