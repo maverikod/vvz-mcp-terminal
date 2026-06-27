@@ -23,10 +23,12 @@ def _ssh_cfg(
     *,
     enabled: bool = True,
     allowed: frozenset[str] = frozenset({"casmgr"}),
+    secrets_path: str = "/tmp/mcp-terminal-test-secrets",
 ) -> HostExecutionConfig:
     return HostExecutionConfig(
         enabled=enabled,
         allowed_commands=allowed,
+        secrets_path=secrets_path,
         ssh=HostSshConfig(
             host="127.0.0.1",
             port=22,
@@ -48,10 +50,12 @@ def test_validate_host_run_disabled() -> None:
     assert v.error_code == ErrorCode.HOST_EXECUTION_DISABLED
 
 
-def test_validate_host_run_when_enabled() -> None:
+def test_validate_host_run_when_enabled(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
     with patch(
         "mcp_terminal.services.host_execution_config.get_host_execution_config",
-        return_value=_ssh_cfg(),
+        return_value=_ssh_cfg(secrets_path=str(secrets_dir)),
     ):
         assert validate_host_run_request("argv", None, ["casmgr", "status"]).ok
 

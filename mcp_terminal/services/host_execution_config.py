@@ -13,11 +13,14 @@ Email: vasilyvz@gmail.com
 from __future__ import annotations
 
 import logging
+import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, List, Optional
 
 from mcp_terminal.config.host_execution_schema import (
+    DEFAULT_HOST_EXECUTION_SECRETS_PATH,
     DEFAULT_SSH_KEY_MANAGER_SCRIPT,
     DEFAULT_SSH_KNOWN_HOSTS_PATH,
     HOST_EXECUTION_CONFIG,
@@ -52,6 +55,7 @@ __all__ = [
     "find_forbidden_in_shell_command",
     "find_forbidden_substring",
     "get_host_execution_config",
+    "host_secrets_path_issue",
     "host_shell_command_is_safe",
     "is_host_execution_eligible",
     "iter_shell_scan_fragments",
@@ -62,6 +66,7 @@ __all__ = [
     "validate_host_run_request",
     "validate_host_shell_command",
     "validate_key_access_guard",
+    "warn_if_host_secrets_path_invalid",
     "warn_if_host_execution_enabled_without_commands",
     "warn_if_host_ssh_incomplete",
 ]
@@ -90,6 +95,7 @@ class HostExecutionConfig:
     enabled: bool
     allowed_commands: FrozenSet[str]
     forbidden_executables: Optional[FrozenSet[str]] = None
+    secrets_path: str = DEFAULT_HOST_EXECUTION_SECRETS_PATH
     ssh: Optional[HostSshConfig] = None
     """When set, replaces ``DEFAULT_HOST_FORBIDDEN_EXECUTABLES`` entirely (empty = none)."""
 
@@ -104,6 +110,9 @@ class HostExecutionConfig:
             and bool(self.ssh.target_users)
             and bool(self.ssh.known_hosts_path.strip())
         )
+
+    def secrets_ready(self) -> bool:
+        return host_secrets_path_issue(self.secrets_path) is None
 
 
 @dataclass(frozen=True)
@@ -195,6 +204,15 @@ def _parse_forbidden_executables_override(section: Dict[str, Any]) -> Optional[F
     )
 
 
+def _parse_secrets_path(section: Dict[str, Any]) -> str:
+    if "secrets_path" not in section:
+        return DEFAULT_HOST_EXECUTION_SECRETS_PATH
+    raw = section.get("secrets_path")
+    if not isinstance(raw, str):
+        return ""
+    return raw.strip()
+
+
 def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecutionConfig:
     """Return merged host_execution settings (config + built-in fallbacks)."""
     if config is None:
@@ -220,14 +238,40 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
                 names.append(item.strip())
 
     forbidden_executables = _parse_forbidden_executables_override(section)
+    secrets_path = _parse_secrets_path(section)
     ssh = _parse_ssh(section)
 
     return HostExecutionConfig(
         enabled=enabled,
         allowed_commands=frozenset(names),
         forbidden_executables=forbidden_executables,
+        secrets_path=secrets_path,
         ssh=ssh,
     )
+
+
+def host_secrets_path_issue(path: str) -> Optional[str]:
+    """Return a host-exec disabling reason when the secrets directory is unsafe."""
+    if not isinstance(path, str) or not path.strip():
+        return "terminal.host_execution.secrets_path is empty"
+    secrets_dir = Path(path).expanduser()
+    if not secrets_dir.is_dir():
+        return f"terminal.host_execution.secrets_path not found or not a directory: {secrets_dir}"
+    try:
+        st = secrets_dir.stat()
+    except OSError as exc:
+        return f"terminal.host_execution.secrets_path not stat-able: {secrets_dir}: {exc}"
+    if st.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        return (
+            "terminal.host_execution.secrets_path permissions are too broad "
+            f"(expected 0700 or stricter): {secrets_dir}"
+        )
+    if not os.access(secrets_dir, os.R_OK | os.W_OK | os.X_OK):
+        return (
+            "terminal.host_execution.secrets_path is not readable/writable/searchable: "
+            f"{secrets_dir}"
+        )
+    return None
 
 
 def resolve_target_user(
@@ -259,6 +303,16 @@ def warn_if_host_ssh_incomplete(config: Dict[str, Any]) -> None:
     he = get_host_execution_config(config)
     if he.enabled and he.allowed_commands and not he.ssh_ready():
         _logger.warning(HOST_EXECUTION_SSH_INCOMPLETE_LOG)
+
+
+def warn_if_host_secrets_path_invalid(config: Dict[str, Any]) -> None:
+    """Log an error when host exec is enabled but its secret storage is unusable."""
+    he = get_host_execution_config(config)
+    if not he.enabled:
+        return
+    issue = host_secrets_path_issue(he.secrets_path)
+    if issue is not None:
+        _logger.error("%s; host commands are disabled", issue)
 
 
 def _command_text_fragments(
@@ -487,6 +541,14 @@ def validate_host_run_request(
             detail="terminal.host_execution.ssh is incomplete (target_users, known_hosts_path)",
         )
 
+    secrets_issue = host_secrets_path_issue(he.secrets_path)
+    if secrets_issue is not None:
+        return HostCommandValidation(
+            ok=False,
+            error_code=ErrorCode.HOST_EXECUTION_DISABLED,
+            detail=secrets_issue,
+        )
+
     _user, tu_err = resolve_target_user(target_user, config=he)
     if tu_err is not None:
         return HostCommandValidation(
@@ -536,7 +598,12 @@ def is_host_execution_eligible(
     """True when host execution is enabled and the request passes host validation."""
     if config is not None:
         he = get_host_execution_config(config)
-        if not he.enabled or not he.allowed_commands or not he.ssh_ready():
+        if (
+            not he.enabled
+            or not he.allowed_commands
+            or not he.ssh_ready()
+            or not he.secrets_ready()
+        ):
             return False
         if execution_kind == "argv" and argv:
             return validate_host_argv_command(

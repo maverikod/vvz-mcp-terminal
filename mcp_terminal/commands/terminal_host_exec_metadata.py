@@ -28,9 +28,12 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "**Server config (required when enabled):**\n"
             "- ``terminal.host_execution.enabled`` must be ``true`` (default is ``false``).\n"
             "- ``terminal.host_execution.allowed_commands`` must list executable basenames.\n"
+            "- ``terminal.host_execution.secrets_path`` must point to an existing private "
+            "directory for host-exec SSH key material.\n"
             "- ``terminal.host_execution.ssh`` must define ``host``, ``target_users``, "
             "and ``known_hosts_path`` (StrictHostKeyChecking=yes; no silent host-key bypass).\n"
-            "If host execution is disabled, the allowlist is empty, or SSH settings are "
+            "If host execution is disabled, the allowlist is empty, secrets_path is unsafe, "
+            "or SSH settings are "
             "incomplete, the command returns ``HOST_EXECUTION_DISABLED`` before queueing.\n\n"
             "**SSH model:** each session gets an ephemeral ed25519 key registered on the host "
             "via ``manage-session-keys.sh``. Commands run as ``target_user`` on the real host "
@@ -191,12 +194,13 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "HOST_EXECUTION_DISABLED": {
                     "description": (
                         "terminal.host_execution.enabled is false, allowed_commands is empty, "
-                        "or ssh settings are incomplete."
+                        "secrets_path is missing/unsafe, or ssh settings are incomplete."
                     ),
                     "message": "HOST_EXECUTION_DISABLED",
                     "solution": (
                         "Enable host_execution, populate allowed_commands and ssh.target_users, "
-                        "set ssh.known_hosts_path, then restart. Use terminal_run for sandbox work."
+                        "set ssh.known_hosts_path, create secrets_path with 0700 or stricter "
+                        "permissions, then restart. Use terminal_run for sandbox work."
                     ),
                 },
                 "HOST_COMMAND_NOT_ALLOWED": {

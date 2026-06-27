@@ -32,6 +32,7 @@ def test_packaging_template_full_terminal_shape() -> None:
     assert "terminal" in data
     assert "host_execution" in data["terminal"]
     assert data["terminal"]["host_execution"]["enabled"] is False
+    assert data["terminal"]["host_execution"]["secrets_path"] == "/var/mcp-terminal/secrets"
     assert "ssh" in data["terminal"]["host_execution"]
     assert data["terminal"]["host_execution"]["ssh"]["known_hosts_path"]
     assert "runtime" in data

@@ -179,6 +179,7 @@
         "Default enabled=false. When enabled, set ssh.host (reachable from service container),",
         "ssh.target_users (non-empty), and ssh.known_hosts_path (pinned host key; required).",
         "Ephemeral session keys are registered via manage-session-keys.sh on install/recreate.",
+        "secrets_path stores host-exec SSH key material; directory must exist with 0700 or stricter permissions.",
         "",
         "forbidden_executables_override:",
         "  null (omit or null) — built-in denylist blocks docker, kubectl, systemctl, sudo, …",
@@ -187,6 +188,7 @@
       ],
       "enabled": false,
       "forbidden_executables_override": null,
+      "secrets_path": "/var/mcp-terminal/secrets",
       "allowed_commands": [
         "bash",
         "sh",

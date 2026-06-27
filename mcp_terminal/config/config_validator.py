@@ -284,6 +284,15 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
                         )
                     )
 
+    secrets_path = section.get("secrets_path")
+    if secrets_path is not None and not isinstance(secrets_path, str):
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.secrets_path",
+                message="secrets_path must be a string path when present",
+            )
+        )
+
     ssh = section.get("ssh")
     if enabled is True:
         if not isinstance(ssh, dict):

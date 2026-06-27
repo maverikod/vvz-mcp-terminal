@@ -69,6 +69,7 @@ from mcp_terminal.services.ttl_cleanup import TtlCleanupService
 from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.services.host_execution_config import (
     warn_if_host_execution_enabled_without_commands,
+    warn_if_host_secrets_path_invalid,
     warn_if_host_ssh_incomplete,
 )
 from mcp_terminal.services.session_ssh_key import reap_orphaned_keys
@@ -198,6 +199,7 @@ def main() -> None:
 
     warn_if_host_execution_enabled_without_commands(app_config)
     warn_if_host_ssh_incomplete(app_config)
+    warn_if_host_secrets_path_invalid(app_config)
 
     _install_project_registry(app_config, cfg_path)
 

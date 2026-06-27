@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+DEFAULT_HOST_EXECUTION_SECRETS_PATH = "/var/mcp-terminal/secrets"
+
 HOST_EXECUTION_CONFIG: Dict[str, Any] = {
     "enabled": False,
     "allowed_commands": [],
     "forbidden_executables_override": None,
+    "secrets_path": DEFAULT_HOST_EXECUTION_SECRETS_PATH,
     "ssh": {
         "host": "127.0.0.1",
         "port": 22,

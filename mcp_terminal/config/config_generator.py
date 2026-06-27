@@ -124,6 +124,7 @@ def generate_terminal_config(
     host_execution_enabled: Optional[bool] = None,
     host_execution_allowed_commands: Optional[List[str]] = None,
     host_execution_forbidden_executables_override: Optional[List[str]] = None,
+    host_execution_secrets_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Merge terminal-specific default sections into base_config.
 
@@ -175,6 +176,7 @@ def generate_terminal_config(
         host_execution_forbidden_executables_override: Replaces
             ``terminal.host_execution.forbidden_executables_override`` (empty list
             clears all hard-forbidden executables).
+        host_execution_secrets_path: Overrides ``terminal.host_execution.secrets_path``.
 
     Returns:
         New dict containing adapter sections, ``terminal``, ``runtime``,
@@ -309,6 +311,8 @@ def generate_terminal_config(
             for item in host_execution_forbidden_executables_override
             if str(item).strip()
         ]
+    if host_execution_secrets_path is not None:
+        he_updates["secrets_path"] = str(host_execution_secrets_path).strip()
 
     if he_updates:
         term = result.setdefault("terminal", {})

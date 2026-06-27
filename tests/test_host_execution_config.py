@@ -9,13 +9,17 @@ from pathlib import Path
 
 from mcp_terminal.config.config_generator import generate_terminal_config
 from mcp_terminal.config.config_validator import validate_terminal_config
-from mcp_terminal.config.host_execution_schema import HOST_EXECUTION_EMPTY_ALLOWLIST_LOG
+from mcp_terminal.config.host_execution_schema import (
+    DEFAULT_HOST_EXECUTION_SECRETS_PATH,
+    HOST_EXECUTION_EMPTY_ALLOWLIST_LOG,
+)
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.services.host_execution_config import (
     HostExecutionConfig,
     HostSshConfig,
     decompose_shell_command,
     get_host_execution_config,
+    host_secrets_path_issue,
     is_host_execution_eligible,
     validate_host_run_request,
     validate_host_shell_command,
@@ -48,6 +52,7 @@ def test_generator_includes_host_execution_defaults() -> None:
     he = cfg["terminal"]["host_execution"]
     assert he["enabled"] is False
     assert he["allowed_commands"] == []
+    assert he["secrets_path"] == DEFAULT_HOST_EXECUTION_SECRETS_PATH
     assert "ssh" in he
     assert validate_terminal_config(cfg) == []
 
@@ -78,11 +83,29 @@ def test_validator_accepts_enabled_with_ssh() -> None:
     assert validate_terminal_config(cfg) == []
 
 
+def test_generator_accepts_host_execution_secrets_path() -> None:
+    cfg = generate_terminal_config(
+        {},
+        host_execution_secrets_path="/custom/host-exec-secrets",
+    )
+    assert (
+        cfg["terminal"]["host_execution"]["secrets_path"]
+        == "/custom/host-exec-secrets"
+    )
+
+
 def test_validator_rejects_bad_host_execution() -> None:
     cfg = generate_terminal_config({})
     cfg["terminal"]["host_execution"]["enabled"] = "yes"
     fields = [e.field for e in validate_terminal_config(cfg)]
     assert "terminal.host_execution.enabled" in fields
+
+
+def test_validator_rejects_non_string_secrets_path() -> None:
+    cfg = generate_terminal_config({})
+    cfg["terminal"]["host_execution"]["secrets_path"] = 123
+    fields = [e.field for e in validate_terminal_config(cfg)]
+    assert "terminal.host_execution.secrets_path" in fields
 
 
 def test_forbidden_executables_override_empty_allows_docker() -> None:
@@ -145,10 +168,91 @@ def test_key_guard_rejects_private_key_path(tmp_path: Path) -> None:
     assert v.error_code == ErrorCode.HOST_KEY_ACCESS_FORBIDDEN
 
 
-def test_is_host_execution_eligible_requires_enabled() -> None:
+def test_session_key_paths_use_configured_secrets_path(tmp_path: Path) -> None:
+    from mcp_terminal.services.session_ssh_key import session_key_paths
+
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
+    session_dir = tmp_path / ".terminals" / "00000000-0000-4000-8000-000000000002"
+    session_dir.mkdir(parents=True)
+    cfg = HostExecutionConfig(
+        enabled=True,
+        allowed_commands=frozenset({"true"}),
+        secrets_path=str(secrets_dir),
+        ssh=HostSshConfig(
+            host="127.0.0.1",
+            port=22,
+            target_users=("mcp-terminal-host",),
+            known_hosts_path="/etc/mcp-terminal/ssh_known_hosts",
+            connect_timeout=10,
+            key_manager_script="/usr/lib/mcp-terminal/manage-session-keys.sh",
+        ),
+    )
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "mcp_terminal.services.session_ssh_key.get_host_execution_config",
+            lambda: cfg,
+        )
+        private, public = session_key_paths(session_dir)
+    assert private == secrets_dir / session_dir.name / ".ssh" / "session_ed25519"
+    assert public == secrets_dir / session_dir.name / ".ssh" / "session_ed25519.pub"
+
+
+def test_is_host_execution_eligible_requires_enabled(tmp_path: Path) -> None:
     cfg = generate_terminal_config({})
     assert not is_host_execution_eligible("argv", None, ["true"], config=cfg)
-    assert is_host_execution_eligible("argv", None, ["pytest", "-q"], config=_CFG)
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
+    enabled_cfg = {
+        "terminal": {
+            "host_execution": {
+                **_CFG["terminal"]["host_execution"],
+                "secrets_path": str(secrets_dir),
+            }
+        }
+    }
+    assert is_host_execution_eligible("argv", None, ["pytest", "-q"], config=enabled_cfg)
+
+
+def test_host_secrets_path_issue_rejects_empty() -> None:
+    assert host_secrets_path_issue("") == "terminal.host_execution.secrets_path is empty"
+
+
+def test_host_secrets_path_issue_rejects_missing(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    assert "not found" in (host_secrets_path_issue(str(missing)) or "")
+
+
+def test_host_secrets_path_issue_rejects_broad_permissions(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o755)
+    assert "permissions are too broad" in (host_secrets_path_issue(str(secrets_dir)) or "")
+
+
+def test_validate_host_run_rejects_invalid_secrets_path(tmp_path: Path) -> None:
+    cfg = HostExecutionConfig(
+        enabled=True,
+        allowed_commands=frozenset({"casmgr"}),
+        secrets_path=str(tmp_path / "missing"),
+        ssh=HostSshConfig(
+            host="127.0.0.1",
+            port=22,
+            target_users=("mcp-terminal-host",),
+            known_hosts_path="/etc/mcp-terminal/ssh_known_hosts",
+            connect_timeout=10,
+            key_manager_script="/usr/lib/mcp-terminal/manage-session-keys.sh",
+        ),
+    )
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "mcp_terminal.services.host_execution_config.get_host_execution_config",
+            lambda: cfg,
+        )
+        v = validate_host_run_request("argv", None, ["casmgr"])
+    assert not v.ok
+    assert v.error_code == ErrorCode.HOST_EXECUTION_DISABLED
+    assert v.detail is not None
+    assert "secrets_path" in v.detail
 
 
 def test_warn_when_enabled_and_empty_allowlist(caplog: pytest.LogCaptureFixture) -> None:

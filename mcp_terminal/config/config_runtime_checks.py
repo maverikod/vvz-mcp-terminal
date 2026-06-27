@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence
 
 from mcp_terminal.config.tls_protocol import effective_protocol, is_tls_protocol
+from mcp_terminal.services.host_execution_config import (
+    get_host_execution_config,
+    host_secrets_path_issue,
+)
 
 IssueLevel = Literal["error", "warning"]
 
@@ -672,6 +676,22 @@ def _check_host_execution_ssh(app_config: dict) -> List[RuntimeIssue]:
     return issues
 
 
+def _check_host_execution_secrets(app_config: dict) -> List[RuntimeIssue]:
+    if not _host_execution_enabled(app_config):
+        return []
+    he = get_host_execution_config(app_config)
+    issue = host_secrets_path_issue(he.secrets_path)
+    if issue is None:
+        return []
+    return [
+        RuntimeIssue(
+            "warning",
+            f"{issue}; host commands will be disabled",
+            "terminal.host_execution.secrets_path",
+        )
+    ]
+
+
 def collect_config_runtime_issues(
     app_config: Dict[str, Any],
     *,
@@ -692,6 +712,7 @@ def collect_config_runtime_issues(
     ):
         issues.extend(_check_docker_environment())
     issues.extend(_check_host_execution_ssh(app_config))
+    issues.extend(_check_host_execution_secrets(app_config))
     issues.extend(_check_instance_uuid(app_config))
     return issues
 

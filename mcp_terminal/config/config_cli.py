@@ -81,6 +81,8 @@ def _collect_host_execution_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
         out["host_execution_enabled"] = args.host_execution_enabled
     if getattr(args, "host_execution_allowed_commands", None) is not None:
         out["host_execution_allowed_commands"] = args.host_execution_allowed_commands
+    if getattr(args, "host_execution_secrets_path", None) is not None:
+        out["host_execution_secrets_path"] = args.host_execution_secrets_path
     if hasattr(args, "host_execution_forbidden_executables_override"):
         out["host_execution_forbidden_executables_override"] = (
             args.host_execution_forbidden_executables_override
@@ -287,6 +289,13 @@ def main() -> None:
         default=None,
         metavar="CMD",
         help="terminal.host_execution.allowed_commands (space-separated basenames)",
+    )
+    gen.add_argument(
+        "--host-execution-secrets-path",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="terminal.host_execution.secrets_path",
     )
     gen.add_argument(
         "--host-execution-forbidden-executables-override",

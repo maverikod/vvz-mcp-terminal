@@ -118,6 +118,37 @@ def test_runtime_warns_on_install_ca_for_code_analysis(
     assert any("MCP-Proxy-Root-CA" in issue.message for issue in issues)
 
 
+def test_runtime_warns_when_host_execution_secrets_path_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("MCP_TERMINAL_SKIP_DOCKER_PREFLIGHT", "1")
+    monkeypatch.setenv("MCP_TERMINAL_DATA_DIR", str(tmp_path / "data"))
+    (tmp_path / "data").mkdir()
+    cfg_path = tmp_path / "term_server.json"
+    cfg_path.write_text("{}", encoding="utf-8")
+    config = _minimal_config(tmp_path)
+    config["terminal"] = {
+        "host_execution": {
+            "enabled": True,
+            "allowed_commands": ["true"],
+            "secrets_path": str(tmp_path / "missing-secrets"),
+            "ssh": {
+                "host": "127.0.0.1",
+                "port": 22,
+                "target_users": ["mcp-terminal-host"],
+                "known_hosts_path": str(tmp_path / "known_hosts"),
+            },
+        }
+    }
+    (tmp_path / "known_hosts").write_text("dummy", encoding="utf-8")
+    issues = collect_config_runtime_issues(config, config_path=cfg_path)
+    assert any(
+        issue.field == "terminal.host_execution.secrets_path"
+        and "host commands will be disabled" in issue.message
+        for issue in issues
+    )
+
+
 @patch("mcp_terminal.config.config_runtime_checks.subprocess.run")
 @patch("mcp_terminal.config.config_runtime_checks.os.access", return_value=True)
 @patch("mcp_terminal.config.config_runtime_checks.shutil.which", return_value="/usr/bin/docker")

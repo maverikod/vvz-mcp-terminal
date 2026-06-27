@@ -14,7 +14,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional, Set
 
-from mcp_terminal.services.host_execution_config import get_host_execution_config
+from mcp_terminal.services.host_execution_config import (
+    get_host_execution_config,
+    host_secrets_path_issue,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -27,8 +30,10 @@ _SESSION_ID_IN_MARKER = re.compile(r"mcp-term-session=([0-9a-fA-F-]{36})")
 
 
 def session_key_paths(session_dir: Path) -> tuple[Path, Path]:
-    """Return (private_key_path, public_key_path) under the session directory."""
-    key_dir = session_dir / SESSION_KEY_DIRNAME
+    """Return (private_key_path, public_key_path) under the host-exec secrets root."""
+    he = get_host_execution_config()
+    session_secret_dir = Path(he.secrets_path).expanduser() / session_dir.name
+    key_dir = session_secret_dir / SESSION_KEY_DIRNAME
     private = key_dir / SESSION_KEY_FILENAME
     public = key_dir / f"{SESSION_KEY_FILENAME}{SESSION_KEY_PUB_SUFFIX}"
     return private, public
@@ -41,8 +46,16 @@ def session_key_marker(session_id: str) -> str:
 
 def generate_session_keypair(session_dir: Path, session_id: str) -> tuple[Path, Path]:
     """Generate ed25519 key pair; return (private, public) paths."""
-    key_dir = session_dir / SESSION_KEY_DIRNAME
+    he = get_host_execution_config()
+    issue = host_secrets_path_issue(he.secrets_path)
+    if issue is not None:
+        raise RuntimeError(issue)
+    secret_session_dir = Path(he.secrets_path).expanduser() / session_dir.name
+    secret_session_dir.mkdir(mode=0o700, exist_ok=True)
+    secret_session_dir.chmod(0o700)
+    key_dir = secret_session_dir / SESSION_KEY_DIRNAME
     key_dir.mkdir(mode=0o700, exist_ok=True)
+    key_dir.chmod(0o700)
     private, public = session_key_paths(session_dir)
     comment = session_key_marker(session_id)
     subprocess.run(  # noqa: S603
@@ -139,12 +152,22 @@ def remove_session_key_files(session_dir: Path) -> None:
             key_dir.rmdir()
     except OSError:
         pass
+    try:
+        secret_session_dir = key_dir.parent
+        if secret_session_dir.is_dir() and not any(secret_session_dir.iterdir()):
+            secret_session_dir.rmdir()
+    except OSError:
+        pass
 
 
 def provision_session_ssh_keys(session_dir: Path, session_id: str) -> None:
     """Generate keys and register public key on host target users when host execution enabled."""
     he = get_host_execution_config()
     if not he.enabled or not he.ssh_ready():
+        return
+    issue = host_secrets_path_issue(he.secrets_path)
+    if issue is not None:
+        _logger.error("%s; host SSH keys were not provisioned", issue)
         return
     private, _public = session_key_paths(session_dir)
     if private.is_file():
