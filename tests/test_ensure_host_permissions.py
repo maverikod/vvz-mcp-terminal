@@ -15,6 +15,23 @@ SCRIPT = (
 )
 
 
+def test_ensure_host_permissions_shell_syntax() -> None:
+    proc = subprocess.run(  # noqa: S603
+        ["bash", "-n", str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_ensure_host_permissions_syncs_host_exec_keys_to_root() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert "sync_host_exec_keys_to_root" in text
+    assert "/root/.ssh/authorized_keys" in text
+    assert "session_ed25519.pub" in text
+
+
 def _require_mcp_terminal_identity() -> None:
     if os.geteuid() != 0:
         pytest.skip("ensure-host-permissions.sh requires root")

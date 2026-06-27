@@ -30,8 +30,99 @@ LOG_DIR="${MCP_TERMINAL_LOG_DIR:-/var/log/mcp-terminal}"
 DATA_DIR="${MCP_TERMINAL_DATA_DIR:-/var/mcp-terminal}"
 MTLS_DIR="${MCP_TERMINAL_MTLS_DIR:-/etc/mcp-terminal/mtls_certificates}"
 DEFAULT_KNOWN_HOSTS="${CONFIG_DIR}/ssh_known_hosts"
+DEFAULT_SECRETS_PATH="${DATA_DIR}/secrets"
 PREPARE_LAYOUT="${LIB_DIR}/prepare_project_layout.py"
 ENSURE_SSH_TARGET="${LIB_DIR}/ensure-ssh-target-user.sh"
+
+host_execution_secrets_path() {
+  local default_path="$DEFAULT_SECRETS_PATH"
+  if [ -f "$CONFIG_FILE" ] && command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY' "$CONFIG_FILE" "$default_path"
+import json
+import sys
+from pathlib import Path
+
+cfg_path, default = sys.argv[1], sys.argv[2]
+try:
+    cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print(default)
+    raise SystemExit(0)
+he = (cfg.get("terminal") or {}).get("host_execution") or {}
+raw = he.get("secrets_path")
+print(raw.strip() if isinstance(raw, str) and raw.strip() else default)
+PY
+    return 0
+  fi
+  printf '%s\n' "$default_path"
+}
+
+ensure_root_authorized_keys() {
+  install -d -o root -g root -m 0700 /root/.ssh
+  touch /root/.ssh/authorized_keys
+  chown root:root /root/.ssh /root/.ssh/authorized_keys
+  chmod 0700 /root/.ssh
+  chmod 0600 /root/.ssh/authorized_keys
+}
+
+ensure_pubkey_for_root() {
+  local pub_file="$1"
+  local line marker auth tmp
+  auth="/root/.ssh/authorized_keys"
+  line="$(tr -d '\r\n' < "$pub_file")"
+  [ -n "$line" ] || return 0
+
+  if grep -qxF "$line" "$auth" 2>/dev/null; then
+    return 0
+  fi
+
+  marker="$(printf '%s\n' "$line" | grep -oE 'mcp-term-session=[0-9a-fA-F-]{36}' | head -1 || true)"
+  if [ -n "$marker" ] && grep -qF "$marker" "$auth" 2>/dev/null; then
+    tmp="$(mktemp "${auth}.XXXXXX")"
+    grep -vF "$marker" "$auth" > "$tmp" || true
+    cat "$tmp" > "$auth"
+    rm -f "$tmp"
+  fi
+
+  printf '%s\n' "$line" >> "$auth"
+  chown root:root "$auth"
+  chmod 0600 "$auth"
+}
+
+sync_host_exec_keys_to_root() {
+  local secrets_path="$1"
+  local pub_file count=0
+  ensure_root_authorized_keys
+  while IFS= read -r pub_file; do
+    [ -n "$pub_file" ] || continue
+    ensure_pubkey_for_root "$pub_file"
+    count=$((count + 1))
+  done < <(find "$secrets_path" -type f -path '*/.ssh/session_ed25519.pub' 2>/dev/null | sort)
+  if [ "$count" -gt 0 ]; then
+    echo "[INFO] Ensured ${count} host-exec public key(s) in /root/.ssh/authorized_keys"
+  fi
+}
+
+fix_host_exec_secrets_permissions() {
+  local secrets_path
+  secrets_path="$(host_execution_secrets_path)"
+  if [ -z "$secrets_path" ]; then
+    secrets_path="$DEFAULT_SECRETS_PATH"
+  fi
+
+  install -d -o root -g root -m 0700 "$secrets_path"
+  chown root:root "$secrets_path"
+  chmod 0700 "$secrets_path"
+
+  find "$secrets_path" -type d -exec chown root:root {} +
+  find "$secrets_path" -type d -exec chmod 0700 {} +
+  find "$secrets_path" -type f -name 'session_ed25519' -exec chown root:root {} +
+  find "$secrets_path" -type f -name 'session_ed25519' -exec chmod 0600 {} +
+  find "$secrets_path" -type f -name 'session_ed25519.pub' -exec chown root:root {} +
+  find "$secrets_path" -type f -name 'session_ed25519.pub' -exec chmod 0644 {} +
+
+  sync_host_exec_keys_to_root "$secrets_path"
+}
 
 fix_ssh_host_exec_prereqs() {
   local kh_path="$DEFAULT_KNOWN_HOSTS"
@@ -162,6 +253,7 @@ main() {
 
   fix_runtime_dirs
   fix_ssh_host_exec_prereqs
+  fix_host_exec_secrets_permissions
   fix_mtls_permissions
   prepare_watch_and_projects
   verify_service_container_access
