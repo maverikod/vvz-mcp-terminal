@@ -221,6 +221,36 @@ container_create() {
   if [ -d "$ssh_target_home" ]; then
     docker_opts+=(-v "${ssh_target_home}:${ssh_target_home}")
   fi
+  # Bind-mount each configured SSH target user's ~/.ssh so the in-container key
+  # manager writes session public keys to the very file the host sshd reads.
+  # The mcp-terminal-host home is already mounted above; other target users
+  # (e.g. root) whose home is not otherwise shared need their .ssh explicitly.
+  if [ -f "${CONFIG_DIR}/${CONFIG_FILE}" ] && command -v python3 >/dev/null 2>&1; then
+    local tu_ssh
+    while IFS= read -r tu_ssh; do
+      [ -n "$tu_ssh" ] && [ -d "$tu_ssh" ] && docker_opts+=(-v "${tu_ssh}:${tu_ssh}")
+    done < <(python3 - "${CONFIG_DIR}/${CONFIG_FILE}" <<'PY'
+import json, sys, pwd
+try:
+    d = json.load(open(sys.argv[1]))
+    users = (((d.get("terminal") or {}).get("host_execution") or {}).get("ssh") or {}).get("target_users") or []
+except Exception:
+    users = []
+seen = set()
+for u in users:
+    if u in seen:
+        continue
+    seen.add(u)
+    try:
+        home = pwd.getpwnam(u).pw_dir
+    except KeyError:
+        continue
+    if home == "/var/lib/mcp-terminal-host":  # already mounted above
+        continue
+    print(f"{home}/.ssh")
+PY
+)
+  fi
 
   if [ "${MCP_TERMINAL_CONTAINER_USER:-root}" != "root" ]; then
     docker_opts+=(--user "${MCP_TERMINAL_UID}:${MCP_TERMINAL_GID}")
