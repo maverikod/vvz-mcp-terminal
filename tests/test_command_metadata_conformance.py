@@ -89,5 +89,7 @@ def test_server_help_metadata_lists_registered_terminal_commands() -> None:
         assert f"{name}:" in description
 
     assert app_config["registration"]["description"] == description
+    assert app_config["registration"]["version"] == "0.1.31"
+    assert app_config["registration"]["metadata"]["version"] == "0.1.31"
     metadata_commands = app_config["registration"]["metadata"]["commands"]
     assert [entry["name"] for entry in metadata_commands] == command_names

@@ -17,15 +17,14 @@ SKIP_PUSH=0
 SKIP_DEB=0
 SKIP_SANDBOX=0
 DEV_RUN=0
-TAG=""
 
 usage() {
   cat <<'EOF'
-Usage: docker/build.sh [OPTIONS] [VERSION]
+Usage: docker/build.sh [OPTIONS]
 
 Build mcp-terminal Docker image, push to Docker Hub, optionally push sandbox images,
 and build the Debian package.
-VERSION defaults to pyproject.toml version. Image tags: REPO:VERSION and REPO:latest.
+Version is always read from pyproject.toml. Image tags: REPO:VERSION and REPO:latest.
 
 Options:
   --skip-push       Build service image only; do not push to Docker Hub
@@ -53,12 +52,11 @@ while [ $# -gt 0 ]; do
     --dev-run) DEV_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "[ERROR] Unknown option: $1" >&2; usage >&2; exit 1 ;;
-    *) TAG="$1"; shift ;;
+    *) echo "[ERROR] Unexpected argument: $1 (version is read from pyproject.toml)" >&2; usage >&2; exit 1 ;;
   esac
 done
 
-if [ -z "$TAG" ]; then
-  TAG="$(python3 - <<'PY'
+VERSION="$(python3 - <<'PY'
 import re
 from pathlib import Path
 text = Path("pyproject.toml").read_text(encoding="utf-8")
@@ -68,9 +66,8 @@ if not m:
 print(m.group(1))
 PY
 )"
-fi
 
-VERSION_TAG="${DOCKERHUB_REPO}:${TAG}"
+VERSION_TAG="${DOCKERHUB_REPO}:${VERSION}"
 LATEST_TAG="${DOCKERHUB_REPO}:latest"
 
 if [ ! -f "docker/Dockerfile" ]; then
@@ -144,14 +141,14 @@ else
 fi
 
 if [ "$SKIP_DEB" -eq 0 ]; then
-  bash "$SCRIPT_DIR/build-deb.sh" "$TAG"
+  bash "$SCRIPT_DIR/build-deb.sh"
 else
   echo "[INFO] Skipping Debian package build (--skip-deb)"
 fi
 
 if [ "$DEV_RUN" -eq 1 ]; then
   echo "[INFO] Starting local dev container"
-  exec bash "$SCRIPT_DIR/run.sh" "$TAG"
+  exec bash "$SCRIPT_DIR/run.sh" "$VERSION"
 fi
 
-echo "[DONE] build.sh finished (version=$TAG)"
+echo "[DONE] build.sh finished (version=$VERSION)"

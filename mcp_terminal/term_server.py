@@ -27,7 +27,9 @@ from mcp_proxy_adapter.commands.hooks import register_custom_commands_hook
 from mcp_proxy_adapter.config import get_config
 from mcp_proxy_adapter.core.app_factory.ssl_config import build_server_ssl_config
 from mcp_proxy_adapter.core.server_engine import ServerEngineFactory
+from mcp_terminal.commands.info_command import InfoCommand
 from mcp_terminal.commands.terminal_delete_command import TerminalDeleteCommand
+from mcp_terminal.commands.terminal_detach_command import TerminalDetachCommand
 from mcp_terminal.commands.terminal_get_command import TerminalGetCommand
 from mcp_terminal.commands.terminal_get_session_bootstrap_command import (
     TerminalGetSessionBootstrapCommand,
@@ -43,12 +45,16 @@ from mcp_terminal.commands.terminal_read_command import TerminalReadCommand
 from mcp_terminal.commands.terminal_run_command import TerminalRunCommand
 from mcp_terminal.commands.terminal_host_exec_command import TerminalHostExecCommand
 from mcp_terminal.commands.terminal_purge_sessions_command import TerminalPurgeSessionsCommand
+from mcp_terminal.commands.terminal_attach_command import TerminalAttachCommand
 from mcp_terminal.commands.terminal_search_commands_command import (
     TerminalSearchCommandsCommand,
 )
 from mcp_terminal.commands.terminal_search_output_command import (
     TerminalSearchOutputCommand,
 )
+from mcp_terminal.commands.terminal_read_shell_command import TerminalReadShellCommand
+from mcp_terminal.commands.terminal_resize_command import TerminalResizeCommand
+from mcp_terminal.commands.terminal_send_command import TerminalSendCommand
 from mcp_terminal.commands.terminal_session_create_command import (
     TerminalSessionCreateCommand,
 )
@@ -56,6 +62,7 @@ from mcp_terminal.commands.terminal_sessions_command import TerminalSessionsComm
 from mcp_terminal.commands.terminal_stat_command import TerminalStatCommand
 from mcp_terminal.commands.terminal_tail_command import TerminalTailCommand
 from mcp_terminal.paths import default_term_server_config_path
+from mcp_terminal.package_info import package_version
 from mcp_terminal.runtime_context import (
     configure_project_registry_sources,
     set_terminal_services,
@@ -93,10 +100,16 @@ def _install_project_registry(app_config: dict | None, config_path: Path | None)
 _install_project_registry({}, None)
 
 _TERMINAL_COMMAND_TYPES: list[type[Command]] = [
+    InfoCommand,
     TerminalSessionsCommand,
     TerminalSessionCreateCommand,
     TerminalGetSessionBootstrapCommand,
     TerminalRunCommand,
+    TerminalAttachCommand,
+    TerminalSendCommand,
+    TerminalReadShellCommand,
+    TerminalResizeCommand,
+    TerminalDetachCommand,
     TerminalHostExecCommand,
     TerminalListCommand,
     TerminalListWatchCommand,
@@ -147,14 +160,15 @@ def _terminal_server_help_description() -> str:
 def _apply_terminal_server_help_metadata(app_config: dict[str, Any]) -> str:
     """Populate server help/registration metadata from the command list."""
     description = _terminal_server_help_description()
+    version = package_version()
     registration = app_config.setdefault("registration", {})
     if isinstance(registration, dict):
         registration["description"] = description
-        registration.setdefault("version", "0.1.0")
+        registration["version"] = version
         metadata = registration.setdefault("metadata", {})
         if isinstance(metadata, dict):
             metadata["description"] = description
-            metadata.setdefault("version", registration.get("version", "0.1.0"))
+            metadata["version"] = version
             metadata["commands"] = _terminal_command_help_entries()
     return description
 
@@ -318,7 +332,7 @@ def main() -> None:
     app = create_app(
         title="MCP Terminal",
         description=app_description,
-        version="0.1.0",
+        version=package_version(),
         app_config=app_config,
         config_path=str(cfg_path),
     )

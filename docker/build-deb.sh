@@ -14,7 +14,6 @@ OUTPUT_DIR="$SCRIPT_DIR/dist"
 # shellcheck source=dockerhub_repo.sh
 source "$SCRIPT_DIR/dockerhub_repo.sh"
 
-VERSION="${1:-}"
 DOCKERHUB_REPO="$(dockerhub_repo_default)"
 ARCH="${MCP_TERMINAL_DEB_ARCH:-amd64}"
 
@@ -24,8 +23,12 @@ SANDBOX_IMAGE_PYTHON_DEV="$(sandbox_image_python_dev)"
 SANDBOX_IMAGE_NODE_DEV="$(sandbox_image_node_dev)"
 SANDBOX_IMAGE_BASE_TOOLS="$(sandbox_image_base_tools)"
 
-if [ -z "$VERSION" ]; then
-  VERSION="$(python3 - <<'PY'
+if [ $# -gt 0 ]; then
+  echo "[ERROR] build-deb.sh does not accept a version argument; version is read from pyproject.toml" >&2
+  exit 1
+fi
+
+VERSION="$(python3 - <<'PY'
 import re
 from pathlib import Path
 text = Path("pyproject.toml").read_text(encoding="utf-8")
@@ -35,7 +38,6 @@ if not m:
 print(m.group(1))
 PY
 )"
-fi
 
 PKG_NAME="mcp-terminal-docker"
 DEB_FILE="${OUTPUT_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
@@ -85,6 +87,8 @@ mkdir -p "$(dirname "$TEMPLATE_WORK")"
 sed "s|@VERSION@|${VERSION}|g" "$TEMPLATE_SRC" >"$TEMPLATE_WORK"
 install -m 644 "$TEMPLATE_WORK" "$PKG_WORK/usr/share/doc/mcp-terminal-docker/term_server.json.example"
 install -m 644 "$SCRIPT_DIR/README.md" "$PKG_WORK/usr/share/doc/mcp-terminal-docker/README.md"
+install -m 644 "$PROJECT_ROOT/mcp_terminal/docs/INFO.md" \
+  "$PKG_WORK/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md"
 
 MAN_SRC="$DEBIAN_SRC/man"
 INFO_SRC="$DEBIAN_SRC/info"
@@ -94,7 +98,10 @@ for man_page in mcp-terminal-docker.1 mcp-terminal-info.1 mcp-terminal-preflight
 done
 sed "s|@VERSION@|${VERSION}|g" "$MAN_SRC/mcp-terminal-config.5" | gzip -9 -n >"$PKG_WORK/usr/share/man/man5/mcp-terminal-config.5.gz"
 INFO_TEXI_WORK="$(mktemp)"
-sed "s|@VERSION@|${VERSION}|g" "$INFO_SRC/mcp-terminal-docker.texi" >"$INFO_TEXI_WORK"
+python3 "$SCRIPT_DIR/pkg/render-info-texi.py" \
+  --version "$VERSION" \
+  --markdown "$PROJECT_ROOT/mcp_terminal/docs/INFO.md" \
+  --output "$INFO_TEXI_WORK"
 if command -v makeinfo >/dev/null 2>&1; then
   makeinfo --no-split -o "$PKG_WORK/usr/share/info/mcp-terminal-docker.info" "$INFO_TEXI_WORK"
 else

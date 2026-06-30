@@ -1,30 +1,3 @@
-This is mcp-terminal-docker.info, produced by makeinfo version 7.2 from
-tmp.0RDtCgAX2L.
-
-INFO-DIR-SECTION Individual utilities
-START-INFO-DIR-ENTRY
-* mcp-terminal-docker: (mcp-terminal-docker). MCP Terminal Docker host integration
-END-INFO-DIR-ENTRY
-
-
-File: mcp-terminal-docker.info,  Node: Top,  Next: Guide,  Up: (dir)
-
-MCP Terminal Docker Integration
-*******************************
-
-This manual is generated from the same MCP Terminal guide returned by
-the MCP ‘info’ command.  Package version: 0.1.31.
-
-* Menu:
-
-* Guide::
-
-
-File: mcp-terminal-docker.info,  Node: Guide,  Prev: Top,  Up: Top
-
-1 MCP Terminal Guide
-********************
-
 # MCP Terminal — Agent And Operator Guide
 
 ## Purpose
@@ -147,7 +120,7 @@ fails with `WORKSPACE_WRITE_NOT_ALLOWED`.
 Minimal example:
 
 ```json
-@{
+{
   "project_id": "<project-uuid>",
   "session_id": "<ca-session-uuid>",
   "execution_kind": "argv",
@@ -157,7 +130,7 @@ Minimal example:
   "network": "none",
   "keep_container": false,
   "use_venv": false
-@}
+}
 ```
 
 The sandbox image profiles are:
@@ -199,12 +172,12 @@ command on the real host through SSH. It is disabled unless
 Sessionless example:
 
 ```json
-@{
+{
   "execution_kind": "argv",
   "argv": ["hostname"],
   "cwd": "/root",
   "timeout_seconds": 30
-@}
+}
 ```
 
 The response includes `host_run_id`. Use that id for status and output:
@@ -288,15 +261,3 @@ terminal_host_exec -> terminal_get_status -> terminal_read
 Close interactive PTYs with `terminal_detach`. Remove terminal sessions with
 `terminal_delete`. If a Code Analysis Server session was created only for a
 terminal test, delete it with `session_delete`.
-
-
-Tag Table:
-Node: Top251
-Node: Guide533
-
-End Tag Table
-
-
-Local Variables:
-coding: utf-8
-End:

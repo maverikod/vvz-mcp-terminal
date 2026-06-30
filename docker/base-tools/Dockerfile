@@ -8,11 +8,22 @@ RUN apt-get update \
         bash \
         ca-certificates \
         curl \
+        fd-find \
         gawk \
+        git \
         grep \
+        iproute2 \
         jq \
+        less \
+        lsof \
+        net-tools \
         procps \
+        ripgrep \
         sed \
+        tree \
+        wget \
+        yq \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

@@ -39,8 +39,14 @@ Environment:
 Build only the `.deb` (image must already exist at the matching tag):
 
 ```bash
-./docker/build-deb.sh 0.1.0
+./docker/build-deb.sh
 ```
+
+`build.sh` and `build-deb.sh` always read the version from `pyproject.toml`.
+The service image is built and pushed as `<repo>:<version>`, and the Debian
+package writes the same reference into `/usr/lib/mcp-terminal/image-spec`.
+During install or recreate, `mcp-terminal-docker` pulls that image from Docker
+Hub before creating the service container.
 
 ## Install on target host
 
