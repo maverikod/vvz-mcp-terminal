@@ -15,6 +15,7 @@ RUN apt-get update \
         lsof \
         make \
         net-tools \
+        openssl \
         pkg-config \
         procps \
         ripgrep \

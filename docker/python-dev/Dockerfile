@@ -30,6 +30,7 @@ RUN apt-get update \
         make \
         nano \
         net-tools \
+        openssl \
         pkg-config \
         procps \
         ripgrep \
