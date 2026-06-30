@@ -219,7 +219,8 @@
         "head",
         "tail",
         "hostname",
-        "id"
+        "id",
+        "ssh"
       ],
       "ssh": {
         "_doc": [

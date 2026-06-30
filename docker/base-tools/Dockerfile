@@ -17,6 +17,7 @@ RUN apt-get update \
         less \
         lsof \
         net-tools \
+        openssh-client \
         openssl \
         procps \
         ripgrep \

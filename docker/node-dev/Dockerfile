@@ -15,6 +15,7 @@ RUN apt-get update \
         lsof \
         make \
         net-tools \
+        openssh-client \
         openssl \
         pkg-config \
         procps \
