@@ -9,10 +9,10 @@
   "_placeholders": {
     "_doc": "Replace before first start. Service refuses to start while any marker remains.",
     "CHANGE_ME": "server.advertised_host — this host IP or DNS name for MCP proxy registration",
-    "MCP_PROXY_HOST": "registration.* URLs and heartbeat.url — MCP proxy hostname or IP",
     "REPLACE_ON_INSTALL": "registration.instance_uuid — replaced with UUID4 on first install",
     "CODE_ANALYSIS_HOST": "code_analysis.host — casmgr-server hostname or IP (production port 15010)",
-    "WATCH_DIRS_ROOT": "watch_dirs.directories[0] — parent path scanned for project roots (must be bind-mounted)"
+    "WATCH_DIRS_ROOT": "watch_dirs.directories[0] — parent path scanned for project roots (must be bind-mounted)",
+    "_registration_defaults": "registration.register_url/unregister_url/heartbeat.url default to https://172.18.0.1:3004/... (mcp-proxy on the smart-assistant docker host gateway); registration.server_id/metadata.server_id default to the -vvz host suffix (current production host 192.168.254.26). Edit both directly if installing elsewhere."
   },
   "server": {
     "_doc": [
@@ -53,17 +53,22 @@
   "registration": {
     "_doc": [
       "Registers this term server with mcp-proxy-adapter.",
-      "ssl.ca must trust the proxy; use MCP-Proxy CA paths under mtls_certificates/mtls_certificates/."
+      "ssl.ca must trust the proxy; use MCP-Proxy CA paths under mtls_certificates/mtls_certificates/.",
+      "register_url/unregister_url/heartbeat.url default to the mcp-proxy published on the docker",
+      "host gateway (172.18.0.1:3004) of the smart-assistant docker network; override if the proxy",
+      "is reachable at a different address.",
+      "server_id / metadata.server_id ship with the -vvz host suffix used on the current production",
+      "host (192.168.254.26); rename to match the local host when installing elsewhere."
     ],
     "enabled": true,
     "protocol": "https",
-    "register_url": "https://MCP_PROXY_HOST:3004/register",
-    "unregister_url": "https://MCP_PROXY_HOST:3004/unregister",
+    "register_url": "https://172.18.0.1:3004/register",
+    "unregister_url": "https://172.18.0.1:3004/unregister",
     "heartbeat_interval": 30,
-    "server_id": "mcp-terminal",
+    "server_id": "mcp-terminal-vvz",
     "server_name": "MCP Terminal",
     "metadata": {
-      "server_id": "mcp-terminal",
+      "server_id": "mcp-terminal-vvz",
       "server_name": "MCP Terminal",
       "description": "Sandboxed terminal sessions per project: Docker session containers (terminal_run), optional real-host SSH allowlist (terminal_host_exec), shell_state.json (persistent cwd), keep_container for multi-step work.",
       "version": "@VERSION@"
@@ -80,7 +85,7 @@
       "check_hostname": false
     },
     "heartbeat": {
-      "url": "https://MCP_PROXY_HOST:3004/proxy/heartbeat",
+      "url": "https://172.18.0.1:3004/proxy/heartbeat",
       "interval": 30
     }
   },
