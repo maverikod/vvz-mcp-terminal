@@ -7,6 +7,7 @@ from pathlib import Path
 
 from mcp_terminal.commands.info_command import InfoCommand
 from mcp_terminal.commands.info_resources import TERMINAL_INFO_MARKDOWN
+from mcp_terminal.package_info import package_version
 from mcp_terminal.term_server import _TERMINAL_COMMAND_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +23,7 @@ def test_info_command_returns_packaged_markdown() -> None:
     result = asyncio.run(InfoCommand().execute())
     assert result.success is True
     assert result.data["guide_version"] == "1.0"
-    assert result.data["package"]["version"] == "0.1.31"
+    assert result.data["package"]["version"] == package_version()
     assert result.data["markdown"] == TERMINAL_INFO_MARKDOWN
     assert [cmd["name"] for cmd in result.data["registered_commands"]] == [
         cmd_cls.name for cmd_cls in _TERMINAL_COMMAND_TYPES

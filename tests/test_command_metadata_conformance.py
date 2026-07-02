@@ -9,6 +9,7 @@ from typing import Any, Dict, Set
 import pytest
 
 from mcp_terminal.commands.metadata_common import validate_metadata_shape
+from mcp_terminal.package_info import package_version
 from mcp_terminal.term_server import _TERMINAL_COMMAND_TYPES
 
 
@@ -89,7 +90,8 @@ def test_server_help_metadata_lists_registered_terminal_commands() -> None:
         assert f"{name}:" in description
 
     assert app_config["registration"]["description"] == description
-    assert app_config["registration"]["version"] == "0.1.31"
-    assert app_config["registration"]["metadata"]["version"] == "0.1.31"
+    expected_version = package_version()
+    assert app_config["registration"]["version"] == expected_version
+    assert app_config["registration"]["metadata"]["version"] == expected_version
     metadata_commands = app_config["registration"]["metadata"]["commands"]
     assert [entry["name"] for entry in metadata_commands] == command_names
