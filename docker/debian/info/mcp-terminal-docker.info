@@ -1,5 +1,5 @@
 This is mcp-terminal-docker.info, produced by makeinfo version 7.2 from
-tmp.0RDtCgAX2L.
+mcp-terminal-docker.texi.
 
 INFO-DIR-SECTION Individual utilities
 START-INFO-DIR-ENTRY
@@ -13,7 +13,7 @@ MCP Terminal Docker Integration
 *******************************
 
 This manual is generated from the same MCP Terminal guide returned by
-the MCP ‘info’ command.  Package version: 0.1.31.
+the MCP ‘info’ command.  Package version: 0.1.38.
 
 * Menu:
 
@@ -25,17 +25,42 @@ File: mcp-terminal-docker.info,  Node: Guide,  Prev: Top,  Up: Top
 1 MCP Terminal Guide
 ********************
 
-# MCP Terminal — Agent And Operator Guide
+# MCP Terminal - Full API And Operations Guide
 
 ## Purpose
 
-MCP Terminal provides project-scoped terminal access through MCP Proxy. Normal
-work runs inside Docker sandbox containers with a project mounted at
-`/workspace`. A separate, explicitly enabled `terminal_host_exec` path can run
-allowlisted commands on the real host via SSH.
+MCP Terminal exposes a project-aware terminal API through MCP Proxy. It gives
+agents a repeatable way to run commands against a watched project, read output,
+preserve per-session shell state, and clean up resources.
 
-Use this guide as the full reference for the MCP server. For exact schemas, call
-`help(command="<command_name>")`.
+Normal work runs in Docker sandbox containers with the project mounted at
+`/workspace`. Interactive PTY commands attach to an already kept sandbox
+container. A separate, explicitly enabled `terminal_host_exec` path can run
+configured commands on the real host via SSH.
+
+This document is the canonical guide returned by the MCP `info` command and
+installed by the Debian package as
+`/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md`. For exact JSON
+schemas and command-specific examples, call `help(command="<command_name>")`.
+
+## API Contract
+
+The server is an HTTPS MCP adapter service. All public operations are MCP
+commands registered by `mcp_terminal.term_server`; the first command is `info`.
+The `info` command has no parameters and returns:
+
+| Field | Meaning |
+|-------|---------|
+| `guide_version` | Version of this API guide |
+| `package` | Python project, Debian package, and image tag metadata |
+| `summary` | One-line lifecycle reminder |
+| `markdown` | This full guide |
+| `lifecycle` | Ordered high-level workflow steps |
+| `registered_commands` | Live command catalog generated from registered command classes |
+| `docs` | Host-side man/info/documentation paths |
+
+The command catalog is live. It is not a hand-maintained list in `info_command`.
+If a command is added to `_TERMINAL_COMMAND_TYPES`, it appears in `info`.
 
 ## Installed Package
 
@@ -45,11 +70,11 @@ Host-side package commands:
 
 | Command | Role |
 |---------|------|
-| `mcp-terminal-docker status` | Show service status |
+| `mcp-terminal-docker status` | Show systemd/container status and image metadata |
 | `mcp-terminal-docker recreate` | Recreate the service container after config changes |
-| `mcp-terminal-docker info` | Same summary as `mcp-terminal-info` |
+| `mcp-terminal-docker info` | Same operator summary as `mcp-terminal-info` |
 | `mcp-terminal-info` | Host integration summary |
-| `mcp-terminal-preflight` | Validate config, TLS, Docker, and adapter imports |
+| `mcp-terminal-preflight` | Validate config, TLS, Docker, adapter imports, and host integration |
 
 Host-side documentation:
 
@@ -59,8 +84,8 @@ Host-side documentation:
 | `man mcp-terminal-info` | Host integration summary command |
 | `man mcp-terminal-preflight` | Preflight command |
 | `man mcp-terminal-config` | Config file reference |
-| `info mcp-terminal-docker` | GNU info manual |
-| `/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md` | This MCP guide |
+| `info mcp-terminal-docker` | GNU info manual generated from this guide at package build time |
+| `/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md` | This MCP/API guide |
 
 ## Architecture
 
@@ -69,19 +94,38 @@ Proxy. It reads `/etc/mcp-terminal/term_server.json`, discovers projects from
 configured watch directories, and manages `.terminals/<session_id>/` state under
 each project.
 
-Sandbox execution and host execution are intentionally separate:
+The service has three execution targets:
 
-| Target | Command | Boundary |
-|--------|---------|----------|
-| Sandbox | `terminal_run` | Docker container, read-only root, dropped capabilities |
-| Sandbox PTY | `terminal_attach` / `terminal_send` / `terminal_read_shell` | Existing kept sandbox container |
-| Real host | `terminal_host_exec` | SSH to allowlisted host user and command set |
+| Target | Command Family | Boundary |
+|--------|----------------|----------|
+| Sandbox | `terminal_run` | Docker container, project mounted at `/workspace` |
+| Sandbox PTY | `terminal_attach`, `terminal_send`, `terminal_read_shell` | Interactive process inside a kept sandbox container |
+| Real host | `terminal_host_exec` | SSH from the service container to configured host user |
+
+Sandbox and host execution are intentionally separate. `terminal_run` never
+executes directly on the real host. `terminal_host_exec` never uses the sandbox
+container lifecycle.
+
+## Identifiers
+
+MCP Terminal uses three important identifiers:
+
+| Identifier | Source | Used By |
+|------------|--------|---------|
+| `project_id` | Project registry / watch catalog | Project-scoped terminal commands |
+| `session_id` | Code Analysis Server `session_create` result | Project terminal session state |
+| `host_run_id` | Generated by `terminal_host_exec` in sessionless mode | Host execution status/output commands |
+
+For project-scoped sandbox work, use `(project_id, session_id)` everywhere.
+For sessionless host execution, omit both `project_id` and `session_id` when
+calling `terminal_host_exec`; the response includes `host_run_id`, which is then
+used for `terminal_get_status`, `terminal_read`, and `terminal_tail`.
 
 ## Registered Commands
 
 | Command | Role |
 |---------|------|
-| `info` | This guide |
+| `info` | Return this full API and operations guide |
 | `terminal_sessions` | List terminal sessions for a project |
 | `terminal_session_create` | Create or reopen a project/session terminal state |
 | `terminal_get_session_bootstrap` | Read runtime image bootstrap state |
@@ -91,14 +135,14 @@ Sandbox execution and host execution are intentionally separate:
 | `terminal_read_shell` | Read incremental PTY output |
 | `terminal_resize` | Resize an interactive PTY |
 | `terminal_detach` | Stop and detach the PTY |
-| `terminal_host_exec` | Run an allowlisted command on the real host via SSH |
+| `terminal_host_exec` | Run a configured command on the real host via SSH |
 | `terminal_list` | List command history for a session |
 | `terminal_list_watch` | List discovered watch directories and projects |
 | `terminal_registry_refresh` | Rebuild the in-memory project registry |
 | `terminal_get` | Read one command history record |
 | `terminal_read` | Read stdout or stderr bytes for a command |
-| `terminal_search_commands` | Search command history |
-| `terminal_search_output` | Search command output |
+| `terminal_search_commands` | Search command history records |
+| `terminal_search_output` | Search command output text |
 | `terminal_tail` | Tail stdout or stderr lines |
 | `terminal_stat` | Return output file sizes |
 | `terminal_delete` | Delete a terminal session and container |
@@ -106,10 +150,10 @@ Sandbox execution and host execution are intentionally separate:
 | `terminal_kill` | Kill a running sandbox command |
 | `terminal_purge_sessions` | Admin purge of session directories |
 
-## Standard Workflow
+## Standard Project Workflow
 
-Create a real Code Analysis Server session first, then use the same UUID for
-MCP Terminal:
+Create a Code Analysis Server session first, then use the same UUID for MCP
+Terminal:
 
 ```text
 code-analysis-server.session_create -> session_id
@@ -124,16 +168,85 @@ code-analysis-server.session_delete(...)
 `terminal_session_create` validates the Code Analysis Server session and
 registers a subordinate link. Random UUIDs fail with `CLIENT_SESSION_NOT_FOUND`.
 
+The minimum successful loop is:
+
+```json
+@{
+  "project_id": "<project-uuid>",
+  "session_id": "<ca-session-uuid>",
+  "execution_kind": "argv",
+  "argv": ["python", "--version"]
+@}
+```
+
+Then poll:
+
+```json
+@{
+  "project_id": "<project-uuid>",
+  "session_id": "<ca-session-uuid>",
+  "seq": 1
+@}
+```
+
+When final, read output:
+
+```json
+@{
+  "project_id": "<project-uuid>",
+  "session_id": "<ca-session-uuid>",
+  "seq": 1,
+  "stream": "stdout",
+  "max_bytes": 65536
+@}
+```
+
+## Session State
+
+Each project terminal session is stored under:
+
+```text
+<project-root>/.terminals/<session_id>/
+```
+
+Important files:
+
+| File | Meaning |
+|------|---------|
+| `session.json` | Session metadata, timestamps, workspace writer flag |
+| `shell_state.json` | Persisted cwd, session defaults, and optional running container reference |
+| `history.jsonl` | Append-only command index |
+| `NNNNNN.stdout.log` | Stdout for command sequence N |
+| `NNNNNN.stderr.log` | Stderr for command sequence N |
+| `NNNNNN.meta.json` | Exit code, timeout flag, and execution target metadata |
+| `audit.jsonl` | Policy and execution audit records |
+
+`terminal_session_create` does not start a sandbox container. Containers are
+started by `terminal_run`; PTY commands require a container kept alive by a prior
+`terminal_run(..., keep_container=true)`.
+
 ## Sandbox Execution
 
-`terminal_run` is asynchronous. It returns `job_id`, `seq`, and output file
-names immediately. Poll `terminal_get_status` until terminal status is final,
-then read output with `terminal_read` or `terminal_tail`.
+`terminal_run` is asynchronous. It returns `job_id`, `seq`, and output file names
+immediately. Poll `terminal_get_status` until the terminal status is final, then
+read output with `terminal_read` or `terminal_tail`.
 
-Sandbox write modes are enforced in code by `SandboxPolicy` plus the session
-writer lock:
+Sandbox lifecycle for a normal run:
 
-| Mode | `/workspace` | Writes go to | Who can use it |
+1. Resolve `(project_id, session_id)` to a project root and session directory.
+2. Load `shell_state.json` to get persisted cwd and defaults.
+3. Start or reuse a Docker container for the session.
+4. Mount project root at `/workspace`.
+5. Mount session state at `/session-state`.
+6. Run either argv command or shell command.
+7. Capture stdout/stderr into numbered log files.
+8. Save resulting cwd back to `shell_state.json`.
+9. Write metadata and audit records.
+10. Stop/remove the container unless `keep_container` is true.
+
+Sandbox write modes:
+
+| Mode | `/workspace` | Writes Go To | Who Can Use It |
 |------|--------------|--------------|----------------|
 | `read_only` | read-only | `/tmp`, `/scratch`, `/session-state` | any session |
 | `workspace_write` | read-write | project tree plus scratch paths | only the single writer session for a project |
@@ -144,33 +257,35 @@ whose `terminal_session_create` result has `workspace_write: true`; all other
 sessions run `read_only`. A non-writer session that requests `workspace_write`
 fails with `WORKSPACE_WRITE_NOT_ALLOWED`.
 
-Minimal example:
+Sandbox runtime parameters:
 
-```json
-@{
-  "project_id": "<project-uuid>",
-  "session_id": "<ca-session-uuid>",
-  "execution_kind": "argv",
-  "argv": ["python", "--version"],
-  "image_profile": "python_dev_3_12",
-  "mode": "read_only",
-  "network": "none",
-  "keep_container": false,
-  "use_venv": false
-@}
-```
-
-The sandbox image profiles are:
-
-| Profile | Use |
-|---------|-----|
-| `python_dev_3_12` | Python diagnostics, tests, linting, typing |
-| `node_dev_20` | Node projects and basic CLI work |
-| `base_tools` | Generic shell utilities |
+| Parameter | Meaning |
+|-----------|---------|
+| `execution_kind` | `argv` for explicit argument vector, `shell` for shell string |
+| `argv` | Argument list when `execution_kind=argv` |
+| `command` | Shell string when `execution_kind=shell` |
+| `cwd` | Optional project-relative cwd for this run |
+| `keep_container` | Keep container alive for reuse and PTY attach |
+| `use_venv` | Prepend `/workspace/.venv/bin` to PATH without activation scripts |
+| `mode` | `read_only`, `workspace_write`, or `scratch_write` |
+| `network` | `none` or `package_registry` |
+| `image_profile` | `python_dev_3_12`, `node_dev_20`, or `base_tools` |
+| `timeout_seconds` | Max runtime for the command |
 
 The Python profile includes common diagnostics such as `ruff`, `pytest`,
 `pytest-cov`, `coverage`, `mypy`, `flake8`, `black`, `isort`, `pylint`,
 `bandit`, `vulture`, and `radon`.
+
+## Persistent CWD And Virtualenv
+
+`terminal_run` does not create a long-running shell by default. Instead, it
+persists the effective cwd after each command in `shell_state.json`. A shell
+command like `cd tests && pytest -q` causes the next run without `cwd` to start
+in `tests`.
+
+When `use_venv` is true, the service prepends `/workspace/.venv/bin` to PATH.
+It does not run `source .venv/bin/activate`. Console scripts such as `pytest`,
+`mypy`, or project CLIs should work by name when the virtualenv exists.
 
 ## Interactive PTY Workflow
 
@@ -182,21 +297,22 @@ terminal_run(..., keep_container=true)
 terminal_attach(project_id, session_id, command="bash")
 terminal_send(shell_id, "python\n")
 terminal_read_shell(shell_id, offset=0)
+terminal_resize(shell_id, cols=120, rows=40)
 terminal_detach(shell_id)
 terminal_delete(project_id, session_id)
 ```
 
-The PTY can drive shells, Python REPLs, debuggers, and tools that need prompts.
-It does not create a new host execution path and does not accept arbitrary
-container names.
+PTY commands are for prompts, REPLs, debuggers, and interactive tools. They do
+not create a host execution path and do not accept arbitrary container names.
 
 ## Host Execution
 
-`terminal_host_exec` is separate from sandbox execution. It runs an allowlisted
-command on the real host through SSH. It is disabled unless
-`terminal.host_execution.enabled` and SSH settings are configured.
+`terminal_host_exec` is separate from sandbox execution. It runs configured
+commands on the real host through SSH. It is disabled unless
+`terminal.host_execution.enabled`, SSH settings, and either `allowed_commands`
+or `full_access` are configured.
 
-Sessionless example:
+Sessionless host execution:
 
 ```json
 @{
@@ -212,12 +328,46 @@ The response includes `host_run_id`. Use that id for status and output:
 ```text
 terminal_get_status(host_run_id, seq)
 terminal_read(host_run_id, seq, stream="stdout", max_bytes=4096)
+terminal_tail(host_run_id, seq, stream="stderr", lines=100)
 ```
 
 Do not pass your own `host_run_id` to `terminal_host_exec`; it is generated by
 the server.
 
-## Output And Status
+Host execution config:
+
+```json
+@{
+  "terminal": @{
+    "host_execution": @{
+      "enabled": true,
+      "full_access": false,
+      "allowed_commands": ["git", "hostname", "journalctl"],
+      "forbidden_executables_override": null,
+      "secrets_path": "/var/mcp-terminal/secrets",
+      "ssh": @{
+        "host": "host.docker.internal",
+        "port": 22,
+        "target_users": ["mcp-terminal-host"],
+        "known_hosts_path": "/etc/mcp-terminal/ssh_known_hosts",
+        "connect_timeout": 10,
+        "key_manager_script": "/usr/lib/mcp-terminal/manage-session-keys.sh"
+      @}
+    @}
+  @}
+@}
+```
+
+When `full_access` is false, each executable basename must be listed in
+`allowed_commands`, and built-in forbidden-pattern checks apply unless replaced
+with `forbidden_executables_override`.
+
+When `full_access` is true, command allow/deny policy is ignored: `allowed_commands`,
+`forbidden_executables_override`, and the built-in denylist do not restrict the
+requested host command. SSH readiness, `target_user` validation, `secrets_path`
+safety, and session key-material guard still apply.
+
+## Output, Status, And History
 
 Every command has a session-local `seq`. Output is stored as:
 
@@ -231,23 +381,77 @@ Use:
 
 | Command | Use |
 |---------|-----|
-| `terminal_get_status` | Queue state, terminal state, exit code |
+| `terminal_get_status` | Queue state, terminal state, exit code, timeout flag |
 | `terminal_read` | Byte-offset reads; parameter is `max_bytes` |
-| `terminal_tail` | Last N lines |
+| `terminal_tail` | Last N lines from stdout or stderr |
 | `terminal_stat` | Output sizes and file names |
+| `terminal_get` | One history record |
+| `terminal_list` | Recent history records |
+| `terminal_search_commands` | Search by command text/status |
+| `terminal_search_output` | Search stdout/stderr text |
 
 Queue completion does not imply command success. Always check
 `terminal_status`, `exit_code`, and `timed_out`.
 
+## Project Discovery
+
+Projects are discovered under configured `watch_dirs.directories`. A project
+root is a directory containing a `projectid` marker. Use `terminal_list_watch`
+to see currently known watch directories and project ids. Use
+`terminal_registry_refresh` after changing watched files or mount layout.
+
+If a project is missing:
+
+1. Confirm the host path is listed in `watch_dirs.directories`.
+2. Confirm the path is bind-mounted into the service container.
+3. Confirm a `projectid` marker exists.
+4. Call `terminal_registry_refresh`.
+5. Then call `terminal_list_watch` again.
+
+## Configuration Overview
+
+Main config file:
+
+```text
+/etc/mcp-terminal/term_server.json
+```
+
+Important sections:
+
+| Section | Meaning |
+|---------|---------|
+| `server` | HTTPS listener, TLS, advertised host |
+| `registration` | MCP Proxy registration and heartbeat |
+| `queue_manager` | Async command queue settings |
+| `watch_dirs` | Host directories containing project roots |
+| `code_analysis` | JSON-RPC client settings for Code Analysis Server |
+| `terminal.defaults` | Session defaults such as `workspace_write`, `use_venv`, `pid_namespace`, `keep_container` |
+| `terminal.sessions` | TTL and session count limits |
+| `terminal.output` | Output file/read limits |
+| `terminal.commands` | History and tail limits |
+| `terminal.host_execution` | Real-host SSH execution policy |
+| `runtime` | Sandbox image, network, timeout, CPU, memory, and cleanup defaults |
+
+After editing config:
+
+```text
+python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_server.json
+sudo mcp-terminal-docker recreate
+mcp-terminal-preflight
+```
+
 ## Security Model
 
-Sandbox containers use a fixed image allowlist, project-root bind mounts, a
+Sandbox execution uses fixed image profiles, project-root bind mounts, a
 read-only root filesystem, dropped capabilities, `no-new-privileges`, resource
-limits, and controlled network modes.
+limits, controlled network modes, and workspace write locks.
 
-Host execution is intentionally narrower and should remain disabled by default.
-It uses command allowlists, forbidden-pattern checks, key guards, target-user
-validation, and pinned SSH host keys.
+Host execution should remain disabled by default. In restricted mode it uses
+command allowlists, forbidden-pattern checks, key guards, target-user validation,
+pinned SSH host keys, and private session key storage. In `full_access` mode,
+command allow/deny checks are intentionally bypassed, so every MCP caller that
+can invoke this server can request arbitrary host commands as an allowed
+`target_user`.
 
 ## Operational Checks
 
@@ -261,27 +465,85 @@ curl -sk https://127.0.0.1:3011/health
 mcp-terminal-preflight
 ```
 
-Proxy-backed validation should also call the downstream server through MCP
-Proxy, not only `/health`:
+Proxy-backed validation should call the downstream server through MCP Proxy,
+not only `/health`:
 
 ```text
 list_servers -> mcp-terminal
+call_server(server_id="mcp-terminal", command="info")
 call_server(server_id="mcp-terminal", command="help")
 terminal_run -> terminal_get_status -> terminal_read
 terminal_host_exec -> terminal_get_status -> terminal_read
+```
+
+## Common Recipes
+
+Run tests in a read-only sandbox:
+
+```json
+@{
+  "project_id": "<project-uuid>",
+  "session_id": "<session-uuid>",
+  "execution_kind": "shell",
+  "command": "pytest -q",
+  "mode": "read_only",
+  "network": "none",
+  "keep_container": false
+@}
+```
+
+Install dependencies with package network and keep the container:
+
+```json
+@{
+  "project_id": "<project-uuid>",
+  "session_id": "<session-uuid>",
+  "execution_kind": "shell",
+  "command": "python -m pip install -r requirements.txt",
+  "mode": "workspace_write",
+  "network": "package_registry",
+  "keep_container": true
+@}
+```
+
+Use a persistent interactive shell:
+
+```text
+terminal_run(..., command="true", keep_container=true)
+terminal_attach(..., command="bash")
+terminal_send(..., input="pwd\n")
+terminal_read_shell(...)
+terminal_detach(...)
+```
+
+Run a real-host command when host execution is configured:
+
+```json
+@{
+  "execution_kind": "shell",
+  "command": "hostname && id",
+  "cwd": "/root",
+  "timeout_seconds": 30
+@}
 ```
 
 ## Common Errors
 
 | Error | Meaning | Fix |
 |-------|---------|-----|
-| `CLIENT_SESSION_NOT_FOUND` | session_id is not a Code Analysis Server session | Call `session_create` first |
+| `CLIENT_SESSION_NOT_FOUND` | `session_id` is not a Code Analysis Server session | Call `session_create` first |
+| `PROJECT_NOT_FOUND` | Project id is unknown | Use `terminal_list_watch` and refresh registry |
 | `INVALID_SESSION` | Terminal session does not exist | Call `terminal_session_create` |
 | `WORKSPACE_WRITE_NOT_ALLOWED` | Another session holds the writer slot | Reuse/delete the writer session |
-| `INVALID_CWD` | cwd is absolute or escapes the project | Use project-relative cwd |
-| `IMAGE_PROFILE_NOT_ALLOWED` | Unknown sandbox image profile | Use an allowlisted profile |
+| `INVALID_CWD` | Cwd is invalid or escapes the allowed root | Use a project-relative cwd for sandbox or an absolute cwd for sessionless host exec |
+| `IMAGE_PROFILE_NOT_ALLOWED` | Unknown sandbox image profile | Use an allowed profile |
+| `NETWORK_NOT_ALLOWED` | Unknown network mode | Use `none` or `package_registry` |
 | `HOST_EXECUTION_DISABLED` | Host execution config is incomplete or disabled | Use sandbox or enable host exec deliberately |
-| `HOST_COMMAND_NOT_ALLOWED` | Command basename is not allowlisted | Use an allowed command |
+| `HOST_COMMAND_NOT_ALLOWED` | Command basename is not allowed by policy | Use an allowed command or enable `full_access` deliberately |
+| `HOST_FORBIDDEN_COMMAND` | Built-in or configured denylist rejected the command | Remove forbidden syntax or use intentional `full_access` |
+| `TARGET_USER_NOT_ALLOWED` | Requested host SSH user is not configured | Omit `target_user` or add it to config |
+| `HOST_SSH_UNREACHABLE` | SSH connection failed | Check sshd, host, port, network, and known_hosts |
+| `HOST_KEY_ACCESS_FORBIDDEN` | Command references session SSH key material | Do not read/copy private key files |
 
 ## Cleanup
 
@@ -289,10 +551,14 @@ Close interactive PTYs with `terminal_detach`. Remove terminal sessions with
 `terminal_delete`. If a Code Analysis Server session was created only for a
 terminal test, delete it with `session_delete`.
 
+Use `terminal_purge_sessions` only when `terminal.admin.allow_purge_sessions` is
+enabled and you intentionally want server-side cleanup of stale session
+directories.
+
 
 Tag Table:
-Node: Top251
-Node: Guide533
+Node: Top261
+Node: Guide543
 
 End Tag Table
 

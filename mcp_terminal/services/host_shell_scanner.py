@@ -40,8 +40,9 @@ HOST_FORBIDDEN_SUBSTRINGS: FrozenSet[str] = frozenset(
     }
 )
 
-# Always blocked on the host path even if listed in ``allowed_commands`` (C-018).
-# Override entirely via ``terminal.host_execution.forbidden_executables_override``.
+# Blocked on the host path even if listed in ``allowed_commands`` (C-018).
+# Override via ``terminal.host_execution.forbidden_executables_override`` or
+# bypass entirely with ``terminal.host_execution.full_access``.
 DEFAULT_HOST_FORBIDDEN_EXECUTABLES: FrozenSet[str] = frozenset(
     {
         "docker",

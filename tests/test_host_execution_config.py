@@ -51,6 +51,7 @@ def test_generator_includes_host_execution_defaults() -> None:
     cfg = generate_terminal_config({})
     he = cfg["terminal"]["host_execution"]
     assert he["enabled"] is False
+    assert he["full_access"] is False
     assert he["allowed_commands"] == []
     assert he["secrets_path"] == DEFAULT_HOST_EXECUTION_SECRETS_PATH
     assert "ssh" in he
@@ -83,6 +84,19 @@ def test_validator_accepts_enabled_with_ssh() -> None:
     assert validate_terminal_config(cfg) == []
 
 
+def test_generator_accepts_host_execution_full_access() -> None:
+    cfg = generate_terminal_config(
+        {},
+        host_execution_enabled=True,
+        host_execution_full_access=True,
+    )
+    cfg["terminal"]["host_execution"]["ssh"] = dict(_SSH)
+    he = cfg["terminal"]["host_execution"]
+    assert he["full_access"] is True
+    assert he["allowed_commands"] == []
+    assert validate_terminal_config(cfg) == []
+
+
 def test_generator_accepts_host_execution_secrets_path() -> None:
     cfg = generate_terminal_config(
         {},
@@ -99,6 +113,13 @@ def test_validator_rejects_bad_host_execution() -> None:
     cfg["terminal"]["host_execution"]["enabled"] = "yes"
     fields = [e.field for e in validate_terminal_config(cfg)]
     assert "terminal.host_execution.enabled" in fields
+
+
+def test_validator_rejects_non_boolean_full_access() -> None:
+    cfg = generate_terminal_config({})
+    cfg["terminal"]["host_execution"]["full_access"] = "yes"
+    fields = [e.field for e in validate_terminal_config(cfg)]
+    assert "terminal.host_execution.full_access" in fields
 
 
 def test_validator_rejects_non_string_secrets_path() -> None:
@@ -149,6 +170,61 @@ def test_validate_host_run_disabled() -> None:
         v = validate_host_run_request("argv", None, ["casmgr"])
         assert not v.ok
         assert v.error_code == ErrorCode.HOST_EXECUTION_DISABLED
+
+
+def test_validate_host_run_full_access_allows_any_command(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
+    cfg = HostExecutionConfig(
+        enabled=True,
+        full_access=True,
+        allowed_commands=frozenset(),
+        secrets_path=str(secrets_dir),
+        ssh=HostSshConfig(
+            host="127.0.0.1",
+            port=22,
+            target_users=("mcp-terminal-host",),
+            known_hosts_path="/etc/mcp-terminal/ssh_known_hosts",
+            connect_timeout=10,
+            key_manager_script="/usr/lib/mcp-terminal/manage-session-keys.sh",
+        ),
+    )
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "mcp_terminal.services.host_execution_config.get_host_execution_config",
+            lambda: cfg,
+        )
+        shell = validate_host_run_request("shell", "sudo docker ps && rm -rf /tmp/x", None)
+        argv = validate_host_run_request("argv", None, ["kubectl", "get", "pods"])
+    assert shell.ok
+    assert argv.ok
+
+
+def test_full_access_direct_validators_bypass_allowlist_and_denylist() -> None:
+    shell = validate_host_shell_command(
+        "sudo docker ps",
+        frozenset(),
+        frozenset({"sudo", "docker"}),
+        full_access=True,
+    )
+    assert shell.ok
+
+
+def test_full_access_ignores_configured_forbidden_override() -> None:
+    cfg = {
+        "terminal": {
+            "host_execution": {
+                "enabled": True,
+                "full_access": True,
+                "allowed_commands": [],
+                "forbidden_executables_override": ["sudo", "docker"],
+                "ssh": _SSH,
+            }
+        }
+    }
+    he = get_host_execution_config(cfg)
+    assert he.forbidden_executables == frozenset({"sudo", "docker"})
+    assert he.effective_forbidden_executables() == frozenset()
 
 
 def test_key_guard_rejects_private_key_path(tmp_path: Path) -> None:
@@ -214,6 +290,23 @@ def test_is_host_execution_eligible_requires_enabled(tmp_path: Path) -> None:
     assert is_host_execution_eligible("argv", None, ["pytest", "-q"], config=enabled_cfg)
 
 
+def test_is_host_execution_eligible_allows_full_access(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
+    cfg = {
+        "terminal": {
+            "host_execution": {
+                "enabled": True,
+                "full_access": True,
+                "allowed_commands": [],
+                "secrets_path": str(secrets_dir),
+                "ssh": _SSH,
+            }
+        }
+    }
+    assert is_host_execution_eligible("argv", None, ["not-in-allowlist"], config=cfg)
+
+
 def test_host_secrets_path_issue_rejects_empty() -> None:
     assert host_secrets_path_issue("") == "terminal.host_execution.secrets_path is empty"
 
@@ -261,6 +354,15 @@ def test_warn_when_enabled_and_empty_allowlist(caplog: pytest.LogCaptureFixture)
     with caplog.at_level(logging.WARNING):
         warn_if_host_execution_enabled_without_commands(cfg)
     assert HOST_EXECUTION_EMPTY_ALLOWLIST_LOG in caplog.text
+
+
+def test_no_empty_allowlist_warning_when_full_access(caplog: pytest.LogCaptureFixture) -> None:
+    cfg = generate_terminal_config({})
+    cfg["terminal"]["host_execution"]["enabled"] = True
+    cfg["terminal"]["host_execution"]["full_access"] = True
+    with caplog.at_level(logging.WARNING):
+        warn_if_host_execution_enabled_without_commands(cfg)
+    assert HOST_EXECUTION_EMPTY_ALLOWLIST_LOG not in caplog.text
 
 
 def test_parse_ssh_config() -> None:

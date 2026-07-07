@@ -8,6 +8,7 @@ DEFAULT_HOST_EXECUTION_SECRETS_PATH = "/var/mcp-terminal/secrets"
 
 HOST_EXECUTION_CONFIG: Dict[str, Any] = {
     "enabled": False,
+    "full_access": False,
     "allowed_commands": [],
     "forbidden_executables_override": None,
     "secrets_path": DEFAULT_HOST_EXECUTION_SECRETS_PATH,
@@ -22,9 +23,9 @@ HOST_EXECUTION_CONFIG: Dict[str, Any] = {
 }
 
 HOST_EXECUTION_EMPTY_ALLOWLIST_LOG = (
-    "terminal.host_execution.enabled is true but allowed_commands is empty; "
+    "terminal.host_execution.enabled is true but allowed_commands is empty and full_access is false; "
     "add command names (e.g. casmgr, git) to terminal.host_execution.allowed_commands "
-    "to permit host-side execution"
+    "or set terminal.host_execution.full_access=true to permit unrestricted host-side execution"
 )
 
 HOST_EXECUTION_SSH_INCOMPLETE_LOG = (

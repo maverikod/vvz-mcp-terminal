@@ -64,7 +64,7 @@ spawns per-session Docker containers on the host daemon (via mounted \fBdocker.s
 .TP
 .B terminal_host_exec
 Real host execution via SSH. Uses \fBterminal.host_execution\fR (\fBenabled\fR plus
-\fBallowed_commands\fR allowlist and \fBssh\fR settings). The service container runs
+\fBallowed_commands\fR allowlist or \fBfull_access\fR and \fBssh\fR settings). The service container runs
 \fBssh\fR to \fBssh.host\fR as a configured \fBssh.target_users\fR login. Each session
 gets an ephemeral ed25519 key registered in the target user's \fBauthorized_keys\fR
 via \fBmanage-session-keys.sh\fR. Host key verification uses \fBssh.known_hosts_path\fR
@@ -79,8 +79,9 @@ sudo mcp-terminal-docker recreate
 .EE
 .RE
 .PP
-Default \fBhost_execution.enabled\fR is \fBfalse\fR. Enable only when a trusted operator
-explicitly needs host-side tools; keep the allowlist minimal.
+Default \fBhost_execution.enabled\fR and \fBhost_execution.full_access\fR are \fBfalse\fR.
+Enable host execution only when a trusted operator explicitly needs host-side tools;
+keep the allowlist minimal unless full host access is intentionally required.
 .SH PRODUCTION PATHS
 .TP
 .B Configuration
@@ -133,7 +134,7 @@ into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR in
 .TP
 .B terminal
 Terminal domain: session TTL, output limits, cleanup, admin flags, and
-\fBhost_execution\fR (allowlist for \fBterminal_host_exec\fR,
+\fBhost_execution\fR (allowlist or full-access mode for \fBterminal_host_exec\fR,
 \fBforbidden_executables_override\fR, \fBssh.host\fR, \fBssh.port\fR,
 \fBssh.target_users\fR, \fBssh.known_hosts_path\fR, \fBssh.connect_timeout\fR,
 \fBssh.key_manager_script\fR).
@@ -259,6 +260,7 @@ paths into the service container).
   "terminal": {
     "host_execution": {
       "enabled": true,
+      "full_access": false,
       "allowed_commands": ["docker", "systemctl", "journalctl", "git", "hostname"],
       "forbidden_executables_override": [],
       "ssh": {
@@ -275,7 +277,9 @@ paths into the service container).
 .fi
 .PP
 With \fBhost_execution.enabled\fR \fBtrue\fR, \fBterminal_host_exec\fR runs allowlisted
-commands on the real host via SSH as a \fBssh.target_users\fR login. Use
+commands on the real host via SSH as a \fBssh.target_users\fR login. Set
+\fBhost_execution.full_access\fR \fBtrue\fR only when every host command should be
+allowed. Use
 \fBforbidden_executables_override: []\fR when allowlisting \fBdocker\fR or other tools
 blocked by the built-in denylist. Run \fBensure-ssh-target-user.sh\fR on install and
 pin the host key into \fBssh.known_hosts_path\fR before enabling in production.
@@ -288,7 +292,7 @@ Active configuration (conffile).
 Host Docker settings (port, paths, networks, extra binds); not the service JSON.
 .TP
 .B /usr/share/mcp-terminal/term_server.json.template
-Package seed template (placeholders CHANGE_ME, MCP_PROXY_HOST, CODE_ANALYSIS_HOST,
+Package seed template (placeholders CHANGE_ME, CODE_ANALYSIS_HOST,
 WATCH_DIRS_ROOT).
 .SH SEE ALSO
 .BR mcp-terminal-preflight (1),

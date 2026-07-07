@@ -34,7 +34,7 @@ def get_info_metadata(cls: Type[Any]) -> Dict[str, Any]:
                 "example": {
                     "success": True,
                     "data": {
-                        "guide_version": "1.0",
+                        "guide_version": "1.1",
                         "package": {
                             "project_name": "mcp-terminal",
                             "debian_package": "mcp-terminal-docker",

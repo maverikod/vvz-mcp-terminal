@@ -79,6 +79,8 @@ def _collect_host_execution_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if getattr(args, "host_execution_enabled", None) is not None:
         out["host_execution_enabled"] = args.host_execution_enabled
+    if getattr(args, "host_execution_full_access", None) is not None:
+        out["host_execution_full_access"] = args.host_execution_full_access
     if getattr(args, "host_execution_allowed_commands", None) is not None:
         out["host_execution_allowed_commands"] = args.host_execution_allowed_commands
     if getattr(args, "host_execution_secrets_path", None) is not None:
@@ -282,6 +284,13 @@ def main() -> None:
         default=None,
         metavar="BOOL",
         help="terminal.host_execution.enabled",
+    )
+    gen.add_argument(
+        "--host-execution-full-access",
+        type=_optional_bool,
+        default=None,
+        metavar="BOOL",
+        help="terminal.host_execution.full_access (allow any host command)",
     )
     gen.add_argument(
         "--host-execution-allowed-commands",

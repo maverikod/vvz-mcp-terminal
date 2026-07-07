@@ -141,7 +141,10 @@ async def enqueue_host_ssh_terminal_run(
             execution_target="host_ssh",
             resolved_cwd_on_host=effective_cwd,
             use_venv_resolved=use_venv,
-            allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(he.allowed_commands),
+            allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(
+                he.allowed_commands,
+                full_access=he.full_access,
+            ),
             policy_code=validation.error_code,
         )
         return CommandResult(

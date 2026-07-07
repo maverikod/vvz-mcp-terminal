@@ -17,7 +17,7 @@ Adapter now builds help via `build_command_help_payload()` / `merge_command_meta
 - Sets top-level `ai_metadata` to the full `metadata()` dict.
 - Sets `parameters_docs` alias when `parameters` is present (same as the former consumer patch).
 
-`mcp_terminal` depends on **`mcp-proxy-adapter>=8.10.13,<9`** (`pyproject.toml`). The local monkey-patch `registry_metadata_patch.py` was **removed** as redundant.
+`mcp_terminal` depends on **`mcp-proxy-adapter>=8.10.18,<9`** (`pyproject.toml`). The local monkey-patch `registry_metadata_patch.py` was **removed** as redundant.
 
 **Verify:**
 
@@ -134,6 +134,6 @@ Adapter module: `mcp_proxy_adapter/commands/command_help_info.py`
 | Item | Path |
 |------|------|
 | Metadata modules | `mcp_terminal/commands/terminal_run_metadata.py`, `terminal_session_create_metadata.py`, … |
-| Dependency pin | `pyproject.toml` → `mcp-proxy-adapter>=8.10.13,<9` |
+| Dependency pin | `pyproject.toml` -> `mcp-proxy-adapter>=8.10.18,<9` |
 | Metadata standard | `docs/metadatastd.md` |
 | Removed workaround | ~~`registry_metadata_patch.py`~~ (deleted) |

@@ -22,27 +22,30 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
         "author": cls.author,
         "email": cls.email,
         "detailed_description": (
-            "Runs one allowlisted command on the **real host** via SSH. By default it "
+            "Runs one configured command on the **real host** via SSH. By default it "
             "does not require a terminal session; legacy project/session mode is still "
             "accepted when both ``project_id`` and ``session_id`` are supplied. "
             "This command is **separate** from ``terminal_run``, which "
             "always uses the sandbox container lifecycle.\n\n"
             "**Server config (required when enabled):**\n"
             "- ``terminal.host_execution.enabled`` must be ``true`` (default is ``false``).\n"
-            "- ``terminal.host_execution.allowed_commands`` must list executable basenames.\n"
+            "- Either ``terminal.host_execution.allowed_commands`` must list executable "
+            "basenames or ``terminal.host_execution.full_access`` must be ``true``.\n"
             "- ``terminal.host_execution.secrets_path`` must point to an existing private "
             "directory for host-exec SSH key material.\n"
             "- ``terminal.host_execution.ssh`` must define ``host``, ``target_users``, "
             "and ``known_hosts_path`` (StrictHostKeyChecking=yes; no silent host-key bypass).\n"
-            "If host execution is disabled, the allowlist is empty, secrets_path is unsafe, "
-            "or SSH settings are "
+            "If host execution is disabled, allowed_commands is empty while full_access is "
+            "false, secrets_path is unsafe, or SSH settings are "
             "incomplete, the command returns ``HOST_EXECUTION_DISABLED`` before queueing.\n\n"
             "**SSH model:** sessionless host exec uses the stable ``host_exec`` key under "
             "``terminal.host_execution.secrets_path``. Legacy session mode uses the session "
             "key. Commands run as ``target_user`` on the real host sshd — not inside the "
             "service container.\n\n"
-            "**Validation:** allowlist + forbidden-pattern scan + key-guard (commands referencing "
-            "the session private key path are rejected).\n\n"
+            "**Validation:** by default allowlist + forbidden-pattern scan + key-guard "
+            "(commands referencing the session private key path are rejected). With "
+            "``full_access=true``, allowlist and forbidden-pattern checks are bypassed; "
+            "SSH, target_user, secrets_path, and key-guard checks remain active.\n\n"
             "**Asynchronous:** returns immediately with ``job_id`` and ``seq``. Poll "
             "``terminal_get_status``; read output via ``terminal_tail`` / ``terminal_read``.\n\n"
             "**Safety:** host execution modifies the real project tree. Keep ``enabled`` false "
@@ -70,7 +73,7 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "execution_kind": {
                 "description": (
                     "``shell``: run ``command`` string in bash after ``cd`` to saved cwd. "
-                    "``argv``: run explicit argument list (preferred for allowlisted tools)."
+                    "``argv``: run explicit argument list (preferred for configured tools)."
                 ),
                 "type": "string",
                 "required": True,
@@ -79,7 +82,7 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "command": {
                 "description": (
                     "Required when execution_kind is shell. Simple chains allowed when "
-                    "every segment passes allowlist and forbidden checks."
+                    "every segment passes configured policy checks."
                 ),
                 "type": "string",
                 "required": False,
@@ -88,7 +91,7 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "argv": {
                 "description": (
                     "Required when execution_kind is argv. First element is the executable "
-                    "basename checked against the allowlist."
+                    "basename checked against the allowlist unless full_access is true."
                 ),
                 "type": "array",
                 "required": False,
@@ -177,12 +180,13 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "argv": ["hostname"],
                 },
                 "explanation": (
-                    "Requires host_execution enabled, ``hostname`` in allowed_commands, and "
-                    "SSH platzdarm configured. Poll terminal_get_status, then terminal_tail."
+                    "Requires host_execution enabled, either ``hostname`` in allowed_commands "
+                    "or full_access true, and SSH platzdarm configured. Poll "
+                    "terminal_get_status, then terminal_tail."
                 ),
             },
             {
-                "description": "Chained allowlisted commands in shell mode",
+                "description": "Chained configured commands in shell mode",
                 "command": {
                     "project_id": _EXAMPLE_PROJECT,
                     "session_id": _EXAMPLE_SESSION,
@@ -190,8 +194,9 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
                     "command": "pytest -q && git status",
                 },
                 "explanation": (
-                    "Both ``pytest`` and ``git`` must be on the allowlist; forbidden "
-                    "patterns in redirects or heredocs still fail validation."
+                    "Both ``pytest`` and ``git`` must be on the allowlist unless full_access "
+                    "is true; forbidden patterns in redirects or heredocs still fail "
+                    "validation unless full_access is true."
                 ),
             },
         ],
@@ -199,24 +204,27 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
             {
                 "HOST_EXECUTION_DISABLED": {
                     "description": (
-                        "terminal.host_execution.enabled is false, allowed_commands is empty, "
-                        "secrets_path is missing/unsafe, or ssh settings are incomplete."
+                        "terminal.host_execution.enabled is false, allowed_commands is empty "
+                        "while full_access is false, secrets_path is missing/unsafe, or ssh "
+                        "settings are incomplete."
                     ),
                     "message": "HOST_EXECUTION_DISABLED",
                     "solution": (
-                        "Enable host_execution, populate allowed_commands and ssh.target_users, "
-                        "set ssh.known_hosts_path, create secrets_path with 0700 or stricter "
-                        "permissions, then restart. Use terminal_run for sandbox work."
+                        "Enable host_execution, populate allowed_commands or set full_access "
+                        "true, configure ssh.target_users, set ssh.known_hosts_path, create "
+                        "secrets_path with 0700 or stricter permissions, then restart. Use "
+                        "terminal_run for sandbox work."
                     ),
                 },
                 "HOST_COMMAND_NOT_ALLOWED": {
                     "description": (
-                        "Executable basename not in allowed_commands, empty argv/command, or "
-                        "invalid chain segment."
+                        "Executable basename not in allowed_commands while full_access is "
+                        "false, empty argv/command, or invalid chain segment."
                     ),
                     "message": "HOST_COMMAND_NOT_ALLOWED",
                     "solution": (
-                        "Add the tool basename to allowed_commands or simplify the command."
+                        "Add the tool basename to allowed_commands, enable full_access, or "
+                        "simplify the command."
                     ),
                 },
                 "HOST_FORBIDDEN_COMMAND": {
@@ -280,8 +288,9 @@ def get_terminal_host_exec_metadata(cls: Type[Any]) -> Dict[str, Any]:
         ),
         "best_practices": [
             "Keep terminal.host_execution.enabled false by default; enable only as an emergency last line.",
+            "Set terminal.host_execution.full_access true only on hosts where every MCP caller may run every host command.",
             "Use terminal_run for normal project work inside the Docker sandbox.",
-            "Prefer execution_kind argv with an explicit allowlisted executable.",
+            "Prefer execution_kind argv with an explicit configured executable.",
             "Always terminal_session_create before the first terminal_host_exec for a session.",
             "Never reference session SSH key paths in host commands (key-guard rejects them).",
             "Poll terminal_get_status until completed before reading exit_code.",

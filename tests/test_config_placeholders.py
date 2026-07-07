@@ -27,7 +27,9 @@ def test_packaging_template_full_terminal_shape() -> None:
     text = TEMPLATE_PATH.read_text(encoding="utf-8")
     data = json.loads(text)
     assert data["server"]["advertised_host"] == "CHANGE_ME"
-    assert "MCP_PROXY_HOST" in data["registration"]["register_url"]
+    assert data["registration"]["register_url"] == "https://172.18.0.1:3004/register"
+    assert data["registration"]["unregister_url"] == "https://172.18.0.1:3004/unregister"
+    assert data["registration"]["heartbeat"]["url"] == "https://172.18.0.1:3004/proxy/heartbeat"
     assert data["registration"]["instance_uuid"] == "REPLACE_ON_INSTALL"
     assert "terminal" in data
     assert "host_execution" in data["terminal"]
@@ -81,9 +83,22 @@ def test_code_analysis_host_placeholder_always_flagged() -> None:
 def test_list_unresolved_placeholder_hints() -> None:
     hints = list_unresolved_placeholder_hints(TEMPLATE_PATH.read_text(encoding="utf-8"))
     assert "server.advertised_host (CHANGE_ME)" in hints
-    assert "registration URLs (MCP_PROXY_HOST)" in hints
     assert any("code_analysis.host" in hint for hint in hints)
     assert any("WATCH_DIRS_ROOT" in hint for hint in hints)
+
+
+def test_list_unresolved_placeholder_hints_keeps_legacy_proxy_marker() -> None:
+    text = json.dumps(
+        {
+            "registration": {
+                "register_url": "https://MCP_PROXY_HOST:3004/register",
+                "unregister_url": "https://MCP_PROXY_HOST:3004/unregister",
+                "heartbeat": {"url": "https://MCP_PROXY_HOST:3004/proxy/heartbeat"},
+            }
+        }
+    )
+    hints = list_unresolved_placeholder_hints(text)
+    assert "registration URLs (MCP_PROXY_HOST)" in hints
 
 
 def test_all_markers_documented() -> None:

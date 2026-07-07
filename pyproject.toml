@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-terminal"
-version = "0.1.37"
+version = "0.1.39"
 description = "OpenAPI service: terminal in a container with MCP proxy integration."
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
@@ -12,7 +12,7 @@ authors = [
   { name = "Vasiliy Zdanovskiy", email = "vasilyvz@gmail.com" },
 ]
 dependencies = [
-  "mcp-proxy-adapter>=8.10.15,<9",
+  "mcp-proxy-adapter>=8.10.18,<9",
   "code-analysis-client>=1.0.0,<2",
 ]
 

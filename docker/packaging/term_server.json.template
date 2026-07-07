@@ -179,12 +179,13 @@
     },
     "host_execution": {
       "_doc": [
-        "terminal_host_exec — allowlisted commands on the real host via SSH (not the service container).",
+        "terminal_host_exec — configured commands on the real host via SSH (not the service container).",
         "",
         "Default enabled=false. When enabled, set ssh.host (reachable from service container),",
         "ssh.target_users (non-empty), and ssh.known_hosts_path (pinned host key; required).",
         "Ephemeral session keys are registered via manage-session-keys.sh on install/recreate.",
         "secrets_path stores host-exec SSH key material; directory must exist with 0700 or stricter permissions.",
+        "full_access=true permits every requested host command and bypasses allowed_commands plus the built-in denylist.",
         "",
         "forbidden_executables_override:",
         "  null (omit or null) — built-in denylist blocks docker, kubectl, systemctl, sudo, …",
@@ -192,6 +193,7 @@
         "  [\"kubectl\", …]     — custom denylist replaces the built-in list"
       ],
       "enabled": false,
+      "full_access": false,
       "forbidden_executables_override": null,
       "secrets_path": "/var/mcp-terminal/secrets",
       "allowed_commands": [

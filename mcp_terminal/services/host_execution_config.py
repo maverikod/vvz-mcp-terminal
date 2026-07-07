@@ -94,12 +94,15 @@ class HostExecutionConfig:
 
     enabled: bool
     allowed_commands: FrozenSet[str]
+    full_access: bool = False
     forbidden_executables: Optional[FrozenSet[str]] = None
     secrets_path: str = DEFAULT_HOST_EXECUTION_SECRETS_PATH
     ssh: Optional[HostSshConfig] = None
     """When set, replaces ``DEFAULT_HOST_FORBIDDEN_EXECUTABLES`` entirely (empty = none)."""
 
     def effective_forbidden_executables(self) -> FrozenSet[str]:
+        if self.full_access:
+            return frozenset()
         if self.forbidden_executables is not None:
             return self.forbidden_executables
         return HOST_FORBIDDEN_EXECUTABLES
@@ -230,6 +233,10 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
     if not isinstance(enabled, bool):
         enabled = bool(HOST_EXECUTION_CONFIG["enabled"])
 
+    full_access = section.get("full_access", HOST_EXECUTION_CONFIG["full_access"])
+    if not isinstance(full_access, bool):
+        full_access = bool(HOST_EXECUTION_CONFIG["full_access"])
+
     raw_list = section.get("allowed_commands", HOST_EXECUTION_CONFIG["allowed_commands"])
     names: List[str] = []
     if isinstance(raw_list, list):
@@ -244,6 +251,7 @@ def get_host_execution_config(config: Dict[str, Any] | None = None) -> HostExecu
     return HostExecutionConfig(
         enabled=enabled,
         allowed_commands=frozenset(names),
+        full_access=full_access,
         forbidden_executables=forbidden_executables,
         secrets_path=secrets_path,
         ssh=ssh,
@@ -294,14 +302,14 @@ def resolve_target_user(
 def warn_if_host_execution_enabled_without_commands(config: Dict[str, Any]) -> None:
     """Log a reminder when host execution is on but the allowlist is empty."""
     he = get_host_execution_config(config)
-    if he.enabled and not he.allowed_commands:
+    if he.enabled and not he.full_access and not he.allowed_commands:
         _logger.warning(HOST_EXECUTION_EMPTY_ALLOWLIST_LOG)
 
 
 def warn_if_host_ssh_incomplete(config: Dict[str, Any]) -> None:
     """Log when host execution is enabled but SSH settings are incomplete."""
     he = get_host_execution_config(config)
-    if he.enabled and he.allowed_commands and not he.ssh_ready():
+    if he.enabled and (he.full_access or he.allowed_commands) and not he.ssh_ready():
         _logger.warning(HOST_EXECUTION_SSH_INCOMPLETE_LOG)
 
 
@@ -392,6 +400,8 @@ def _validate_segment(
     segment: str,
     allowed_lower: FrozenSet[str],
     forbidden_executables: FrozenSet[str],
+    *,
+    full_access: bool = False,
 ) -> HostCommandValidation:
     exe = segment_executable_name(segment)
     if not exe:
@@ -411,7 +421,7 @@ def _validate_segment(
             segments=(segment,),
         )
 
-    if exe_lower not in allowed_lower:
+    if not full_access and exe_lower not in allowed_lower:
         return HostCommandValidation(
             ok=False,
             error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,
@@ -426,22 +436,29 @@ def validate_host_shell_command(
     command: str,
     allowed_commands: FrozenSet[str],
     forbidden_executables: Optional[FrozenSet[str]] = None,
+    *,
+    full_access: bool = False,
 ) -> HostCommandValidation:
     """Validate every segment of a shell command for host execution."""
     blocked = (
-        forbidden_executables
-        if forbidden_executables is not None
-        else HOST_FORBIDDEN_EXECUTABLES
+        frozenset()
+        if full_access
+        else (
+            forbidden_executables
+            if forbidden_executables is not None
+            else HOST_FORBIDDEN_EXECUTABLES
+        )
     )
     allowed_lower = _allowed_names_lower(allowed_commands)
-    hit = find_forbidden_in_shell_command(command)
-    if hit is not None:
-        forbidden, ctx = hit
-        return HostCommandValidation(
-            ok=False,
-            error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
-            detail=f"{ctx} contains forbidden pattern: {forbidden!r}",
-        )
+    if not full_access:
+        hit = find_forbidden_in_shell_command(command)
+        if hit is not None:
+            forbidden, ctx = hit
+            return HostCommandValidation(
+                ok=False,
+                error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
+                detail=f"{ctx} contains forbidden pattern: {forbidden!r}",
+            )
 
     segments = decompose_shell_command(command)
     if not segments:
@@ -452,7 +469,7 @@ def validate_host_shell_command(
         )
 
     for segment in segments:
-        result = _validate_segment(segment, allowed_lower, blocked)
+        result = _validate_segment(segment, allowed_lower, blocked, full_access=full_access)
         if not result.ok:
             return HostCommandValidation(
                 ok=False,
@@ -468,12 +485,18 @@ def validate_host_argv_command(
     argv: List[str],
     allowed_commands: FrozenSet[str],
     forbidden_executables: Optional[FrozenSet[str]] = None,
+    *,
+    full_access: bool = False,
 ) -> HostCommandValidation:
     """Validate a single argv invocation for host execution."""
     blocked = (
-        forbidden_executables
-        if forbidden_executables is not None
-        else HOST_FORBIDDEN_EXECUTABLES
+        frozenset()
+        if full_access
+        else (
+            forbidden_executables
+            if forbidden_executables is not None
+            else HOST_FORBIDDEN_EXECUTABLES
+        )
     )
     if not argv:
         return HostCommandValidation(
@@ -483,13 +506,14 @@ def validate_host_argv_command(
         )
 
     joined = " ".join(str(x) for x in argv)
-    forbidden = find_forbidden_substring(joined)
-    if forbidden is not None:
-        return HostCommandValidation(
-            ok=False,
-            error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
-            detail=f"argv contains forbidden pattern: {forbidden!r}",
-        )
+    if not full_access:
+        forbidden = find_forbidden_substring(joined)
+        if forbidden is not None:
+            return HostCommandValidation(
+                ok=False,
+                error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
+                detail=f"argv contains forbidden pattern: {forbidden!r}",
+            )
 
     allowed_lower = _allowed_names_lower(allowed_commands)
     exe = Path(str(argv[0])).name
@@ -500,7 +524,7 @@ def validate_host_argv_command(
             error_code=ErrorCode.HOST_FORBIDDEN_COMMAND,
             detail=f"executable {exe!r} is forbidden on host",
         )
-    if exe_lower not in allowed_lower:
+    if not full_access and exe_lower not in allowed_lower:
         return HostCommandValidation(
             ok=False,
             error_code=ErrorCode.HOST_COMMAND_NOT_ALLOWED,
@@ -519,7 +543,7 @@ def validate_host_run_request(
     key_paths: Optional[tuple[Path, Path]] = None,
     target_user: Optional[str] = None,
 ) -> HostCommandValidation:
-    """Require enabled host_execution and validate allowlist / forbidden / key-guard."""
+    """Require enabled host_execution and validate command policy / key-guard."""
     he = get_host_execution_config()
     if not he.enabled:
         return HostCommandValidation(
@@ -530,7 +554,7 @@ def validate_host_run_request(
                 "execution or enable host_execution in config"
             ),
         )
-    if not he.allowed_commands:
+    if not he.full_access and not he.allowed_commands:
         return HostCommandValidation(
             ok=False,
             error_code=ErrorCode.HOST_EXECUTION_DISABLED,
@@ -581,6 +605,7 @@ def validate_host_run_request(
             [str(x) for x in argv],
             he.allowed_commands,
             he.effective_forbidden_executables(),
+            full_access=he.full_access,
         )
 
     if execution_kind != "shell" or not command or not command.strip():
@@ -593,6 +618,7 @@ def validate_host_run_request(
         command.strip(),
         he.allowed_commands,
         he.effective_forbidden_executables(),
+        full_access=he.full_access,
     )
 
 
@@ -608,7 +634,7 @@ def is_host_execution_eligible(
         he = get_host_execution_config(config)
         if (
             not he.enabled
-            or not he.allowed_commands
+            or (not he.full_access and not he.allowed_commands)
             or not he.ssh_ready()
             or not he.secrets_ready()
         ):
@@ -618,12 +644,14 @@ def is_host_execution_eligible(
                 [str(x) for x in argv],
                 he.allowed_commands,
                 he.effective_forbidden_executables(),
+                full_access=he.full_access,
             ).ok
         if execution_kind == "shell" and command and command.strip():
             return validate_host_shell_command(
                 command.strip(),
                 he.allowed_commands,
                 he.effective_forbidden_executables(),
+                full_access=he.full_access,
             ).ok
         return False
     return validate_host_run_request(execution_kind, command, argv).ok
@@ -632,10 +660,11 @@ def is_host_execution_eligible(
 def host_shell_command_is_safe(command: str) -> bool:
     """Backward-compatible: True when shell text passes host chain validation."""
     he = get_host_execution_config()
-    if not he.enabled or not he.allowed_commands:
+    if not he.enabled or (not he.full_access and not he.allowed_commands):
         return False
     return validate_host_shell_command(
         command,
         he.allowed_commands,
         he.effective_forbidden_executables(),
+        full_access=he.full_access,
     ).ok

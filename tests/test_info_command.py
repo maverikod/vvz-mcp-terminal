@@ -22,7 +22,7 @@ def test_info_command_registered_like_ai_editor_style() -> None:
 def test_info_command_returns_packaged_markdown() -> None:
     result = asyncio.run(InfoCommand().execute())
     assert result.success is True
-    assert result.data["guide_version"] == "1.0"
+    assert result.data["guide_version"] == "1.1"
     assert result.data["package"]["version"] == package_version()
     assert result.data["markdown"] == TERMINAL_INFO_MARKDOWN
     assert [cmd["name"] for cmd in result.data["registered_commands"]] == [
@@ -33,6 +33,10 @@ def test_info_command_returns_packaged_markdown() -> None:
     assert "read_only" in result.data["markdown"]
     assert "scratch_write" in result.data["markdown"]
     assert "WORKSPACE_WRITE_NOT_ALLOWED" in result.data["markdown"]
+    assert "API Contract" in result.data["markdown"]
+    assert "Session State" in result.data["markdown"]
+    assert "full_access" in result.data["markdown"]
+    assert "command allow/deny policy is ignored" in result.data["markdown"]
     assert "/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md" in result.data["docs"]
 
 

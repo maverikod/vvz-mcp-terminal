@@ -24,9 +24,13 @@ def session_audit_log_path(session_dir: Path) -> Path:
     return session_dir / "audit.jsonl"
 
 
-def allowed_commands_snapshot_hash(allowed_commands: FrozenSet[str]) -> str:
+def allowed_commands_snapshot_hash(
+    allowed_commands: FrozenSet[str],
+    *,
+    full_access: bool = False,
+) -> str:
     """Stable hash of the active host allowlist at decision time."""
-    payload = "\n".join(sorted(allowed_commands))
+    payload = "__FULL_HOST_ACCESS__" if full_access else "\n".join(sorted(allowed_commands))
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 

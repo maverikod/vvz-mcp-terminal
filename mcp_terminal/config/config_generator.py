@@ -122,6 +122,7 @@ def generate_terminal_config(
     terminal_defaults_keep_container: Optional[bool] = None,
     terminal_admin_allow_purge_sessions: Optional[bool] = None,
     host_execution_enabled: Optional[bool] = None,
+    host_execution_full_access: Optional[bool] = None,
     host_execution_allowed_commands: Optional[List[str]] = None,
     host_execution_forbidden_executables_override: Optional[List[str]] = None,
     host_execution_secrets_path: Optional[str] = None,
@@ -172,6 +173,7 @@ def generate_terminal_config(
         terminal_defaults_keep_container: Overrides ``terminal.defaults.keep_container``.
         terminal_admin_allow_purge_sessions: Overrides ``terminal.admin.allow_purge_sessions``.
         host_execution_enabled: Overrides ``terminal.host_execution.enabled``.
+        host_execution_full_access: Overrides ``terminal.host_execution.full_access``.
         host_execution_allowed_commands: Replaces ``terminal.host_execution.allowed_commands``.
         host_execution_forbidden_executables_override: Replaces
             ``terminal.host_execution.forbidden_executables_override`` (empty list
@@ -293,6 +295,8 @@ def generate_terminal_config(
     he_updates: Dict[str, Any] = {}
     if host_execution_enabled is not None:
         he_updates["enabled"] = bool(host_execution_enabled)
+    if host_execution_full_access is not None:
+        he_updates["full_access"] = bool(host_execution_full_access)
     if host_execution_allowed_commands is not None:
         if not isinstance(host_execution_allowed_commands, list):
             raise TypeError(

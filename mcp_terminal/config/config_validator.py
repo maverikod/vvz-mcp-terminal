@@ -218,6 +218,15 @@ def _validate_host_execution(section: Any) -> List[ValidationError]:
             )
         )
 
+    full_access = section.get("full_access")
+    if full_access is not None and not isinstance(full_access, bool):
+        errors.append(
+            ValidationError(
+                field="terminal.host_execution.full_access",
+                message="full_access must be a boolean",
+            )
+        )
+
     commands = section.get("allowed_commands")
     if commands is not None and not isinstance(commands, list):
         errors.append(

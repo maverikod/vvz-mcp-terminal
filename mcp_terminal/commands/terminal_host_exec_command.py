@@ -1,7 +1,7 @@
 """
-terminal_host_exec: run allowlisted commands on the real host via SSH.
+terminal_host_exec: run configured host commands on the real host via SSH.
 
-Requires ``terminal.host_execution.enabled``, allowlist, and ssh settings.
+Requires ``terminal.host_execution.enabled`` plus allowlist or full_access and ssh settings.
 Use ``terminal_run`` for sandbox container execution.
 
 Author: Vasiliy Zdanovskiy
@@ -44,9 +44,9 @@ class TerminalHostExecCommand(Command):
     name: ClassVar[str] = "terminal_host_exec"
     version: ClassVar[str] = "1.0.0"
     descr: ClassVar[str] = (
-        "Run an allowlisted command on the real host via SSH. Requires "
-        "terminal.host_execution.enabled and ssh settings. Returns job_id and seq; "
-        "poll terminal_get_status."
+        "Run a configured command on the real host via SSH. Requires "
+        "terminal.host_execution.enabled plus allowed_commands or full_access and ssh settings. "
+        "Returns job_id and seq; poll terminal_get_status."
     )
     category: ClassVar[str] = "custom"
     author: ClassVar[str] = "Vasiliy Zdanovskiy"

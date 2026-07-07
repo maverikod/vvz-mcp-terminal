@@ -7,7 +7,7 @@ from typing import Any
 
 from mcp_terminal.package_info import DEBIAN_PACKAGE_NAME, PACKAGE_NAME, package_version
 
-TERMINAL_INFO_GUIDE_VERSION = "1.0"
+TERMINAL_INFO_GUIDE_VERSION = "1.1"
 TERMINAL_INFO_SUMMARY = (
     "CA session_create -> terminal_session_create -> terminal_run -> status/read -> cleanup"
 )
@@ -26,7 +26,7 @@ TERMINAL_INFO_LIFECYCLE = [
     "Run sandbox commands with terminal_run and poll terminal_get_status.",
     "Read command output with terminal_read or terminal_tail.",
     "Attach an interactive PTY only to a kept sandbox container when needed.",
-    "Use terminal_host_exec only for allowlisted real-host commands.",
+    "Use terminal_host_exec only for configured real-host commands.",
     "Clean up with terminal_detach, terminal_delete, and session_delete.",
 ]
 

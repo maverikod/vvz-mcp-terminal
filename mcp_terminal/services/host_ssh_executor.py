@@ -156,7 +156,7 @@ def _classify_ssh_failure(stderr_text: str) -> Optional[str]:
 
 
 class HostSSHExecutor:
-    """Run one allowlisted command on the real host via SSH."""
+    """Run one configured command on the real host via SSH."""
 
     def __init__(self) -> None:
         self._logger = logging.getLogger(__name__)

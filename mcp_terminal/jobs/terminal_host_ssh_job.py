@@ -45,7 +45,7 @@ class HostSSHJobParams:
 
 
 class TerminalHostSSHJob:
-    """Queue job that runs an allowlisted command on the real host via SSH."""
+    """Queue job that runs a configured command on the real host via SSH."""
 
     def __init__(
         self,
@@ -134,7 +134,10 @@ class TerminalHostSSHJob:
             execution_target="host_ssh",
             resolved_cwd_on_host=p.effective_cwd,
             use_venv_resolved=p.use_venv,
-            allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(he.allowed_commands),
+            allowed_commands_snapshot_hash=allowed_commands_snapshot_hash(
+                he.allowed_commands,
+                full_access=he.full_access,
+            ),
             run_as_mode=None,
             effective_uid=None,
             effective_gid=None,
