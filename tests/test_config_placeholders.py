@@ -26,7 +26,7 @@ def test_packaging_template_exists() -> None:
 def test_packaging_template_full_terminal_shape() -> None:
     text = TEMPLATE_PATH.read_text(encoding="utf-8")
     data = json.loads(text)
-    assert data["server"]["advertised_host"] == "CHANGE_ME"
+    assert data["server"]["advertised_host"] == "mcp-terminal"
     assert data["registration"]["register_url"] == "https://172.18.0.1:3004/register"
     assert data["registration"]["unregister_url"] == "https://172.18.0.1:3004/unregister"
     assert data["registration"]["heartbeat"]["url"] == "https://172.18.0.1:3004/proxy/heartbeat"
@@ -82,7 +82,7 @@ def test_code_analysis_host_placeholder_always_flagged() -> None:
 
 def test_list_unresolved_placeholder_hints() -> None:
     hints = list_unresolved_placeholder_hints(TEMPLATE_PATH.read_text(encoding="utf-8"))
-    assert "server.advertised_host (CHANGE_ME)" in hints
+    assert "server.advertised_host (CHANGE_ME)" not in hints
     assert any("code_analysis.host" in hint for hint in hints)
     assert any("WATCH_DIRS_ROOT" in hint for hint in hints)
 
@@ -111,7 +111,7 @@ def test_all_markers_documented() -> None:
 
 
 def test_assert_config_placeholders_resolved_raises() -> None:
-    with pytest.raises(ValueError, match="CHANGE_ME"):
+    with pytest.raises(ValueError, match="CODE_ANALYSIS_HOST"):
         assert_config_placeholders_resolved(
             config_path="/etc/mcp-terminal/term_server.json",
             text=TEMPLATE_PATH.read_text(encoding="utf-8"),

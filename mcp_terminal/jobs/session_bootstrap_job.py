@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP
 from mcp_terminal.services.session_bootstrap import run_session_runtime_bootstrap
 
 
@@ -41,6 +42,7 @@ class SessionBootstrapJob:
             project_id=p.project_id,
             session_dir=p.session_dir,
             image_profile=p.image_profile,
+            stock_image_ref=IMAGE_PROFILE_MAP.get(p.image_profile),
             timeout_seconds=p.timeout_seconds,
         )
         if not br.success:

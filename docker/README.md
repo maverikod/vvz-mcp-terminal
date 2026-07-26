@@ -11,7 +11,7 @@ From the repository root:
 ```bash
 export MCP_TERMINAL_DOCKERHUB_USERNAME=youruser
 export MCP_TERMINAL_DOCKERHUB_TOKEN=...   # optional non-interactive login
-./docker/build.sh
+./build.sh
 ```
 
 Output:
@@ -36,17 +36,30 @@ Environment:
 - `MCP_TERMINAL_SANDBOX_IMAGE_*` — override full sandbox image refs (see `docker/sandbox_images.sh`)
 - `MCP_TERMINAL_DOCKER_NO_CACHE=1` — pass `--no-cache` to service image build
 
+`build.sh` is the canonical root-level entrypoint for a full release build. It
+delegates to `docker/build.sh`, which remains the implementation script.
+
 Build only the `.deb` (image must already exist at the matching tag):
 
 ```bash
 ./docker/build-deb.sh
 ```
 
-`build.sh` and `build-deb.sh` always read the version from `pyproject.toml`.
+Both root `build.sh` and the underlying `docker/build.sh` plus `build-deb.sh`
+always read the version from `pyproject.toml`.
 The service image is built and pushed as `<repo>:<version>`, and the Debian
 package writes the same reference into `/usr/lib/mcp-terminal/image-spec`.
 During install or recreate, `mcp-terminal-docker` pulls that image from Docker
 Hub before creating the service container.
+
+Standard flow:
+
+- Run `./build.sh` from a normal user checkout.
+- Run `sudo dpkg -i ...` and `sudo apt -f install` on the target host for package installation.
+- Run `sudo mcp-terminal-docker recreate` for config or image refreshes that need root-owned Docker mounts.
+- Package installs default `server.advertised_host` to `mcp-terminal`, the Docker DNS
+  name expected on the shared container network; the service still binds to
+  `0.0.0.0` inside the container.
 
 ## Install on target host
 
@@ -113,7 +126,7 @@ Then `sudo mcp-terminal-docker recreate`.
 ## Local dev container
 
 ```bash
-./docker/build.sh --skip-push --skip-deb --skip-sandbox
+./build.sh --skip-push --skip-deb --skip-sandbox
 ./docker/run.sh
 ```
 

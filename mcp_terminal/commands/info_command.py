@@ -13,12 +13,16 @@ from mcp_proxy_adapter.commands.base import Command, CommandResult
 from mcp_terminal.commands.info_metadata import get_info_metadata
 from mcp_terminal.commands.info_resources import (
     TERMINAL_INFO_DOCS,
+    DEFAULT_INFO_PAGE_SIZE,
+    MAX_INFO_PAGE_SIZE,
     TERMINAL_INFO_GUIDE_VERSION,
     TERMINAL_INFO_LIFECYCLE,
     TERMINAL_INFO_MARKDOWN,
     TERMINAL_INFO_SUMMARY,
+    paginate_terminal_info,
     registered_command_entries,
     terminal_package_info,
+    terminal_info_total_pages,
 )
 
 
@@ -40,19 +44,68 @@ class InfoCommand(Command):
     def get_schema(cls) -> Dict[str, Any]:
         return {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 1,
+                    "description": "1-based guide page number.",
+                },
+                "page_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": MAX_INFO_PAGE_SIZE,
+                    "default": DEFAULT_INFO_PAGE_SIZE,
+                    "description": "Number of top-level guide sections per page.",
+                },
+            },
             "required": [],
             "additionalProperties": False,
-            "description": "No parameters; returns the full MCP Terminal guide.",
+            "description": "Returns one paginated slice of the MCP Terminal guide.",
         }
 
     async def execute(self, **kwargs: Any) -> CommandResult:
         kwargs.pop("context", None)
-        if kwargs:
+        allowed = {"page", "page_size"}
+        unknown = sorted(set(kwargs) - allowed)
+        if unknown:
             return CommandResult(
                 success=False,
                 error="VALIDATION_ERROR",
-                data={"field": sorted(kwargs)[0]},
+                data={"field": unknown[0]},
+            )
+        try:
+            page = int(kwargs.get("page", 1))
+            page_size = int(kwargs.get("page_size", DEFAULT_INFO_PAGE_SIZE))
+        except (TypeError, ValueError):
+            return CommandResult(
+                success=False,
+                error="VALIDATION_ERROR",
+                data={"field": "page"},
+            )
+        if page < 1:
+            return CommandResult(
+                success=False,
+                error="VALIDATION_ERROR",
+                data={"field": "page"},
+            )
+        if page_size < 1 or page_size > MAX_INFO_PAGE_SIZE:
+            return CommandResult(
+                success=False,
+                error="VALIDATION_ERROR",
+                data={"field": "page_size"},
+            )
+        try:
+            info_page = paginate_terminal_info(page=page, page_size=page_size)
+        except ValueError:
+            return CommandResult(
+                success=False,
+                error="PAGE_OUT_OF_RANGE",
+                data={
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": terminal_info_total_pages(page_size),
+                },
             )
         return CommandResult(
             success=True,
@@ -60,10 +113,26 @@ class InfoCommand(Command):
                 "guide_version": TERMINAL_INFO_GUIDE_VERSION,
                 "package": terminal_package_info(),
                 "summary": TERMINAL_INFO_SUMMARY,
-                "markdown": TERMINAL_INFO_MARKDOWN,
+                "markdown": info_page.markdown,
                 "lifecycle": TERMINAL_INFO_LIFECYCLE,
                 "registered_commands": registered_command_entries(),
                 "docs": TERMINAL_INFO_DOCS,
+                "sections": [
+                    {
+                        "title": section.title,
+                        "markdown": section.markdown,
+                    }
+                    for section in info_page.sections
+                ],
+                "pagination": {
+                    "page": info_page.page,
+                    "page_size": info_page.page_size,
+                    "total_pages": info_page.total_pages,
+                    "total_sections": info_page.total_sections,
+                    "has_prev": info_page.has_prev,
+                    "has_next": info_page.has_next,
+                },
+                "full_markdown": TERMINAL_INFO_MARKDOWN,
             },
         )
 

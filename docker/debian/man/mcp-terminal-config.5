@@ -31,11 +31,11 @@ python3 -m mcp_terminal.config.config_cli validate -c /etc/mcp-terminal/term_ser
 After edits: \fBsudo mcp-terminal-docker recreate\fR.
 .SH PRODUCTION PLACEHOLDERS
 On first install the package seeds \fB/etc/mcp-terminal/term_server.json\fR from
-\fB/usr/share/mcp-terminal/term_server.json.template\fR with placeholders that
-must be replaced before the service starts (same convention as casmgr-server):
-.TP
-.B CHANGE_ME
-\fBserver.advertised_host\fR — this host's IP or DNS name for MCP proxy registration.
+\fB/usr/share/mcp-terminal/term_server.json.template\fR. In the standard Docker
+deployment the package defaults \fBserver.advertised_host\fR to \fBmcp-terminal\fR,
+the Docker DNS name on the shared network, while the service binds to
+\fB0.0.0.0\fR inside the container. Remaining placeholders must still be replaced
+before the service starts:
 .TP
 .B MCP_PROXY_HOST
 \fBregistration.register_url\fR, \fBunregister_url\fR, \fBheartbeat.url\fR — MCP proxy hostname/IP.
@@ -53,7 +53,7 @@ must be replaced before the service starts (same convention as casmgr-server):
 Must be bind-mounted into the service container via \fBMCP_TERMINAL_EXTRA_BINDS\fR
 in \fI/etc/default/mcp-terminal\fR (same host path inside the container).
 .PP
-The service and \fBmcp-terminal-docker.service\fR will not start while any placeholder
+The service and \fBmcp-terminal-docker.service\fR will not start while any remaining placeholder
 remains. After edits: \fBsudo mcp-terminal-docker recreate\fR.
 .SH EXECUTION MODES
 Two command paths share sessions and shell state but differ in where processes run:

@@ -66,14 +66,35 @@ fi
 mkdir -p "$CONFIG_DIR"
 
 _finalize_instance_uuid() {
+  local instance_uuid=""
   if command -v uuidgen >/dev/null 2>&1; then
-    local instance_uuid
     instance_uuid="$(uuidgen)"
-    sed -i "s/REPLACE_ON_INSTALL/${instance_uuid}/" "$CONFIG"
+  elif command -v python3 >/dev/null 2>&1; then
+    instance_uuid="$(python3 - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)"
   fi
+  if [ -z "$instance_uuid" ]; then
+    echo "[WARN] Could not generate registration.instance_uuid; leaving REPLACE_ON_INSTALL in place" >&2
+    return 0
+  fi
+  sed -i \
+    "0,/\"instance_uuid\": \"REPLACE_ON_INSTALL\"/s//\"instance_uuid\": \"${instance_uuid}\"/" \
+    "$CONFIG"
+}
+
+_finalize_advertised_host() {
+  sed -i \
+    '0,/"advertised_host": "CHANGE_ME"/s//"advertised_host": "mcp-terminal"/' \
+    "$CONFIG"
 }
 
 if [ -f "$CONFIG" ]; then
+  if grep -q '"advertised_host": "CHANGE_ME"' "$CONFIG" 2>/dev/null; then
+    _finalize_advertised_host
+  fi
   if grep -q 'REPLACE_ON_INSTALL' "$CONFIG" 2>/dev/null; then
     _finalize_instance_uuid
     if [ "$(id -u)" -eq 0 ]; then
@@ -95,6 +116,7 @@ if [ -f "$CONFIG" ]; then
 fi
 
 _copy_template_to "$TEMPLATE_SRC" "$CONFIG"
+_finalize_advertised_host
 _finalize_instance_uuid
 if [ "$(id -u)" -eq 0 ]; then
   chown root:"$MCP_TERMINAL_GROUP" "$CONFIG" 2>/dev/null || chown root:root "$CONFIG"

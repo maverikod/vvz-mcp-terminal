@@ -6,4 +6,4 @@ Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.43"

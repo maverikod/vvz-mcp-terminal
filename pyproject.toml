@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-terminal"
-version = "0.1.39"
+version = "0.1.43"
 description = "OpenAPI service: terminal in a container with MCP proxy integration."
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 termgr = "mcp_terminal.termgr:main"
+pipeline = "mcp_terminal.pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

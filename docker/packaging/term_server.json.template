@@ -8,7 +8,7 @@
   ],
   "_placeholders": {
     "_doc": "Replace before first start. Service refuses to start while any marker remains.",
-    "CHANGE_ME": "server.advertised_host — this host IP or DNS name for MCP proxy registration",
+    "_advertised_host_note": "server.advertised_host defaults to the Docker DNS name mcp-terminal; the legacy placeholder token from older installs is still detected on upgraded configs and must be replaced there",
     "REPLACE_ON_INSTALL": "registration.instance_uuid — replaced with UUID4 on first install",
     "CODE_ANALYSIS_HOST": "code_analysis.host — casmgr-server hostname or IP (production port 15010)",
     "WATCH_DIRS_ROOT": "watch_dirs.directories[0] — parent path scanned for project roots (must be bind-mounted)",
@@ -23,7 +23,7 @@
     "port": 3011,
     "protocol": "https",
     "servername": "mcp-terminal",
-    "advertised_host": "CHANGE_ME",
+    "advertised_host": "mcp-terminal",
     "ssl": {
       "cert": "/etc/mcp-terminal/mtls_certificates/server/mcp-proxy.pem",
       "key": "/etc/mcp-terminal/mtls_certificates/server/mcp-proxy.pem",

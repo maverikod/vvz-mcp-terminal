@@ -1,0 +1,15 @@
+[Unit]
+Description=MCP Terminal Docker Service
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/mcp-terminal/docker-run.sh start
+ExecStop=/usr/lib/mcp-terminal/docker-run.sh stop
+ExecReload=/usr/lib/mcp-terminal/docker-run.sh restart
+
+[Install]
+WantedBy=multi-user.target

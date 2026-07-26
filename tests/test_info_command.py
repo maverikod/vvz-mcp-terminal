@@ -20,11 +20,14 @@ def test_info_command_registered_like_ai_editor_style() -> None:
 
 
 def test_info_command_returns_packaged_markdown() -> None:
-    result = asyncio.run(InfoCommand().execute())
+    result = asyncio.run(InfoCommand().execute(page=1, page_size=12))
     assert result.success is True
-    assert result.data["guide_version"] == "1.1"
+    assert result.data["guide_version"] == "1.2"
     assert result.data["package"]["version"] == package_version()
-    assert result.data["markdown"] == TERMINAL_INFO_MARKDOWN
+    assert result.data["full_markdown"] == TERMINAL_INFO_MARKDOWN
+    assert result.data["pagination"]["page"] == 1
+    assert result.data["pagination"]["page_size"] == 12
+    assert result.data["pagination"]["total_pages"] >= 1
     assert [cmd["name"] for cmd in result.data["registered_commands"]] == [
         cmd_cls.name for cmd_cls in _TERMINAL_COMMAND_TYPES
     ]
@@ -34,10 +37,24 @@ def test_info_command_returns_packaged_markdown() -> None:
     assert "scratch_write" in result.data["markdown"]
     assert "WORKSPACE_WRITE_NOT_ALLOWED" in result.data["markdown"]
     assert "API Contract" in result.data["markdown"]
+    assert "Developer CLI" in result.data["markdown"]
+    assert "pipeline --list" in result.data["markdown"]
     assert "Session State" in result.data["markdown"]
     assert "full_access" in result.data["markdown"]
     assert "command allow/deny policy is ignored" in result.data["markdown"]
     assert "/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md" in result.data["docs"]
+
+
+def test_info_command_supports_pagination() -> None:
+    result = asyncio.run(InfoCommand().execute(page=2, page_size=2))
+    assert result.success is True
+    assert result.data["pagination"]["page"] == 2
+    assert result.data["pagination"]["page_size"] == 2
+    assert result.data["pagination"]["has_prev"] is True
+    assert len(result.data["sections"]) == 2
+    assert result.data["markdown"] == "\n\n".join(
+        section["markdown"].strip() for section in result.data["sections"]
+    ).strip() + "\n"
 
 
 def test_info_command_rejects_unknown_params_like_ai_editor() -> None:
@@ -45,6 +62,13 @@ def test_info_command_rejects_unknown_params_like_ai_editor() -> None:
     assert result.success is False
     assert result.error == "VALIDATION_ERROR"
     assert result.data["field"] == "unexpected"
+
+
+def test_info_command_rejects_page_out_of_range() -> None:
+    result = asyncio.run(InfoCommand().execute(page=999, page_size=1))
+    assert result.success is False
+    assert result.error == "PAGE_OUT_OF_RANGE"
+    assert result.data["page"] == 999
 
 
 def test_debian_package_installs_same_info_markdown() -> None:

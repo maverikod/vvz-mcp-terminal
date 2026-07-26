@@ -68,6 +68,7 @@ def run_session_runtime_bootstrap(
     project_id: str,
     session_dir: Path,
     image_profile: str = "python_dev_3_12",
+    stock_image_ref: Optional[str] = None,
     timeout_seconds: int = 1200,
 ) -> SessionBootstrapResult:
     """Ensure per-project runtime image exists; write ``bootstrap.json`` under session_dir."""
@@ -75,6 +76,7 @@ def run_session_runtime_bootstrap(
         project_dir,
         project_id=project_id,
         image_profile=image_profile,
+        stock_image_ref=stock_image_ref,
         build_timeout_seconds=timeout_seconds,
     )
     payload: Dict[str, Any] = {

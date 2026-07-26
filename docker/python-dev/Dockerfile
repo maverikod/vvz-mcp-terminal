@@ -20,7 +20,10 @@ RUN apt-get update \
         build-essential \
         ca-certificates \
         curl \
+        diffutils \
         fd-find \
+        file \
+        gawk \
         git \
         htop \
         iproute2 \
@@ -32,13 +35,21 @@ RUN apt-get update \
         net-tools \
         openssh-client \
         openssl \
+        patch \
+        p7zip-full \
         pkg-config \
         procps \
+        psmisc \
         ripgrep \
+        rsync \
+        sqlite3 \
         tree \
+        unzip \
         vim-tiny \
         wget \
+        xz-utils \
         yq \
+        zip \
     && ln -sf /usr/local/bin/python3 /usr/bin/python3 \
     && ln -sf /usr/local/bin/python3 /usr/bin/python \
     && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
@@ -47,17 +58,24 @@ RUN apt-get update \
 RUN python -m pip install --no-cache-dir \
         bandit \
         black \
+        build \
         coverage \
         flake8 \
         ipython \
         isort \
         mypy \
+        nox \
+        pip-audit \
         pip-tools \
+        pipdeptree \
+        pre-commit \
         pylint \
         pytest \
         pytest-cov \
         radon \
         ruff \
+        tox \
+        wheel \
         vulture
 
 # Contract: agents must be able to create project-local virtualenvs in the sandbox.

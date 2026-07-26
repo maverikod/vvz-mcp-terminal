@@ -8,7 +8,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEBIAN_SRC="$SCRIPT_DIR/debian"
-PKG_WORK="$SCRIPT_DIR/dist/deb-build"
 OUTPUT_DIR="$SCRIPT_DIR/dist"
 
 # shellcheck source=dockerhub_repo.sh
@@ -40,15 +39,29 @@ PY
 )"
 
 PKG_NAME="mcp-terminal-docker"
+PKG_STAGE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/mcp-terminal-deb-build.XXXXXX")"
+PKG_WORK="${PKG_STAGE_ROOT}/${PKG_NAME}"
 DEB_FILE="${OUTPUT_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
+OUTPUT_OWNER=""
+
+cleanup() {
+  rm -rf "$PKG_STAGE_ROOT"
+}
+
+trap cleanup EXIT
+
+if [ "$(id -u)" -eq 0 ]; then
+  OUTPUT_OWNER="$(stat -c '%u:%g' "$PROJECT_ROOT")"
+fi
 
 echo "[INFO] Building Debian package ${PKG_NAME} ${VERSION} (image ${DOCKERHUB_REPO}:${VERSION})"
 
-rm -rf "$PKG_WORK"
 mkdir -p "$PKG_WORK/DEBIAN" "$OUTPUT_DIR"
 cp -a "$DEBIAN_SRC/DEBIAN/"* "$PKG_WORK/DEBIAN/"
 cp -a "$DEBIAN_SRC/etc" "$PKG_WORK/"
-cp -a "$DEBIAN_SRC/lib" "$PKG_WORK/"
+if [ -d "$DEBIAN_SRC/lib" ]; then
+  cp -a "$DEBIAN_SRC/lib" "$PKG_WORK/"
+fi
 
 mkdir -p "$PKG_WORK/usr/lib/mcp-terminal" "$PKG_WORK/usr/bin" "$PKG_WORK/usr/share/mcp-terminal" \
   "$PKG_WORK/usr/share/doc/mcp-terminal-docker" "$PKG_WORK/etc/mcp-terminal/mtls_certificates"
@@ -124,6 +137,10 @@ mv "$PKG_WORK/DEBIAN/control.tmp" "$PKG_WORK/DEBIAN/control"
 chmod 755 "$PKG_WORK/DEBIAN/postinst" "$PKG_WORK/DEBIAN/prerm" "$PKG_WORK/DEBIAN/postrm"
 
 dpkg-deb --build --root-owner-group "$PKG_WORK" "$DEB_FILE"
+
+if [ -n "$OUTPUT_OWNER" ]; then
+  chown "$OUTPUT_OWNER" "$OUTPUT_DIR" "$DEB_FILE"
+fi
 
 echo "[SUCCESS] Debian package: $DEB_FILE"
 ls -lh "$DEB_FILE"

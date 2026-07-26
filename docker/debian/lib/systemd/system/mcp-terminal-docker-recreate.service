@@ -1,0 +1,13 @@
+[Unit]
+Description=Recreate MCP Terminal Docker Container
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/mcp-terminal/docker-run.sh recreate
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

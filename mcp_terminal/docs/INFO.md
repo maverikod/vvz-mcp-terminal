@@ -20,20 +20,30 @@ schemas and command-specific examples, call `help(command="<command_name>")`.
 
 The server is an HTTPS MCP adapter service. All public operations are MCP
 commands registered by `mcp_terminal.term_server`; the first command is `info`.
-The `info` command has no parameters and returns:
+The `info` command accepts optional pagination parameters and returns:
 
 | Field | Meaning |
 |-------|---------|
 | `guide_version` | Version of this API guide |
 | `package` | Python project, Debian package, and image tag metadata |
 | `summary` | One-line lifecycle reminder |
-| `markdown` | This full guide |
+| `markdown` | Paginated markdown for the requested page |
+| `full_markdown` | Full guide when a client needs one-shot export |
 | `lifecycle` | Ordered high-level workflow steps |
 | `registered_commands` | Live command catalog generated from registered command classes |
+| `sections` | Top-level guide sections included in the current page |
+| `pagination` | `page`, `page_size`, `total_pages`, and next/prev flags |
 | `docs` | Host-side man/info/documentation paths |
 
 The command catalog is live. It is not a hand-maintained list in `info_command`.
 If a command is added to `_TERMINAL_COMMAND_TYPES`, it appears in `info`.
+
+The `info` command accepts optional pagination parameters:
+
+| Parameter | Meaning |
+|-----------|---------|
+| `page` | 1-based page number |
+| `page_size` | Number of top-level `##` sections per response |
 
 ## Installed Package
 
@@ -60,12 +70,37 @@ Host-side documentation:
 | `info mcp-terminal-docker` | GNU info manual generated from this guide at package build time |
 | `/usr/share/doc/mcp-terminal-docker/MCP_TERMINAL_INFO.md` | This MCP/API guide |
 
+## Developer CLI
+
+For a source checkout or editable install, the project ships two important CLI
+entrypoints:
+
+| Command | Role |
+|---------|------|
+| `pipeline --list` | Enumerate every named verification check |
+| `pipeline` | Run the entire verification suite available in the current environment |
+| `pipeline <check-name>` | Run a single named check, for example `sandbox_runtime_bootstrap` |
+| `termgr create-config` | Generate a local terminal adapter config under `configs/` |
+| `termgr start` / `termgr restart` / `termgr status` | Manage the dev HTTPS adapter process |
+
+CLI and automation expectations:
+
+- `pipeline` is the only verification entrypoint; do not keep a parallel test runner script.
+- `pipeline live_server_api` is the lightweight deployed-server probe for `/health` and `/openapi.json`.
+- Use `PIPELINE_LIVE_BASE_URL`, `PIPELINE_LIVE_CA_CERT`, and `PIPELINE_LIVE_EXPECT_VERSION` to point `pipeline live_server_api` at a real deployment.
+- `termgr status` is useful for a quick localhost probe, but it is not a replacement for `pipeline`.
+
 ## Architecture
 
 The service container exposes an HTTPS MCP adapter and registers itself in MCP
 Proxy. It reads `/etc/mcp-terminal/term_server.json`, discovers projects from
 configured watch directories, and manages `.terminals/<session_id>/` state under
 each project.
+
+For the Debian package deployment, the service binds to `0.0.0.0` inside the
+container and advertises the Docker DNS name `mcp-terminal` to MCP Proxy by
+default. Keep that default on the shared container network unless you are
+deploying outside it intentionally.
 
 The service has three execution targets:
 
@@ -229,6 +264,12 @@ If `mode` is omitted, `terminal_run` uses `workspace_write` only for a session
 whose `terminal_session_create` result has `workspace_write: true`; all other
 sessions run `read_only`. A non-writer session that requests `workspace_write`
 fails with `WORKSPACE_WRITE_NOT_ALLOWED`.
+
+Commands on the real host (outside the sandbox) go through `terminal_host_exec`
+instead. Host execution is governed by `terminal.host_execution` config: either
+an explicit `allowed_commands` list, or `full_access` mode in which the
+command allow/deny policy is ignored. See the Host Execution section for the
+full contract.
 
 Sandbox runtime parameters:
 
