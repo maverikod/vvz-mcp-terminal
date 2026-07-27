@@ -78,6 +78,46 @@ def test_session_create_enqueues_bootstrap(
     assert state["runtime_image"]["job_id"] == "bootstrap-job-abc"
 
 
+@patch("mcp_terminal.commands.terminal_session_create_command.subordinate_session_create_sync")
+@patch("mcp_terminal.commands.terminal_session_create_command.session_validate_sync")
+@patch("mcp_terminal.commands.terminal_session_create_command.get_config")
+@patch("mcp_terminal.commands.terminal_session_create_command.registry_resolve_project")
+def test_session_create_without_bootstrap_reports_python_env_hint(
+    mock_resolve,
+    mock_get_config,
+    mock_validate,
+    mock_sub_create,
+    tmp_path: Path,
+) -> None:
+    """Bug fa4f51aa: bootstrap=false + no .venv must name the remedy, not stay silent."""
+    mock_get_config.return_value = type(
+        "Cfg",
+        (),
+        {"config_data": {"code_analysis": {}, "registration": {"instance_uuid": "x"}}},
+    )()
+    project_id = "00000000-0000-4000-8000-000000000003"
+    session_id = "00000000-0000-4000-8000-000000000004"
+    mock_resolve.return_value = _FakeResolution(success=True, project_dir=tmp_path)
+    store = SessionStore()
+    set_terminal_services(session_store=store, project_registry=object())  # type: ignore[arg-type]
+
+    result = asyncio.run(
+        TerminalSessionCreateCommand().execute(
+            project_id=project_id,
+            session_id=session_id,
+            bootstrap_python_env=False,
+        )
+    )
+    assert result.success is True
+    assert result.data is not None
+    assert result.data["venv_ready"] is False
+    assert "bootstrap" not in result.data
+    env = result.data["python_env"]
+    assert env["runtime_image"] is None
+    assert "bootstrap_python_env=true" in env["hint"]
+    assert "terminal_get_session_bootstrap" in env["hint"]
+
+
 def test_write_bootstrap_pending(tmp_path: Path) -> None:
     sess = tmp_path / "sess"
     sess.mkdir()

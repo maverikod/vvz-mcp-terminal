@@ -74,6 +74,42 @@ class SessionStore:
         """Return the session for the composite key, or None."""
         return self._sessions.get(self._key(project_id, session_id))
 
+    def adopt_session(
+        self, project_id: str, session_id: str, project_dir: Path
+    ) -> Optional[SessionRecord]:
+        """Return the in-memory session, lazily adopting it from disk.
+
+        The in-memory map is emptied by a server restart while
+        ``.terminals/<session_id>/`` survives on disk (bug e27f23f4:
+        ``terminal_sessions`` listed a session that ``terminal_run`` rejected
+        with INVALID_SESSION). Adopt the on-disk state exactly like
+        ``ensure_session`` does, without creating anything new.
+        """
+        key = self._key(project_id, session_id)
+        existing = self._sessions.get(key)
+        if existing is not None:
+            return existing
+        session_dir = project_dir / self.TERMINALS_DIR / session_id
+        if not session_dir.is_dir():
+            return None
+        self._reconcile_project_writer(project_dir, project_id)
+        rec, err = self._adopt_from_disk(
+            project_id=project_id,
+            session_id=session_id,
+            project_dir=project_dir,
+            session_dir=session_dir,
+        )
+        if err is not None or rec is None:
+            self._logger.warning(
+                "Lazy adoption of session %s for project %s failed: %s",
+                session_id,
+                project_id,
+                err,
+            )
+            return None
+        self._sessions[key] = rec
+        return rec
+
     def ensure_session(
         self,
         *,

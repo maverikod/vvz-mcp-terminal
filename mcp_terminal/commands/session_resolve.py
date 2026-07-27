@@ -12,7 +12,7 @@ from mcp_terminal.code_analysis_sessions import (
     subordinate_session_get_sync,
 )
 from mcp_terminal.errors import ErrorCode
-from mcp_terminal.runtime_context import get_session_store
+from mcp_terminal.runtime_context import get_session_store, registry_resolve_project
 from mcp_terminal.services.session_ids import validate_uuid4_field
 from mcp_terminal.services.session_store import SessionRecord
 
@@ -43,7 +43,18 @@ def resolve_session(
         err = validate_uuid4_field(value, field)
         if err:
             return None, err
-    record = get_session_store().get_session(pid, sid)
+    store = get_session_store()
+    record = store.get_session(pid, sid)
+    if record is None:
+        # Server restart empties the in-memory store while the session
+        # survives on disk (bug e27f23f4) - lazily re-adopt before rejecting.
+        # A registry failure must not mask the INVALID_SESSION answer.
+        try:
+            resolved = registry_resolve_project(pid)
+            if resolved.success and resolved.project_dir is not None:
+                record = store.adopt_session(pid, sid, resolved.project_dir)
+        except Exception:  # noqa: BLE001 - adoption is best-effort
+            record = None
     if record is None:
         return None, ErrorCode.INVALID_SESSION
 

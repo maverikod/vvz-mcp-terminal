@@ -57,6 +57,20 @@ def run_package_config_contract_check() -> int:
     )
 
 
+def run_session_lifecycle_contract_check() -> int:
+    """Run session lifecycle regressions (restart adoption, bootstrap hints)."""
+    return _run(
+        [
+            sys.executable,
+            "-m",
+            "unittest",
+            "-q",
+            "tests.test_session_across_restart",
+            "tests.test_session_bootstrap_queue",
+        ]
+    )
+
+
 def run_pytest_suite_check() -> int:
     """Run the full pytest suite when pytest is available."""
     if importlib.util.find_spec("pytest") is None:

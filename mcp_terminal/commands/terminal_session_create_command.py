@@ -25,6 +25,7 @@ from mcp_terminal.code_analysis_sessions import (
 from mcp_terminal.errors import ErrorCode
 from mcp_terminal.jobs.session_bootstrap_job import SessionBootstrapJob, SessionBootstrapJobParams
 from mcp_terminal.runtime_context import registry_resolve_project, get_session_store
+from mcp_terminal.services.project_runtime_image import runtime_image_summary
 from mcp_terminal.services.session_bootstrap import write_bootstrap_pending
 from mcp_terminal.commands.terminal_session_create_metadata import (
     get_terminal_session_create_metadata,
@@ -246,6 +247,25 @@ class TerminalSessionCreateCommand(Command):
             "python": f"{WORKSPACE_VENV_ROOT}/bin/python" if has_venv and use_venv else None,
             "reminder": _SESSION_CREATE_PYTHON_REMINDER,
         }
+        if not bootstrap and not has_venv:
+            # Bug fa4f51aa: with bootstrap skipped and no .venv the session
+            # silently lacked a project Python env; say so and name the remedy.
+            summary = runtime_image_summary(resolved.project_dir)
+            data["python_env"] = {
+                "runtime_image": summary,
+                "hint": (
+                    "No project Python environment: bootstrap_python_env=false "
+                    "and /workspace/.venv is absent. Re-call "
+                    "terminal_session_create with bootstrap_python_env=true to "
+                    "build the project runtime image from requirements-dev.txt/"
+                    "requirements.txt/pyproject.toml, poll "
+                    "terminal_get_session_bootstrap, then terminal_run executes "
+                    "in that image with the declared dependencies."
+                    if summary is None
+                    else "Existing project runtime image state found; "
+                    "terminal_run uses it when valid (see runtime_image)."
+                ),
+            }
         if bootstrap:
             job_params = SessionBootstrapJobParams(
                 project_id=rec.project_id,
