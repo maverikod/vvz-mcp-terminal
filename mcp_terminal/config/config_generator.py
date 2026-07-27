@@ -49,6 +49,7 @@ TERMINAL_CONFIG_DEFAULTS: Dict[str, Any] = {
     "runtime": {
         "default_image_profile": "python_dev_3_12",
         "default_network": "none",
+        "service_networks": [],
         "timeout_seconds": 60,
         "max_timeout_seconds": 300,
         "memory": "1g",

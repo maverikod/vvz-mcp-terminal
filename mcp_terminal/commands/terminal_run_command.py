@@ -27,6 +27,11 @@ from mcp_terminal.runtime_context import registry_resolve_project, get_session_s
 from mcp_terminal.services.command_history import CommandHistory, CommandRecord
 from mcp_terminal.services.container_runner import ContainerSpec, session_container_user
 from mcp_terminal.services.project_runtime_image import resolve_execution_image
+from mcp_terminal.services.runtime_network import (
+    SERVICE_NETWORK_MODE,
+    resolve_default_network,
+    resolve_service_network_name,
+)
 from mcp_terminal.services.sandbox_policy import IMAGE_PROFILE_MAP, SandboxPolicy
 from mcp_terminal.services.terminal_defaults import (
     resolve_default_keep_container,
@@ -93,8 +98,14 @@ class TerminalRunCommand(Command):
                 },
                 "network": {
                     "type": "string",
-                    "enum": ["none", "package_registry"],
-                    "default": "none",
+                    "enum": ["none", "package_registry", "service"],
+                    "default": "(from runtime.default_network; built-in none)",
+                    "description": (
+                        "none: no egress (bridge when Docker /etc/hosts mappings "
+                        "exist). package_registry: PyPI egress. service: join the "
+                        "Docker network shared with fleet services "
+                        "(runtime.service_network) so their DNS names resolve."
+                    ),
                 },
                 "image_profile": {
                     "type": "string",
@@ -143,7 +154,16 @@ class TerminalRunCommand(Command):
         else:
             keep_container = resolve_default_keep_container()
         use_venv_arg: Optional[bool] = bool(kwargs["use_venv"]) if "use_venv" in kwargs else None
-        network = str(kwargs.get("network", "none"))
+        network = str(kwargs.get("network", resolve_default_network()))
+        if network == SERVICE_NETWORK_MODE and resolve_service_network_name() is None:
+            return CommandResult(
+                success=False,
+                error="SERVICE_NETWORK_NOT_CONFIGURED",
+                data={
+                    "field": "network",
+                    "hint": "set runtime.service_network in server config to the Docker network shared with fleet services",
+                },
+            )
         image_profile = str(kwargs.get("image_profile", "python_dev_3_12"))
         timeout_seconds = int(kwargs.get("timeout_seconds", _DEFAULT_TIMEOUT_S))
 

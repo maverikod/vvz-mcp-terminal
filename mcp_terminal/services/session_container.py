@@ -17,6 +17,10 @@ from typing import List, Optional
 
 from mcp_terminal.services.command_history import CommandHistory
 from mcp_terminal.services.container_runner import ContainerRunner, ContainerSpec
+from mcp_terminal.services.runtime_network import (
+    SERVICE_NETWORK_MODE,
+    resolve_service_network_names,
+)
 from mcp_terminal.services.docker_hosts import (
     docker_run_add_host_args,
     parse_docker_host_mappings,
@@ -105,6 +109,36 @@ def _docker_container_id(name: str) -> Optional[str]:
         return cid or None
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
+
+
+def _connect_extra_service_networks(
+    name: str, spec: ContainerSpec, logger: logging.Logger
+) -> None:
+    """Attach secondary ``runtime.service_networks`` to a started container.
+
+    ``docker run --network`` accepts one network; extra service networks are
+    attached with ``docker network connect``. Failures are logged, not fatal:
+    the primary network is already in place and the command can proceed.
+    """
+    if spec.network_spec != SERVICE_NETWORK_MODE:
+        return
+    for net in resolve_service_network_names()[1:]:
+        try:
+            proc = subprocess.run(
+                ["docker", "network", "connect", net, name],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            if proc.returncode != 0:
+                logger.warning(
+                    "docker network connect %s %s failed: %s",
+                    net,
+                    name,
+                    proc.stderr.decode(errors="replace").strip(),
+                )
+        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            logger.warning("docker network connect %s %s failed: %s", net, name, exc)
 
 
 def stop_session_container(project_id: str, session_id: str) -> bool:
@@ -355,6 +389,7 @@ class SessionContainerExecutor:
             ) as exc:
                 self._logger.error("Session container start failed: %s", exc)
                 return None, False, "failed"
+            _connect_extra_service_networks(name, spec, self._logger)
 
         if not _docker_inspect_running(name):
             return None, False, "failed"

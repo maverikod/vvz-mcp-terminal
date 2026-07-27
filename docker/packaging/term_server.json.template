@@ -248,10 +248,15 @@
   "runtime": {
     "_doc": [
       "terminal_run sandbox defaults — per-session Docker containers on the host daemon.",
-      "Image profiles: python_dev_3_12, node_dev_20, base_tools (see sandbox-images-spec)."
+      "Image profiles: python_dev_3_12, node_dev_20, base_tools (see sandbox-images-spec).",
+      "default_network service + service_networks: sandboxes join the Docker networks",
+      "shared with fleet services so their DNS names (planmgr, mcp-proxy, ...) resolve",
+      "and live-smoke checks reach deployed services directly. First entry is the",
+      "primary (docker run --network); the rest are attached via docker network connect."
     ],
     "default_image_profile": "python_dev_3_12",
-    "default_network": "none",
+    "default_network": "service",
+    "service_networks": ["smart-assistant"],
     "timeout_seconds": 60,
     "max_timeout_seconds": 300,
     "memory": "1g",

@@ -16,6 +16,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Sequence
 
+from mcp_terminal.services.runtime_network import (
+    SERVICE_NETWORK_MODE,
+    resolve_service_network_name,
+)
+
 logger = logging.getLogger(__name__)
 
 _DOCKER_IPV4_NETWORK = ipaddress.ip_network("172.16.0.0/12")
@@ -91,10 +96,18 @@ def resolve_container_network_mode(network_spec: str) -> str:
     """
     Map policy ``network_spec`` to ``docker run --network`` value.
 
+    ``service`` joins the Docker network shared with fleet services
+    (``runtime.service_network``), so their DNS names resolve inside the
+    sandbox; when that name is not configured, fall back to ``bridge``
+    (``terminal_run`` validates the configuration up front and rejects
+    ``service`` requests before reaching this fallback).
+
     When policy is ``none`` but the host has Docker-bridge ``/etc/hosts``
     entries, use ``bridge`` so those IPs are reachable (``--add-host`` alone
     is not enough with ``--network none``).
     """
+    if network_spec == SERVICE_NETWORK_MODE:
+        return resolve_service_network_name() or "bridge"
     if network_spec != "none":
         return "bridge"
     if parse_docker_host_mappings():

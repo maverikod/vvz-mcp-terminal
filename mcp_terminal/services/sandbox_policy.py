@@ -70,7 +70,7 @@ class PolicyConfig:
     allowed_modes: FrozenSet[str]
     """Permitted mount modes: read_only, workspace_write, scratch_write."""
     allowed_network_modes: FrozenSet[str]
-    """Permitted network modes in MVP: none, package_registry."""
+    """Permitted network modes: none, package_registry, service."""
     allowed_image_profiles: FrozenSet[str]
     """Server-side image profile allowlist (e.g. python_dev_3_12)."""
     safe_path_prefixes: FrozenSet[str]
@@ -79,7 +79,7 @@ class PolicyConfig:
 
 DEFAULT_POLICY_CONFIG: PolicyConfig = PolicyConfig(
     allowed_modes=frozenset({"read_only", "workspace_write", "scratch_write"}),
-    allowed_network_modes=frozenset({"none", "package_registry"}),
+    allowed_network_modes=frozenset({"none", "package_registry", "service"}),
     allowed_image_profiles=frozenset({"python_dev_3_12", "node_dev_20", "base_tools"}),
     safe_path_prefixes=frozenset({"/usr/bin", "/usr/local/bin", "/bin", "/usr/sbin"}),
 )
@@ -106,7 +106,7 @@ class NetworkSpec:
     """Network config for a container (C-010); from SandboxPolicy.build_network_spec()."""
 
     mode: str
-    """Validated network mode: 'none' or 'package_registry'."""
+    """Validated network mode: 'none', 'package_registry', or 'service'."""
     allow_egress: bool
     """True when mode is 'package_registry'; False for 'none'."""
     allowed_hosts: FrozenSet[str]
@@ -121,6 +121,13 @@ PACKAGE_REGISTRY_NETWORK_SPEC: NetworkSpec = NetworkSpec(
     allow_egress=True,
     allowed_hosts=frozenset({"pypi.org", "files.pythonhosted.org"}),
 )
+SERVICE_NETWORK_SPEC: NetworkSpec = NetworkSpec(
+    mode="service",
+    allow_egress=True,
+    allowed_hosts=frozenset(),
+)
+"""Sandbox joins the Docker network shared with fleet services
+(``runtime.service_network``), so service DNS names resolve inside it."""
 
 
 @dataclass(frozen=True)
@@ -334,6 +341,8 @@ class SandboxPolicy:
             return DEFAULT_NETWORK_SPEC, None
         if network == "package_registry":
             return PACKAGE_REGISTRY_NETWORK_SPEC, None
+        if network == "service":
+            return SERVICE_NETWORK_SPEC, None
         return None, self._fail(
             "NETWORK_MODE_NOT_ALLOWED",
             "network",
