@@ -9,6 +9,7 @@ from mcp_terminal.pipeline.checks.python_contracts import (
     run_package_config_contract_check,
     run_pipeline_cli_contract_check,
     run_pytest_suite_check,
+    run_sandbox_docker_build_contract_check,
     run_session_lifecycle_contract_check,
     run_sandbox_runtime_bootstrap_check,
     run_sandbox_toolchain_contract_check,
@@ -40,6 +41,11 @@ PIPELINE_CHECKS: tuple[Check, ...] = (
         name="package_config_contract",
         description="Contract tests that Debian install preserves customized term_server.json.",
         runner=run_package_config_contract_check,
+    ),
+    Check(
+        name="sandbox_docker_build_contract",
+        description="dind sandbox docker builds: config resolver, DOCKER_HOST injection, packaging, docs.",
+        runner=run_sandbox_docker_build_contract_check,
     ),
     Check(
         name="session_lifecycle_contract",

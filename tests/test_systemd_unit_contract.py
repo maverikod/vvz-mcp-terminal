@@ -42,6 +42,16 @@ class SystemdUnitContractTests(unittest.TestCase):
         self.assertNotIn("Restart=", text.replace("RestartSec=", ""))
         self.assertNotIn("RestartSec=", text)
 
+    def test_dind_service_is_oneshot_and_uses_docker_run(self) -> None:
+        service = ROOT / "docker/debian/lib/systemd/system/mcp-terminal-dind-docker.service"
+        self.assertTrue(service.is_file())
+        text = service.read_text(encoding="utf-8")
+        self.assertIn("Type=oneshot", text)
+        self.assertIn("RemainAfterExit=yes", text)
+        self.assertIn("ExecStart=/usr/lib/mcp-terminal/docker-run.sh dind-start", text)
+        self.assertIn("ExecStop=/usr/lib/mcp-terminal/docker-run.sh dind-stop", text)
+        self.assertNotIn("Restart=", text)
+
     def test_recreate_service_uses_docker_run_recreate(self) -> None:
         text = (
             ROOT / "docker/debian/lib/systemd/system/mcp-terminal-docker-recreate.service"

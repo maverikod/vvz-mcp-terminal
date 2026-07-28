@@ -381,6 +381,57 @@ When `full_access` is true, command allow/deny policy is ignored: `allowed_comma
 requested host command. SSH readiness, `target_user` validation, `secrets_path`
 safety, and session key-material guard still apply.
 
+## Sandbox Docker Builds
+
+Sandboxes can build and run Docker images. The technology is Docker-in-Docker
+(dind): a docker CLI never builds anything itself — it sends the job to a
+docker daemon. Sandbox containers deliberately have **no access to the host
+docker daemon** (`/var/run/docker.sock` is on the sandbox denylist), so the
+package ships a dedicated build daemon instead:
+
+- `mcp-terminal-dind` — a `docker:dind` container installed and managed by
+  this package (`mcp-terminal-dind-docker.service`;
+  `mcp-terminal-docker dind-start|dind-stop|dind-recreate`). It joins the
+  service docker network only and publishes no host ports.
+- Every sandbox image profile ships `/usr/local/bin/docker` (client only).
+- When `runtime.docker_host` is set (packaged default
+  `tcp://mcp-terminal-dind:2375`), `terminal_run` injects it into the sandbox
+  as the `DOCKER_HOST` environment variable. The CLI picks it up
+  automatically — scripts do not need to pass `-H`.
+
+What this means for build scripts running under `terminal_run`:
+
+- `docker build`, `docker tag`, `docker images`, `docker run`, `docker push`
+  work unchanged — they execute on the dind daemon. A typical
+  `docker/build.sh` needs **no modification** for its build stage.
+- Requires the `service` network mode (the packaged default): the dind
+  daemon is only reachable inside the service docker network. With
+  `network: "none"` there is no route and docker commands fail to connect.
+- Layer cache and built images persist in the dind volume
+  (`mcp-terminal-dind-storage`) across sandbox sessions and dind restarts —
+  repeat builds are incremental.
+- The image namespace is **separate from the host daemon**: images built in
+  the sandbox do not appear in `docker images` on the host and cannot
+  overwrite fleet images. To deliver an image to the host or a registry:
+  `docker push` from the sandbox (registry credentials required), or export
+  via `docker save` and load on the host with `terminal_host_exec`
+  (`docker load`).
+- `docker run` of a just-built image executes **inside dind**: fine for
+  smoke tests (`docker run --rm image pytest ...`); it cannot mount project
+  paths from `/workspace` (dind does not see the sandbox filesystem — copy
+  needed files into the image at build time or use `docker cp`).
+- Not available inside dind: host devices, host networking, volumes from the
+  host. Publishing ports binds inside the dind container, not on the host.
+
+Failure modes and remedies:
+
+| Symptom | Cause | Remedy |
+|---------|-------|--------|
+| `docker: command not found` | Sandbox image predates docker CLI | Rebuild/pull current sandbox images (`pull-sandbox-images.sh`) |
+| `Cannot connect to the Docker daemon` | `runtime.docker_host` unset, dind down, or network mode is not `service` | Set `runtime.docker_host`, `systemctl start mcp-terminal-dind-docker`, use `network: "service"` |
+| Image built but absent on host | By design: dind storage is separate | `docker push`, or `docker save` + `docker load` via `terminal_host_exec` |
+| Disk growth on dind volume | Layer cache accumulates | `docker system prune` from any sandbox, or `mcp-terminal-docker dind-recreate` |
+
 ## Output, Status, And History
 
 Every command has a session-local `seq`. Output is stored as:

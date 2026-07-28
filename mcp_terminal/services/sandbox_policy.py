@@ -15,6 +15,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, FrozenSet, Optional
 
+from mcp_terminal.services.runtime_network import resolve_docker_host
+
 
 class TrustCategory(Enum):
     """Categories of entities in the trust classification schema."""
@@ -370,6 +372,11 @@ class SandboxPolicy:
             "TMPDIR": "/tmp",
             "PATH": "/usr/local/bin:/usr/bin:/bin",
         }
+        docker_host = resolve_docker_host()
+        if docker_host is not None:
+            # Sandbox docker builds: the in-image docker CLI targets the fleet
+            # dind daemon, never the host docker daemon (see runtime_network).
+            safe_env["DOCKER_HOST"] = docker_host
         resolved_exe: Optional[str]
         if execution_kind == "shell":
             resolved: list = ["bash", "-lc", command or ""]

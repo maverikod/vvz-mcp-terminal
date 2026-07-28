@@ -11,6 +11,11 @@
 
 FROM python:3.12-slim-bookworm
 
+# Docker CLI for sandbox image builds. The client talks to the fleet dind
+# daemon via DOCKER_HOST (runtime.docker_host, injected by terminal_run);
+# the host docker daemon stays unreachable from sandboxes.
+COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
+
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1
 

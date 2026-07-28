@@ -1,0 +1,17 @@
+[Unit]
+Description=MCP Terminal sandbox build daemon (Docker-in-Docker)
+Documentation=man:mcp-terminal-config(5)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+Before=mcp-terminal-docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/mcp-terminal/docker-run.sh dind-start
+ExecStop=/usr/lib/mcp-terminal/docker-run.sh dind-stop
+ExecReload=/usr/lib/mcp-terminal/docker-run.sh dind-recreate
+
+[Install]
+WantedBy=multi-user.target

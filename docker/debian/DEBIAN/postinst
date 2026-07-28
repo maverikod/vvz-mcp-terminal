@@ -307,6 +307,8 @@ case "${1:-}" in
     systemctl daemon-reload
     systemctl enable mcp-terminal-docker.service 2>/dev/null || true
     systemctl enable mcp-terminal-docker-recreate.service 2>/dev/null || true
+    systemctl enable mcp-terminal-dind-docker.service 2>/dev/null || true
+    systemctl start mcp-terminal-dind-docker.service 2>/dev/null || true
     if config_ready_for_container; then
       if upgrade_container_to_package_image \
         && systemctl start mcp-terminal-docker.service 2>/dev/null; then

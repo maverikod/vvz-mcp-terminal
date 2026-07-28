@@ -50,6 +50,7 @@ TERMINAL_CONFIG_DEFAULTS: Dict[str, Any] = {
         "default_image_profile": "python_dev_3_12",
         "default_network": "none",
         "service_networks": [],
+        "docker_host": "",
         "timeout_seconds": 60,
         "max_timeout_seconds": 300,
         "memory": "1g",

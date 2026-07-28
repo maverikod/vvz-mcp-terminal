@@ -3,6 +3,9 @@
 
 FROM node:20-bookworm-slim
 
+# Docker CLI for sandbox image builds (DOCKER_HOST -> fleet dind daemon).
+COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \

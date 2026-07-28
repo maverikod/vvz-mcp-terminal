@@ -74,3 +74,19 @@ def resolve_service_network_name() -> Optional[str]:
     """Return the primary service network (first of ``service_networks``)."""
     names = resolve_service_network_names()
     return names[0] if names else None
+
+
+def resolve_docker_host() -> Optional[str]:
+    """Return ``runtime.docker_host`` — the sandbox build daemon endpoint.
+
+    Sandboxes carry a docker CLI; when this is set (e.g.
+    ``tcp://mcp-terminal-dind:2375``) terminal_run injects it as DOCKER_HOST so
+    ``docker build``/``docker run`` inside the sandbox talk to the fleet dind
+    daemon. The daemon lives on the service docker network, so this only works
+    for sessions using the ``service`` network mode. ``None`` when unset.
+    """
+    raw = _runtime_section().get("docker_host")
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    return value or None

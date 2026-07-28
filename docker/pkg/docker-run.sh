@@ -344,14 +344,74 @@ cmd_recreate() {
   echo "[SUCCESS] Container $CONTAINER_NAME recreated (port=$PORT)"
 }
 
+# --- Docker-in-Docker build daemon for sandboxes ------------------------------
+# Sandboxes carry a docker CLI and DOCKER_HOST pointing at this dind container
+# (runtime.docker_host in term_server.json). Builds run inside dind; the host
+# docker daemon stays unreachable from sandboxes. Image storage persists in a
+# named volume across dind restarts. The dind container is NOT published on any
+# host port: it is reachable only inside the service docker network.
+
+DIND_CONTAINER_NAME="${MCP_TERMINAL_DIND_CONTAINER:-mcp-terminal-dind}"
+DIND_IMAGE="${MCP_TERMINAL_DIND_IMAGE:-docker:dind}"
+DIND_VOLUME="${MCP_TERMINAL_DIND_VOLUME:-mcp-terminal-dind-storage}"
+DIND_ENABLE="${MCP_TERMINAL_DIND_ENABLE:-1}"
+
+dind_create() {
+  docker rm -f "$DIND_CONTAINER_NAME" 2>/dev/null || true
+  local -a dind_opts=(
+    --name "$DIND_CONTAINER_NAME"
+    --privileged
+    --restart=always
+    -e DOCKER_TLS_CERTDIR=
+    -v "${DIND_VOLUME}:/var/lib/docker"
+  )
+  if [ -n "$NETWORK" ]; then
+    docker_ensure_network "$NETWORK"
+    dind_opts+=(--network "$NETWORK")
+  fi
+  echo "[INFO] Creating dind build daemon (image=$DIND_IMAGE, volume=$DIND_VOLUME, network=${NETWORK:-default})"
+  docker create "${dind_opts[@]}" "$DIND_IMAGE"
+}
+
+cmd_dind_start() {
+  if [ "$DIND_ENABLE" != "1" ]; then
+    echo "[INFO] dind disabled (MCP_TERMINAL_DIND_ENABLE!=1); skipping"
+    return 0
+  fi
+  ensure_docker_ready
+  if ! docker ps -a --format '{{.Names}}' | grep -qx "$DIND_CONTAINER_NAME"; then
+    if ! docker image inspect "$DIND_IMAGE" >/dev/null 2>&1; then
+      docker pull "$DIND_IMAGE"
+    fi
+    dind_create
+  fi
+  docker start "$DIND_CONTAINER_NAME"
+  echo "[SUCCESS] dind build daemon $DIND_CONTAINER_NAME started"
+}
+
+cmd_dind_stop() {
+  docker stop "$DIND_CONTAINER_NAME" 2>/dev/null || true
+}
+
+cmd_dind_recreate() {
+  docker pull "$DIND_IMAGE" || true
+  cmd_dind_stop
+  dind_create
+  docker start "$DIND_CONTAINER_NAME"
+  echo "[SUCCESS] dind build daemon $DIND_CONTAINER_NAME recreated"
+}
+
 case "${1:-start}" in
   start) cmd_start ;;
   stop) cmd_stop ;;
   restart) cmd_restart ;;
   recreate) cmd_recreate ;;
   pull) pull_image_from_spec ;;
+  dind-start) cmd_dind_start ;;
+  dind-stop) cmd_dind_stop ;;
+  dind-recreate) cmd_dind_recreate ;;
   *)
-    echo "Usage: $0 {start|stop|restart|recreate|pull}" >&2
+    echo "Usage: $0 {start|stop|restart|recreate|pull|dind-start|dind-stop|dind-recreate}" >&2
     exit 1
     ;;
 esac

@@ -61,7 +61,18 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
             "or run for system Python only.\n\n"
             "For host-side tools (e.g. ``casmgr`` against a host daemon), use "
             "``terminal_host_exec`` when ``terminal.host_execution.enabled`` is set in "
-            "config — not this command."
+            "config — not this command.\n\n"
+            "**Docker builds (dind):** the sandbox image ships a docker CLI, and when "
+            "``runtime.docker_host`` is configured (packaged default "
+            "``tcp://mcp-terminal-dind:2375``) each run gets ``DOCKER_HOST`` injected "
+            "automatically. ``docker build`` / ``docker run`` / ``docker push`` then "
+            "execute on the fleet Docker-in-Docker daemon — never on the host daemon. "
+            "Requires the ``service`` network mode (default). Images and layer cache "
+            "live in dind's own storage: they do not appear on the host; deliver via "
+            "``docker push`` or ``docker save`` + ``terminal_host_exec`` ``docker load``. "
+            "``docker run`` of a built image executes inside dind and cannot mount "
+            "``/workspace`` paths. Full guide: ``info`` command, section "
+            "'Sandbox Docker Builds'."
         ),
         "parameters": {
             "project_id": {
@@ -340,6 +351,12 @@ def get_terminal_run_metadata(cls: Type[Any]) -> Dict[str, Any]:
             (
                 "Call terminal_delete when done to remove the session container "
                 "and .terminals directory."
+            ),
+            (
+                "docker build/run/push work against the fleet dind daemon via the "
+                "injected DOCKER_HOST (network mode service required); images stay in "
+                "dind storage — push or docker save + host_exec docker load to deliver. "
+                "See info section 'Sandbox Docker Builds'."
             ),
         ],
     }

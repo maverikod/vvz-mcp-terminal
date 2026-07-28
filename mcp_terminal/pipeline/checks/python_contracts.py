@@ -71,6 +71,11 @@ def run_session_lifecycle_contract_check() -> int:
     )
 
 
+def run_sandbox_docker_build_contract_check() -> int:
+    """Run dind sandbox-docker-build contract tests (config, env, packaging, docs)."""
+    return _run_unittest_module("tests.test_sandbox_docker_builds")
+
+
 def run_pytest_suite_check() -> int:
     """Run the full pytest suite when pytest is available."""
     if importlib.util.find_spec("pytest") is None:

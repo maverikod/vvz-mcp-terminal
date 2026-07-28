@@ -252,11 +252,15 @@
       "default_network service + service_networks: sandboxes join the Docker networks",
       "shared with fleet services so their DNS names (planmgr, mcp-proxy, ...) resolve",
       "and live-smoke checks reach deployed services directly. First entry is the",
-      "primary (docker run --network); the rest are attached via docker network connect."
+      "primary (docker run --network); the rest are attached via docker network connect.",
+      "docker_host: DOCKER_HOST injected into sandboxes so their docker CLI builds on",
+      "the packaged dind daemon (mcp-terminal-dind-docker.service), not the host daemon.",
+      "Empty string disables sandbox docker builds."
     ],
     "default_image_profile": "python_dev_3_12",
     "default_network": "service",
     "service_networks": ["smart-assistant"],
+    "docker_host": "tcp://mcp-terminal-dind:2375",
     "timeout_seconds": 60,
     "max_timeout_seconds": 300,
     "memory": "1g",
