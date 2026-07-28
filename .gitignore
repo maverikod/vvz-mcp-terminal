@@ -111,3 +111,5 @@ projectid
 # Debian package payload is source, not a build artifact (negate global lib/ above)
 !docker/debian/lib/
 !docker/debian/lib/**
+
+.env
