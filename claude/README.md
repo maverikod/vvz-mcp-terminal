@@ -3,7 +3,7 @@
 `../CLAUDE.md` is the entrypoint. This directory contains the project-bound
 Claude contract bundle.
 
-Package version: `v1.6.3`
+Package version: `v1.6.8`
 
 ## Layout
 
@@ -16,7 +16,7 @@ Package version: `v1.6.3`
 ## Project bindings
 
 - Project: `mcp-terminal`
-- Local checkout: `/home/testuser/projects/mcp-terminal`
+- Local checkout: `/home/vasilyvz/projects/tools/mcp_terminal`
 - CAS project ID: `37382ce3-beff-4161-9ddf-362d0460ccf3`
 - CAS server: `code-analysis-server-vvz`
 
