@@ -1,6 +1,6 @@
 # mcp-terminal - Codex operating contract
 
-**Prompts template:** `codex-prompts-v1` rev **1.6.2** (2026-07-26)
+**Prompts template:** `codex-prompts-v1` rev **1.6.12** (2026-07-31)
 
 This file is the Codex entrypoint. The root must read these files itself at the
 start of a task:
@@ -15,7 +15,9 @@ relative prompt-package reference against `codex/`.
 ## Project profile
 
 - Project: `mcp-terminal`
-- Local checkout: `/home/testuser/projects/mcp-terminal`
+- Local checkout: `/home/vasilyvz/projects/tools/mcp_terminal`
+- Default file-access profile: `local` (only the user may switch it).
+- Deployment host: `root@192.168.254.26`.
 - CAS project ID: `37382ce3-beff-4161-9ddf-362d0460ccf3`
 - CAS server: `code-analysis-server-vvz`
 
