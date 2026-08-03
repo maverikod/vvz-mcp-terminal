@@ -5,6 +5,9 @@ email: vasilyvz@gmail.com
 
 # Project overlay — `mcp_terminal` (this repository)
 
+> The operating contract for agents is [`CLAUDE.md`](../../CLAUDE.md) and the `claude/`
+> package. This overlay only records repository-specific paths and restrictions.
+
 Repository-specific paths, behavior, and restrictions. Universal layout: [`PROJECT_RULES.md`](../PROJECT_RULES.md) §3 (`LAYOUT-*`).
 
 ## Functional context

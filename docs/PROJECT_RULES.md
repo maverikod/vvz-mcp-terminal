@@ -1,22 +1,25 @@
 <!--
-Template: project rules for any repository.
-On project bootstrap, fill §0 and keep IDs (CR-*, LAYOUT-*, NAME-*) stable.
-Author line above: set to project owner after copy, or remove if unused.
+Author: Vasiliy Zdanovskiy
+email: vasilyvz@gmail.com
 -->
 
-# Project rules (canonical template)
+# Repository conventions (mcp-terminal)
 
-Use rule IDs: `CR-*`, `LAYOUT-*`, `NAME-*`, `PLAN-*`, `ADP-*` (e.g. `CR-007`, `PLAN-01`).
+**The operating contract for agents is [`CLAUDE.md`](../CLAUDE.md) and the `claude/` package next
+to it.** This file is not a contract and does not govern how an agent works: it records the house
+conventions of THIS repository — profile keys, layout, naming — that the contract deliberately does
+not fix. If the two ever disagree, `CLAUDE.md` and `claude/` win.
 
-Optional: [`docs/assistant_rules_inventory.md`](assistant_rules_inventory.md) for MCP, transcripts, §24–§25.
-
-**Planning stack:** §8 (`PLAN-*`). **Adapter commands:** §9 (`ADP-*`). Cursor applies matching rules from `.cursor/rules/planning_workflow.mdc` and `.cursor/rules/adapter_command_standard.mdc` when globs hit those paths.
-
-Active subagent file in `.cursor/agents/*.md` overrides conflicting rows in this document for that role.
+The rule system this file came from has been removed: the `.cursor/agents/` role pack, the
+precedence table that ranked those roles above this file, the required-agent rule that halted work
+when a role could not be spawned, and the rules that merely repeated the contract (literal task
+execution, repository boundary, answering questions in chat, commit/push discipline, parallel
+work). Rule IDs of the surviving rows are unchanged so existing documents that cite them still
+resolve.
 
 ---
 
-## 0. Project profile (fill once per repository)
+## 1. Project profile
 
 Replace placeholders when **creating** or **adopting** a project. Models should write this table on first scaffold.
 
@@ -36,40 +39,21 @@ Replace placeholders when **creating** or **adopting** a project. Models should 
 
 ---
 
-## 1. Precedence (highest first)
-
-| Rank | Layer |
-|------|--------|
-| 1 | **Current user message** — explicit instruction wins. |
-| 2 | **Safety / repo boundary** — `CR-002`. |
-| 3 | **Active subagent role** — `.cursor/agents/<name>.md` if present. |
-| 4 | **This file** — `CR-*`, `LAYOUT-*`, `NAME-*`, §0 profile, **§8–§9** (`PLAN-*`, `ADP-*`). |
-| 5 | **Scoped IDE rules** — `.cursor/rules/planning_workflow.mdc` / `adapter_command_standard.mdc` when the active file matches their globs (same normative content as §8–§9 + linked docs). |
-| 6 | **`docs/assistant_rules_inventory.md`** — if present. |
-| 7 | Tool / IDE defaults. |
-
----
-
-## 2. Core rules (`CR-*`)
+## 2. Engineering conventions (`CR-*`)
 
 | ID | P | Rule |
 |----|---|------|
-| **CR-001** | 0 | Execute the **current task** literally; do not skip or dilute stacked instructions. |
-| **CR-002** | 0 | **Do not modify paths outside this repository** without explicit user permission. |
 | **CR-003** | 0 | If the profile requires a **project id file** (e.g. `projectid` JSON with `id` UUID4 + `description`): it must exist and be valid. Missing/invalid → **stop and report** to the user. |
-| **CR-004** | 0 | **Questions** (analysis-only): answer in **chat**, not unsolicited files. Durable docs/bugs/plans only when the task is to write them. |
 | **CR-005** | 1 | **Python / venv:** use **`VENV_DIR`** (default `.venv` in repo root). It must be **active** before `python`, `pip`, tests, and linters. On **`ModuleNotFoundError`**, missing dependency, wrong interpreter path, or **`pip install` / environment errors**: **first** verify activation (`which python`, `$VIRTUAL_ENV` on Unix, or Windows equivalents); activate (`source <VENV_DIR>/bin/activate` or project script) and **retry** — do not treat “package missing” as proven until the interpreter is confirmed to be the venv’s. |
 | **CR-015** | 0 | **Forbidden:** `pip install --break-system-packages` and other **PEP 668** / externally-managed-environment **override** flags **unless** the user **explicitly authorizes that exact shell command** in this conversation (silence or “fix it” is **not** permission). |
 | **CR-006** | 1 | If `USE_CODE_MAP` = `yes`: after each **logically finished** structural change (split file, remove symbol + references, new package), refresh the project index (e.g. `code_mapper` → `code_analysis/`). If the tool is missing, state that clearly. |
-| **CR-007** | 1 | After changing production code, run the repo’s **required linters/formatters/typecheckers** on touched paths (for Python template defaults: `black`, `flake8`, `mypy`) and fix findings. Adjust in §0 if the stack differs. |
-| **CR-008** | 1 | **Module size (Python default):** ~**350** lines → prefer split; **≤ ~400** → acceptable; **≥ ~450** → **must** split. For other languages, define limits in §0. |
+| **CR-007** | 1 | After changing production code, run the repo’s **required linters/formatters/typecheckers** on touched paths (for Python template defaults: `black`, `flake8`, `mypy`) and fix findings. Adjust in §1 if the stack differs. |
+| **CR-008** | 1 | **Module size (Python default):** ~**350** lines → prefer split; **≤ ~400** → acceptable; **≥ ~450** → **must** split. For other languages, define limits in §1. |
 | **CR-009** | 1 | **Documentation in code:** modules, classes, and public functions/methods need docstrings (or equivalent); parameters and returns typed or described; non-obvious logic: short comments. **Abstract** API → language-appropriate failure (`NotImplementedError`, `abc.abstractmethod`, etc.) — not a silent stub. |
 | **CR-010** | 1 | **Chat** in `CHAT_LOCALE`; **repository artifacts** in `ARTIFACT_LOCALE` unless the user specifies a document language. |
-| **CR-011** | 2 | **Version control:** commit after a logical batch; **push** only when the user asks. |
 | **CR-012** | 2 | **Headers:** in each required file type, include `HEADER_AUTHOR` and `HEADER_EMAIL` (or project’s standard header block). |
 | **CR-013** | 2 | **Imports / includes** at top of file unless lazy-loading is intentional. |
 | **CR-014** | 3 | If the project defines numeric **log importance** (0–10), use the project scale consistently. |
-| **CR-016** | 1 | **Parallelism:** where **dependencies allow**, run **independent** work **in parallel** (parallel delegations, parallel specialist tasks, parallel waves). **Do not** serialize independent subtasks without a **stated** dependency or resource reason. Orchestrators **must** decompose so unrelated units can execute **concurrently** when the runtime supports it (see also full-stack caps in `.cursor/agents/orchestrator.md` where applicable). |
 
 **P:** **0** governance / stop, **1** quality, **2** hygiene, **3** optional classification.
 
@@ -77,11 +61,11 @@ Replace placeholders when **creating** or **adopting** a project. Models should 
 
 ## 3. Repository layout (`LAYOUT-*`)
 
-Default for new projects; adjust in §0 if monorepo or polyglot requires extra roots.
+Default for new projects; adjust in §1 if monorepo or polyglot requires extra roots.
 
 | ID | Rule |
 |----|------|
-| **LAYOUT-01** | **No `src/` by default.** Production code lives under **`PACKAGE_ROOT`** at repository root (e.g. `<slug>/`, `app/`). Add `src/` only if §0 explicitly allows. |
+| **LAYOUT-01** | **No `src/` by default.** Production code lives under **`PACKAGE_ROOT`** at repository root (e.g. `<slug>/`, `app/`). Add `src/` only if §1 explicitly allows. |
 | **LAYOUT-02** | **Automated tests** under **`tests/`** (or profile path), mirroring package structure where helpful. |
 | **LAYOUT-03** | **Runtime logs** under **`logs/`** (gitignore by default); no secrets in tracked logs. |
 | **LAYOUT-04** | **Sample / non-secret configuration** under **`configs/`**; production secrets not in git. |
@@ -104,13 +88,12 @@ Default for new projects; adjust in §0 if monorepo or polyglot requires extra r
 
 Optional generated indices (if `USE_CODE_MAP` = yes): e.g. `code_analysis/` — name in profile.
 
-**Also read for this repo:** [`docs/agents/project_overlay.md`](agents/project_overlay.md). **Section map:** [`docs/agents/universal_project_context.md`](agents/universal_project_context.md). **Planning / adapter commands:** §8–§9.
-
+**Also read for this repo:** [`docs/agents/project_overlay.md`](agents/project_overlay.md). 
 ---
 
 ## 4. Naming conventions (`NAME-*`)
 
-**Default below = Python** (PEP 8). If `PRIMARY_LANGUAGE` is not Python, add a **§0 override row** or attach a short annex; until then, apply the closest idiomatic standard for that language.
+**Default below = Python** (PEP 8). If `PRIMARY_LANGUAGE` is not Python, add a **§1 override row** or attach a short annex; until then, apply the closest idiomatic standard for that language.
 
 | ID | Scope | Rule |
 |----|--------|------|
@@ -125,46 +108,21 @@ Optional generated indices (if `USE_CODE_MAP` = yes): e.g. `code_analysis/` — 
 | **NAME-09** | **Properties (`@property`)** | Same as public attributes: `snake_case`; avoid Java-style `get_foo()` **and** a `foo` property duplicating the same — pick one style per class. |
 | **NAME-10** | **Type aliases / TypeVars** | `PascalCase` for `TypeAlias` names; `TypeVar` names short `T`, `T_co`, or descriptive `PascalCase`. |
 | **NAME-11** | **Enums** | Class `PascalCase`; members `UPPER_SNAKE_CASE` if they behave as constants. |
-| **NAME-12** | **Markdown / docs filenames** | Use **`DOC_FILENAME_STYLE`** from §0 consistently (`design_notes.md` vs `design-notes.md`). |
-| **NAME-13** | **Config keys (JSON/YAML)** | `snake_case` keys unless integrating an external schema that requires another convention (then document in §0). |
+| **NAME-12** | **Markdown / docs filenames** | Use **`DOC_FILENAME_STYLE`** from §1 consistently (`design_notes.md` vs `design-notes.md`). |
+| **NAME-13** | **Config keys (JSON/YAML)** | `snake_case` keys unless integrating an external schema that requires another convention (then document in §1). |
 
 ---
 
-## 5. Anti-patterns (naming & layout)
+## 5. Anti-patterns
 
 - Mixed `camelCase` / `snake_case` for Python **module-level** public APIs without documented reason.
 - Generic names: `data`, `info`, `handle`, `manager` without qualifier.
 - Abbreviations only clear to one author (`usr_mgr_cfg`); prefer readable length over cryptic short names.
-- Test files that do not start with `test_` (pytest discovery) unless configured otherwise in §0.
+- Test files that do not start with `test_` (pytest discovery) unless configured otherwise in §1.
 
 ---
 
-## 6. Where to duplicate in tooling
-
-- Prefer **one line** in IDE User Rules: “Follow `docs/PROJECT_RULES.md` IDs; fill §0 profile.”
-- Keep **5–10 line** emergency checklist in User Rules only if files are not always loaded.
-
----
-
-## 7. Filled profile — this repository
-
-| Key | Value |
-|-----|-------|
-| `PROJECT_SLUG` | `mcp_terminal` |
-| `PRIMARY_LANGUAGE` | `Python` (OpenAPI + MCP proxy; `requires-python` ≥ 3.12 in `pyproject.toml`) |
-| `PACKAGE_ROOT` | `mcp_terminal/` |
-| `TEST_FRAMEWORK` | `pytest` |
-| `VENV_DIR` | `.venv` |
-| `CHAT_LOCALE` | `ru` (user preference) |
-| `ARTIFACT_LOCALE` | `en` |
-| `HEADER_AUTHOR` | `Vasiliy Zdanovskiy` |
-| `HEADER_EMAIL` | `vasilyvz@gmail.com` |
-| `DOC_FILENAME_STYLE` | `snake_case` (existing `docs/` may mix legacy names) |
-| `USE_CODE_MAP` | `no` (no `code_analysis/` index for this repo until application code exists) |
-
----
-
-## 8. Development planning (`PLAN-*`)
+## 6. Development planning (`PLAN-*`)
 
 Applies when **authoring**, **verifying**, **decomposing**, or **implementing** work that uses this repository’s plan hierarchy (`docs/plans/...` per [`plan_standard_machine.yaml`](planning/plan_standard_machine.yaml), or an equivalent `docs/tech_spec/...` tree if the task explicitly uses that layout).
 
@@ -180,7 +138,7 @@ Orchestrators and tactical agents should load **PLAN-01** first, then **PLAN-02*
 
 ---
 
-## 9. MCP adapter commands (`ADP-*`)
+## 7. MCP adapter commands (`ADP-*`)
 
 Applies to **new or edited** MCP command modules under **`mcp_terminal/commands/`** (and split `*_schema.py` / `*_metadata.py` siblings), and when changing the standard itself.
 
