@@ -71,9 +71,9 @@ CODE_ANALYSIS_CONFIG_DEFAULTS: Dict[str, Any] = {
     "timeout_seconds": 30,
     "watch_dir_index": 0,
     "ssl": {
-        "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-        "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-        "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+        "cert": "../mtls_certificates/client/mcp-proxy.crt",
+        "key": "../mtls_certificates/client/mcp-proxy.key",
+        "ca": "../mtls_certificates/ca/ca.crt",
         "crl": None,
         "dnscheck": False,
         "check_hostname": False,

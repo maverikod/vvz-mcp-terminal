@@ -115,28 +115,30 @@ def default_config_path() -> Path:
     return default_term_server_config_path()
 
 
-def ensure_code_analysis_mtls_layout_symlinks() -> None:
+def ensure_flat_mtls_layout() -> None:
     """
-    Ensure ``mtls_certificates/mtls_certificates/{client,ca}/`` exists like code_analysis.
+    Ensure the flat ``mtls_certificates/{client,ca}/`` layout referenced by configs.
 
-    Symlinks point at the flat ``mtls_certificates/client/mcp-proxy.*`` and ``ca/ca.crt``
-    so paths in ``term_server.defaults.json`` resolve from ``configs/``.
+    Legacy trees carried a nested ``mtls_certificates/mtls_certificates/`` copy of the
+    same material; when only the nested files exist, copy them up so flat paths resolve.
+    Never overwrites existing flat files.
     """
     mtls_root = mtls_dir()
     nested = mtls_root / "mtls_certificates"
-    client = nested / "client"
-    ca_dir = nested / "ca"
-    client.mkdir(parents=True, exist_ok=True)
-    ca_dir.mkdir(parents=True, exist_ok=True)
-    flat_client = mtls_root / "client"
-    flat_ca = mtls_root / "ca" / "ca.crt"
-    for name in ("mcp-proxy.crt", "mcp-proxy.key"):
-        target = client / name
-        if (flat_client / name).is_file() and not target.exists() and not target.is_symlink():
-            target.symlink_to(Path("..") / ".." / "client" / name)
-    ca_link = ca_dir / "ca.crt"
-    if flat_ca.is_file() and not ca_link.exists() and not ca_link.is_symlink():
-        ca_link.symlink_to(Path("..") / ".." / "ca" / "ca.crt")
+    if not nested.is_dir():
+        return
+    for rel in (
+        Path("client") / "mcp-proxy.crt",
+        Path("client") / "mcp-proxy.key",
+        Path("ca") / "ca.crt",
+    ):
+        flat = mtls_root / rel
+        legacy = nested / rel
+        if flat.is_file() or not legacy.is_file():
+            continue
+        flat.parent.mkdir(parents=True, exist_ok=True)
+        flat.write_bytes(legacy.read_bytes())
+        flat.chmod(legacy.stat().st_mode & 0o777)
 
 
 def load_validated_term_simple_config(path: Path) -> tuple[SimpleConfig, SimpleConfigModel]:
@@ -175,7 +177,7 @@ def ensure_term_server_config(
     Always validates the file at the end (same idea as ``code_analysis`` loading +
     ``SimpleConfigValidator``).
     """
-    ensure_code_analysis_mtls_layout_symlinks()
+    ensure_flat_mtls_layout()
     path = default_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 

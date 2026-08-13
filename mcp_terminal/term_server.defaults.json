@@ -22,9 +22,9 @@
     "enabled": false,
     "protocol": "https",
     "ssl": {
-      "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-      "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-      "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+      "cert": "../mtls_certificates/client/mcp-proxy.crt",
+      "key": "../mtls_certificates/client/mcp-proxy.key",
+      "ca": "../mtls_certificates/ca/ca.crt",
       "crl": null,
       "dnscheck": false,
       "check_hostname": false
@@ -48,9 +48,9 @@
     "auto_on_startup": true,
     "auto_on_shutdown": true,
     "ssl": {
-      "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-      "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-      "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+      "cert": "../mtls_certificates/client/mcp-proxy.crt",
+      "key": "../mtls_certificates/client/mcp-proxy.key",
+      "ca": "../mtls_certificates/ca/ca.crt",
       "crl": null,
       "dnscheck": false,
       "check_hostname": false
@@ -115,9 +115,9 @@
     "timeout_seconds": 30,
     "watch_dir_index": 0,
     "ssl": {
-      "cert": "../mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-      "key": "../mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-      "ca": "../mtls_certificates/mtls_certificates/ca/ca.crt",
+      "cert": "../mtls_certificates/client/mcp-proxy.crt",
+      "key": "../mtls_certificates/client/mcp-proxy.key",
+      "ca": "../mtls_certificates/ca/ca.crt",
       "crl": null,
       "dnscheck": false,
       "check_hostname": false

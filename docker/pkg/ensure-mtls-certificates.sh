@@ -18,9 +18,22 @@ required_paths() {
   printf '%s\n' \
     "${MTLS_DIR}/server/mcp-proxy.pem" \
     "${MTLS_DIR}/ca/ca.crt" \
-    "${MTLS_DIR}/mtls_certificates/client/mcp-proxy.crt" \
-    "${MTLS_DIR}/mtls_certificates/client/mcp-proxy.key" \
-    "${MTLS_DIR}/mtls_certificates/ca/ca.crt"
+    "${MTLS_DIR}/client/mcp-proxy.crt" \
+    "${MTLS_DIR}/client/mcp-proxy.key"
+}
+
+# Legacy trees kept a nested mtls_certificates/ copy of the client/CA material.
+# Copy nested files up when the flat ones are missing; never overwrite.
+migrate_legacy_nested() {
+  local nested="${MTLS_DIR}/mtls_certificates"
+  [ -d "$nested" ] || return 0
+  local rel
+  for rel in client/mcp-proxy.crt client/mcp-proxy.key ca/ca.crt; do
+    if [ ! -f "${MTLS_DIR}/${rel}" ] && [ -f "${nested}/${rel}" ]; then
+      install -D "${nested}/${rel}" "${MTLS_DIR}/${rel}"
+      echo "[mcp-terminal-docker] Migrated legacy nested ${rel} to flat layout"
+    fi
+  done
 }
 
 all_present() {
@@ -47,11 +60,8 @@ ensure_layout() {
     install -d -m 0750 -o root -g "$GROUP" "${MTLS_DIR}/ca"
     install -d -m 0750 -o root -g "$GROUP" "${MTLS_DIR}/server"
     install -d -m 0750 -o root -g "$GROUP" "${MTLS_DIR}/client"
-    install -d -m 0750 -o root -g "$GROUP" "${MTLS_DIR}/mtls_certificates/client"
-    install -d -m 0750 -o root -g "$GROUP" "${MTLS_DIR}/mtls_certificates/ca"
   else
-    mkdir -p "${MTLS_DIR}/ca" "${MTLS_DIR}/server" "${MTLS_DIR}/client" \
-      "${MTLS_DIR}/mtls_certificates/client" "${MTLS_DIR}/mtls_certificates/ca"
+    mkdir -p "${MTLS_DIR}/ca" "${MTLS_DIR}/server" "${MTLS_DIR}/client"
   fi
 }
 
@@ -101,8 +111,6 @@ generate_server() {
 generate_client() {
   local flat_key="${MTLS_DIR}/client/mcp-proxy.key"
   local flat_crt="${MTLS_DIR}/client/mcp-proxy.crt"
-  local nested_key="${MTLS_DIR}/mtls_certificates/client/mcp-proxy.key"
-  local nested_crt="${MTLS_DIR}/mtls_certificates/client/mcp-proxy.crt"
   echo "[mcp-terminal-docker] Generating client certificate (CN=${CLIENT_CN})"
   openssl genrsa -out "$flat_key" 2048
   chmod 600 "$flat_key"
@@ -123,9 +131,6 @@ generate_client() {
         'DNS.2 = localhost'
     )
   rm -f "${MTLS_DIR}/client/mcp-proxy.csr"
-  install -m 644 "$flat_crt" "$nested_crt"
-  install -m 640 -o root -g "$GROUP" "$flat_key" "$nested_key"
-  ln -sf "../../ca/ca.crt" "${MTLS_DIR}/mtls_certificates/ca/ca.crt"
 }
 
 fix_permissions() {
@@ -144,6 +149,7 @@ main() {
     return 0
   fi
   ensure_layout
+  migrate_legacy_nested
   if all_present; then
     echo "[mcp-terminal-docker] mTLS material already present under ${MTLS_DIR}"
     fix_permissions

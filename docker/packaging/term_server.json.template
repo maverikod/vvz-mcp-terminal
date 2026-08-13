@@ -42,9 +42,9 @@
     "enabled": false,
     "protocol": "https",
     "ssl": {
-      "cert": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-      "key": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-      "ca": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/ca/ca.crt",
+      "cert": "/etc/mcp-terminal/mtls_certificates/client/mcp-proxy.crt",
+      "key": "/etc/mcp-terminal/mtls_certificates/client/mcp-proxy.key",
+      "ca": "/etc/mcp-terminal/mtls_certificates/ca/ca.crt",
       "crl": null,
       "dnscheck": false,
       "check_hostname": false
@@ -53,7 +53,7 @@
   "registration": {
     "_doc": [
       "Registers this term server with mcp-proxy-adapter.",
-      "ssl.ca must trust the proxy; use MCP-Proxy CA paths under mtls_certificates/mtls_certificates/.",
+      "ssl.ca must trust the proxy; use MCP-Proxy CA paths under mtls_certificates/.",
       "register_url/unregister_url/heartbeat.url default to the mcp-proxy published on the docker",
       "host gateway (172.18.0.1:3004) of the smart-assistant docker network; override if the proxy",
       "is reachable at a different address.",
@@ -78,9 +78,9 @@
     "auto_on_startup": true,
     "auto_on_shutdown": true,
     "ssl": {
-      "cert": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-      "key": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-      "ca": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/ca/ca.crt",
+      "cert": "/etc/mcp-terminal/mtls_certificates/client/mcp-proxy.crt",
+      "key": "/etc/mcp-terminal/mtls_certificates/client/mcp-proxy.key",
+      "ca": "/etc/mcp-terminal/mtls_certificates/ca/ca.crt",
       "crl": null,
       "dnscheck": false,
       "check_hostname": false
@@ -294,9 +294,9 @@
     "timeout_seconds": 30,
     "watch_dir_index": 0,
     "ssl": {
-      "cert": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.crt",
-      "key": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/client/mcp-proxy.key",
-      "ca": "/etc/mcp-terminal/mtls_certificates/mtls_certificates/ca/ca.crt",
+      "cert": "/etc/mcp-terminal/mtls_certificates/client/mcp-proxy.crt",
+      "key": "/etc/mcp-terminal/mtls_certificates/client/mcp-proxy.key",
+      "ca": "/etc/mcp-terminal/mtls_certificates/ca/ca.crt",
       "crl": null,
       "dnscheck": false,
       "check_hostname": false
