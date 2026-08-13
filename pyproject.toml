@@ -12,7 +12,7 @@ authors = [
   { name = "Vasiliy Zdanovskiy", email = "vasilyvz@gmail.com" },
 ]
 dependencies = [
-  "mcp-proxy-adapter>=8.10.18,<9",
+  "mcp-proxy-adapter>=8.10.25,<9",
   "code-analysis-client>=1.0.0,<2",
 ]
 
