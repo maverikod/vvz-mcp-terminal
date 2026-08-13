@@ -58,7 +58,9 @@
       "host gateway (172.18.0.1:3004) of the smart-assistant docker network; override if the proxy",
       "is reachable at a different address.",
       "server_id / metadata.server_id ship with the -vvz host suffix used on the current production",
-      "host (192.168.254.26); rename to match the local host when installing elsewhere."
+      "host (192.168.254.26); rename to match the local host when installing elsewhere.",
+      "Do not add a version field here: the server injects the package version into",
+      "registration metadata at startup, so pyproject.toml stays the single version source."
     ],
     "enabled": true,
     "protocol": "https",
@@ -70,8 +72,7 @@
     "metadata": {
       "server_id": "mcp-terminal-vvz",
       "server_name": "MCP Terminal",
-      "description": "Sandboxed terminal sessions per project: Docker session containers (terminal_run), optional real-host SSH allowlist (terminal_host_exec), shell_state.json (persistent cwd), keep_container for multi-step work.",
-      "version": "@VERSION@"
+      "description": "Sandboxed terminal sessions per project: Docker session containers (terminal_run), optional real-host SSH allowlist (terminal_host_exec), shell_state.json (persistent cwd), keep_container for multi-step work."
     },
     "instance_uuid": "REPLACE_ON_INSTALL",
     "auto_on_startup": true,

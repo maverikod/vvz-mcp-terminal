@@ -6,4 +6,6 @@ Author: Vasiliy Zdanovskiy
 Email: vasilyvz@gmail.com
 """
 
-__version__ = "0.1.47"
+from mcp_terminal.package_info import package_version as _package_version
+
+__version__ = _package_version()

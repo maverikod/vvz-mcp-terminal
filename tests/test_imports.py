@@ -12,9 +12,10 @@ import importlib
 
 def test_package_version() -> None:
     import mcp_terminal
+    from mcp_terminal.package_info import package_version
 
     assert hasattr(mcp_terminal, "__version__")
-    assert mcp_terminal.__version__
+    assert mcp_terminal.__version__ == package_version()
 
 
 def test_mcp_proxy_adapter_importable() -> None:
