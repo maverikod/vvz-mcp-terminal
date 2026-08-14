@@ -8,10 +8,52 @@ variables:
   verification: required
 
 laws:
+  contract_scope: >-
+    [TRIGGER: first action and any discovered role/agent definition] THIS contract is `AGENTS.md`
+    plus the adjacent `codex/` package only. `CLAUDE.md`, `claude/`, `.cursor/agents/`,
+    `docs/agents/`, `docs/PROJECT_RULES.md`, and similar files are another runtime's contract
+    or historical artifacts: do not adopt their gates, protocols, precedence, or required-agent
+    rules. Read them only when explicitly tasked; ask which contract applies before treating one
+    as governing.
+  role_names_are_stages_not_agent_types: >-
+    [TRIGGER: a role appears to require spawning] `orchestrator`, `researcher`,
+    `context_former`, `coder`, `tester`, and `conscience` are stage disciplines, not
+    required runtime agent types. One session may perform every stage. A missing role type is never
+    a blocker: run the stage in-session. Foreign role names likewise do not apply; real blockers
+    are missing evidence/access, a failed gate, or a user-only decision.
+  project_boundary: >-
+    [TRIGGER: first task action and every action outside the home project] The one home project is
+    the project that started the session and is named in this bundle profile. Its checkout, CAS
+    project, artifacts, and deployed service are inside; the agent has full developer authority.
+    Its deployment host is part of its development process: root work on this project's own build,
+    deploy, restart, and live pipeline is ordinary work. The boundary is OWNERSHIP, not privilege.
+    Every other project and infrastructure it owns is strictly read-only on every host/surface:
+    never make a foreign fix, write/migrate/truncate its data, or restart its service. Register a
+    foreign defect in Plan Manager with evidence and proposed change, report it, then continue
+    without it or state the blocker. Treat unclear ownership as outside until clarified.
+  branch_sync_after_every_step: >-
+    [TRIGGER: every completed commit, merge, release branch/tag, deployment, or accepted agent
+    branch] Synchronization is the agent's duty: push the branch just moved to `origin`, bring
+    the opposite site to that same commit, and verify both the remote ref and other site's commit.
+    Do not wait for the user to push or leave a branch merely prepared locally. Never force-push or
+    rewrite published history; resolve non-fast-forward by merging under `branch_discipline`. On
+    failed push/pull stop and report the exact command/error; do not continue unsynchronized.
+  service_packaging_standard: >-
+    [TRIGGER: packaging/deploying/creating a service, or touching Dockerfile, Debian package,
+    postinst, settings/config, argument surface, networks, systemd, or live pipeline] Read
+    `docs/service_packaging_standard.md` first; if absent, read the `ai-editor` reference
+    read-only and add a local copy. Binding minimum: only image, `<svc>-docker` deb, and
+    `/etc/default/<svc>` conffile; no host config in image or package keys; idempotent
+    package-owned secure non-root service setup; `${SVC_*}` templates with unresolved-placeholder
+    preflight; atomic live `set`/`show`; Docker names/aliases not IPs verified inside container;
+    rollback-ready deployment; and real proof of health/version, package import, permissions, DNS,
+    and green live pipeline. Auto-discovered schema-driven checks report DECLARED BUT UNTESTED,
+    unreachable service RED, and isolate destructive checks in a cleaned sandbox project.
   active_profile_declaration: >-
     [TRIGGER: first action of any task] `variables.file_access` decides where work happens and
     which tools are legitimate. Read it before the first project action and state the active
-    profile. The default is `local`; only the user may change it. Never infer a switch or switch
+    profile in the opening message. The default is `local`; only the user may change it. Never
+    infer a switch or switch
     after a tool failure. If the value is missing or unreadable, stop and ask.
   local_workspace_truth: >-
     Under `local`, the local checkout is the source of truth. Under `cas`, the registered
@@ -21,9 +63,9 @@ laws:
     transfer-only. Work only on the branch for the active site. Never edit `main` directly and
     never merge `local` directly with `cas`. Synchronize `main` into the active branch before
     work. Build, deploy, and run live acceptance from the active branch. Only after live
-    verification is green, merge that branch into local `main`; do not push it. Report the ready
-    commit and wait for explicit user confirmation. The opposite site then pulls `main` through
-    its authoritative Git surface, verifies the commit, and merges it into its own work branch.
+    verification is green, merge that branch into local `main`, push it, and synchronize the
+    opposite site through its authoritative Git surface as required by
+    `branch_sync_after_every_step`.
   parallel_agent_isolation: >-
     [TRIGGER: launching more than one writing agent] Concurrent agents never share a working
     tree or branch. In a local profile, give each agent a dedicated `git worktree` and branch.
@@ -32,18 +74,25 @@ laws:
     acceptance: merge into the active branch, resolve conflicts there, and re-run `pipeline` on
     the merged result. Discard rejected work without a partial merge. Parallel writing is normal,
     but this law never relaxes tester, conscience, zero-trust, or orchestrator acceptance gates.
+    The same branch must never be checked out in two worktrees. Remove a worktree only after its
+    accepted merge has been re-verified; discard rejected work with its worktree and no partial
+    merge.
   local_mode: >-
     [active when variables.file_access=local] Reads, edits, tests, builds, and release
     preparation use the local checkout on `local`. MCP Proxy is only for analysis and
     CAS-authoritative Git sync: never use it to execute a build, test, or deploy script, edit a
-    file, or enter a terminal sandbox/host-exec path for ordinary work.
+    file, or enter a terminal sandbox/host-exec path for ordinary work. HARD RULE (no exceptions):
+    EVERY script — build, test, and deploy runners alike — and every file edit use LOCAL tools on
+    the local checkout.
   cas_mode: >-
     [active when variables.file_access=cas] All project reads, edits, verification, and Git
-    target the registered CAS project on `cas` through MCP Proxy. Never fall back to local tools.
+    target the registered CAS project on `cas` through MCP Proxy. Never fall back to local tools;
+    if the server-side path is unavailable, stop and escalate.
   local_ide_mode: >-
     [active when variables.file_access=local_ide] The human edits local files through the IDE.
-    The agent only supplies proposed patches or diffs; CAS via MCP Proxy remains available for
-    search and analysis. Branch rules follow the `local` branch-discipline clause.
+    The agent NEVER edits project files and only supplies proposed patches or diffs; CAS via MCP
+    Proxy remains available for search and analysis. Branch rules follow the `local`
+    branch-discipline clause.
   no_assumption_policy: >-
     Do not claim behavior, architecture intent, or test status without repository evidence.
   inspect_before_edit: >-

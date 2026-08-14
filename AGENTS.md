@@ -12,6 +12,11 @@ start of a task:
 Do not delegate reading or interpretation of those files. Resolve every
 relative prompt-package reference against `codex/`.
 
+- This contract is `AGENTS.md` plus `codex/` only; Claude and historical role packs do not govern.
+- Role names are stages, not required agent types: a missing spawn type is never a blocker.
+- One home project owns the session. Its deploy host is ordinary development scope for that project's
+  own service, including root access; every other project is read-only — see `laws.project_boundary`.
+
 ## Project profile
 
 - Project: `mcp-terminal`
